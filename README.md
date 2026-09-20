@@ -18,6 +18,7 @@ Pre-development. See [`CLAUDE.md`](CLAUDE.md) (local, git-ignored) for live stat
 | [docs/SRS.md](docs/SRS.md) | Software Requirements Specification — functional & non-functional requirements |
 | [docs/SYSTEM_DESIGN.md](docs/SYSTEM_DESIGN.md) | Architecture, data model, API design, sequence flows, security model |
 | [docs/adr/](docs/adr/) | Architecture Decision Records — the "why" behind each major technical choice |
+| [docs/EXECUTION_PLAN.md](docs/EXECUTION_PLAN.md) | The build order — phases and steps, checked off as work lands |
 | [Dev_Journal.md](Dev_Journal.md) | Chronological log of completed work, one entry per commit |
 
 ## Stack (v1)
