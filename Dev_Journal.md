@@ -4,6 +4,20 @@ One entry per committed step, newest first. Each entry: what was done, why, how 
 
 ---
 
+## 2026-09-20 — Testing harness: Jest + RNTL (Execution Plan step 0.6)
+
+**What**: Wrote [docs/TESTING_STRATEGY.md](docs/TESTING_STRATEGY.md) via `engineering:testing-strategy` — a coverage-by-layer table (unit tests for business logic like streak derivation and audio session state, component tests for critical UI interactions, RLS integration tests deferred to Phase 1 when the schema exists, no full E2E device automation for v1) rather than just bolting on Jest with no plan. Installed `jest-expo`, `jest`, `@testing-library/react-native`, `@types/jest` as devDependencies; configured Jest via the `jest-expo` preset in `package.json`; added `test`/`test:watch` scripts. Wrote one real (not vacuous) test — `app/index.test.tsx` renders the actual placeholder screen and asserts its text — proving the harness works against real app code rather than a throwaway `expect(1+1).toBe(2)`.
+
+**Why**: Execution Plan step 0.6; the testing strategy doc exists so later phases know what kind of test to write for what kind of code, rather than re-deciding coverage philosophy ad hoc each time (supports NFR-501).
+
+**Verification / debugging note**: The first version of the test failed with a confusing `` `render` function has not been called `` error from the `@testing-library/react-native` `screen` singleton. Traced it to `@testing-library/react-native@14.0.1`'s `render()` now being `async` (its underlying `test-renderer` package requires an async `act()`), while the test called it synchronously — so `render()` returned an unresolved `Promise` and every subsequent query hit the library's not-yet-set default stub. Fixed by awaiting `render()`. Also had to add `"types": ["jest"]` to `tsconfig.json`'s `compilerOptions` — without it, `tsc --noEmit` didn't recognize Jest's global `describe`/`it`/`expect`. After both fixes: `npm run typecheck`, `npm run lint`, `npm run format:check`, and `npm test` all pass clean.
+
+**Note**: this step's own "verify" criterion in the Execution Plan says "test script runs green in CI," but CI doesn't exist until step 0.7 — a minor sequencing wrinkle in how the plan was originally written. Verified locally here; step 0.7 will be the first time this is confirmed running in an actual CI pipeline.
+
+**Commit**: _pending_
+
+---
+
 ## 2026-09-20 — Project config: ESLint, Prettier, Expo Router (Execution Plan step 0.5)
 
 **What**: Added [ADR-0006](docs/adr/0006-navigation-routing.md) deciding Expo Router over React Navigation for the app's routing, since step 0.5's folder structure and step 0.9's navigation shell both depend on that choice. Installed `expo-router` and its peer deps (`react-native-safe-area-context`, `react-native-screens`, `expo-linking`, `expo-constants`), added a `scheme` to `app.json` (needed for deep linking / future auth redirects), switched `package.json`'s `main` to `expo-router/entry`, and replaced `App.tsx`/`index.ts` with `app/_layout.tsx` (root `Stack`) and `app/index.tsx` (placeholder screen) — the `app/` directory is now the routing source of truth. Set up ESLint via `npx expo lint` (installs `eslint-config-expo`, generates `eslint.config.js`), added Prettier (`.prettierrc.json`, `.prettierignore` — deliberately excluding `*.md` since the hand-authored docs have deliberate table formatting Prettier would reflow) wired through `eslint-config-prettier` so the two tools don't fight over stylistic rules. Added `typecheck`, `format`, and `format:check` npm scripts alongside the existing `lint`. TypeScript strict mode was already on from the scaffold (`tsconfig.json` extends `expo/tsconfig.base` with `strict: true`) — confirmed rather than re-done. `components/`, `hooks/`, `lib/` are intentionally not pre-created empty; they'll appear when Phase 1+ steps give them real content (documented in ADR-0006's consequences).
