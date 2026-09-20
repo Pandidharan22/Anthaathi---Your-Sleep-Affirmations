@@ -4,6 +4,18 @@ One entry per committed step, newest first. Each entry: what was done, why, how 
 
 ---
 
+## 2026-09-20 — Supabase project wired up (Execution Plan step 0.8)
+
+**What**: User created the `anthaathi` Supabase project (dashboard, their account — project ref `bhynceimyfpyyrwfsfva`). Installed `@supabase/supabase-js`, plus its React Native-specific peers: `@react-native-async-storage/async-storage` (session persistence, needed for FR-102's "remain signed in across app restarts") and `react-native-url-polyfill` (Hermes' `URL` support is incomplete, and `supabase-js` needs it). Added `lib/supabase.ts` — a client singleton that fails fast with a clear error if the env vars are missing, rather than silently misbehaving. Added `.env.example` (committed, placeholders + comments explaining why the anon key is safe to embed client-side while `service_role` never is) and the real `.env` (git-ignored) with the actual project URL and anon key.
+
+**Why**: Execution Plan step 0.8, implementing the client-wiring part of [ADR-0002](docs/adr/0002-backend-platform.md). Getting the connection verified now, before any schema/auth work, means Phase 1 starts from a known-working baseline instead of debugging connectivity and business logic at the same time.
+
+**Verification**: `npm run typecheck`, `npm run lint`, `npm run format:check`, `npm test` all pass. Ran a throwaway Node script (not committed — written to the project root, executed, then deleted, since ESM import resolution needed it inside the project's `node_modules` tree) that called the real Supabase REST endpoint with the actual project credentials: `supabase.from('__connectivity_check__').select('*')` returned PostgREST's structured `PGRST205` ("table not found in schema cache") — proof that DNS, TLS, and anon-key authentication all worked end-to-end, since a bad URL or key would have failed differently (network error or 401, not a well-formed schema-level response). Confirmed `.env` is git-ignored (`git check-ignore -v .env`) both before writing the real key into it and again by grepping the staged diff for the actual URL/key substrings before commit — neither appears.
+
+**Commit**: _pending_
+
+---
+
 ## 2026-09-20 — CI pipeline (Execution Plan step 0.7)
 
 **What**: Added `.github/workflows/ci.yml` — a GitHub Actions workflow running `npm ci`, `npm run lint`, `npm run typecheck`, and `npm test` on every push to `master` and every PR into `master`.
