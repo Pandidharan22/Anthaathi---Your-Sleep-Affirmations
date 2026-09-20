@@ -25,7 +25,7 @@ Goal: a running, empty app with the right scaffolding — nothing user-facing ye
 - [x] **0.5** Base project config: ESLint, Prettier, TypeScript strict mode, folder structure (`app/`, `components/`, `lib/`, `hooks/`, etc.). Verify: `lint`/`typecheck` scripts pass on the empty scaffold.
 - [x] **0.6** Testing harness: Jest + React Native Testing Library, one trivial passing test. Use `engineering:testing-strategy` to decide the coverage approach up front (supports NFR-501). Verify: `test` script runs green in CI.
 - [x] **0.7** CI pipeline: GitHub Actions running lint + typecheck + test on every push. Verify: a deliberately broken PR/commit fails the pipeline, a clean one passes.
-- [ ] **0.8** Create the Supabase project (dashboard), wire `.env.example` + `.env` (git-ignored) for its URL/anon key — implements part of [ADR-0002](adr/0002-backend-platform.md). Verify: client can reach Supabase (a trivial auth-status check) with no secrets in git (`git log -p` spot check).
+- [x] **0.8** Create the Supabase project (dashboard), wire `.env.example` + `.env` (git-ignored) for its URL/anon key — implements part of [ADR-0002](adr/0002-backend-platform.md). Verify: client can reach Supabase (a trivial auth-status check) with no secrets in git (`git log -p` spot check).
 - [ ] **0.9** Navigation shell: routes/screens for Auth, Library, Player, Goals, Journal, Settings as placeholders (no logic yet). Verify: can navigate between all placeholder screens.
 - [ ] **0.10** Base design system: color tokens, typography, spacing, light/dark mode — use `design:design-system`. Verify: placeholder screens render correctly in both light and dark mode.
 
