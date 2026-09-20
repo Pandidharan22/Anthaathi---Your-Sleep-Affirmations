@@ -1,6 +1,5 @@
-import { Link } from 'expo-router';
-
 import { PlaceholderScreen } from '@/components/PlaceholderScreen';
+import { ThemedLink } from '@/components/ThemedLink';
 
 export default function SettingsScreen() {
   return (
@@ -8,7 +7,7 @@ export default function SettingsScreen() {
       title="Settings"
       description="Account, reminders, and app preferences will live here."
     >
-      <Link href="/auth">View auth screen (placeholder)</Link>
+      <ThemedLink href="/auth">View auth screen (placeholder)</ThemedLink>
     </PlaceholderScreen>
   );
 }

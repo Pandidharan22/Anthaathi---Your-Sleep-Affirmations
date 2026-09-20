@@ -27,7 +27,7 @@ Goal: a running, empty app with the right scaffolding — nothing user-facing ye
 - [x] **0.7** CI pipeline: GitHub Actions running lint + typecheck + test on every push. Verify: a deliberately broken PR/commit fails the pipeline, a clean one passes.
 - [x] **0.8** Create the Supabase project (dashboard), wire `.env.example` + `.env` (git-ignored) for its URL/anon key — implements part of [ADR-0002](adr/0002-backend-platform.md). Verify: client can reach Supabase (a trivial auth-status check) with no secrets in git (`git log -p` spot check).
 - [x] **0.9** Navigation shell: routes/screens for Auth, Library, Player, Goals, Journal, Settings as placeholders (no logic yet). Verify: can navigate between all placeholder screens.
-- [ ] **0.10** Base design system: color tokens, typography, spacing, light/dark mode — use `design:design-system`. Verify: placeholder screens render correctly in both light and dark mode.
+- [x] **0.10** Base design system: color tokens, typography, spacing, light/dark mode — use `design:design-system`. Verify: placeholder screens render correctly in both light and dark mode.
 
 **Phase 0 exit criteria**: empty-but-real app running on a device, CI green, Supabase reachable, no secrets committed, design tokens in place.
 
