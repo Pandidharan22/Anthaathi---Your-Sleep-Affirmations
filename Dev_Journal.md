@@ -4,6 +4,18 @@ One entry per committed step, newest first. Each entry: what was done, why, how 
 
 ---
 
+## 2026-09-20 — Navigation shell (Execution Plan step 0.9)
+
+**What**: Built the placeholder route structure per [SYSTEM_DESIGN.md §3](docs/SYSTEM_DESIGN.md#3-component-breakdown): a root `Stack` (`app/_layout.tsx`) holding a `(tabs)` group and a separate `auth` screen. The `(tabs)` group is a `Tabs` navigator with five screens — Library (the default/index tab), Player, Goals, Journal, Settings — each a placeholder referencing the FR- IDs it'll eventually implement. Added a shared `components/PlaceholderScreen.tsx` (title + description + optional children) rather than duplicating the same ~15-line View/Text boilerplate six times — a justified abstraction since there are six concrete call sites right now, not a hypothetical future one. Settings links to `/auth` and Auth links back to the tabs, so the shell demonstrates both within-tabs and cross-stack navigation. Removed the old top-level `app/index.tsx`/`index.test.tsx`, superseded by `app/(tabs)/index.tsx`. Added a `@/*` path alias to `tsconfig.json` (dropped `baseUrl`, which TypeScript 6 deprecates in this mode — `paths` alone resolves correctly under `moduleResolution: "bundler"`) since the app now has real nested route folders where relative imports would start accumulating `../../`.
+
+**Why**: Execution Plan step 0.9. Establishes the actual information architecture (tabs + auth) now, before Phase 1 fills in real logic, so later steps are adding behavior to an already-verified shell rather than building structure and logic at the same time.
+
+**Verification**: `typecheck`, `lint`, `format:check`, `test` all pass — added one component test for `PlaceholderScreen` itself (high-leverage since a bug there would affect all six screens) rather than testing every placeholder individually, or attempting full router-navigation testing infrastructure that isn't justified yet for screens with no real logic (see [TESTING_STRATEGY.md](docs/TESTING_STRATEGY.md)'s proportion-to-risk principle). Actual navigation was verified by driving the running app in the browser preview: clicked through all five tabs and confirmed each renders its correct placeholder text, clicked Settings' link to Auth and confirmed the header/content changed correctly (including the Stack-level title "Sign in"), then clicked Auth's "Continue to app" link and confirmed it returned to the Library tab. Full loop confirmed working, not just that each screen renders in isolation.
+
+**Commit**: _pending_
+
+---
+
 ## 2026-09-20 — Supabase project wired up (Execution Plan step 0.8)
 
 **What**: User created the `anthaathi` Supabase project (dashboard, their account — project ref `bhynceimyfpyyrwfsfva`). Installed `@supabase/supabase-js`, plus its React Native-specific peers: `@react-native-async-storage/async-storage` (session persistence, needed for FR-102's "remain signed in across app restarts") and `react-native-url-polyfill` (Hermes' `URL` support is incomplete, and `supabase-js` needs it). Added `lib/supabase.ts` — a client singleton that fails fast with a clear error if the env vars are missing, rather than silently misbehaving. Added `.env.example` (committed, placeholders + comments explaining why the anon key is safe to embed client-side while `service_role` never is) and the real `.env` (git-ignored) with the actual project URL and anon key.
