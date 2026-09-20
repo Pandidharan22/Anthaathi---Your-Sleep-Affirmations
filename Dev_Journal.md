@@ -12,4 +12,4 @@ One entry per committed step, newest first. Each entry: what was done, why, how 
 
 **Verification**: Manual review of `PROJECT_PLAN.md`, `.gitignore`, and `CLAUDE.md` contents for accuracy and completeness. No code yet, so no automated checks apply.
 
-**Commit**: _pending_
+**Commit**: `d29a599` — Initial project setup: plan, gitignore, dev journal
