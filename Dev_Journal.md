@@ -4,6 +4,18 @@ One entry per committed step, newest first. Each entry: what was done, why, how 
 
 ---
 
+## 2026-09-20 — Execution plan (phase-by-phase build order)
+
+**What**: Added `docs/EXECUTION_PLAN.md` — the authoritative, checkbox-tracked build order across all 7 phases (Foundations, Core Parity, Manifestation Features, AI Layer, Audio Studio Polish, Store Readiness, Monetization). Each step is scoped to be independently verifiable and committable, tagged with the FR-/NFR- requirement IDs it implements and the `engineering:`/`design:` skill to apply, with explicit phase exit criteria. Linked it from `README.md` and made it the "what's next" pointer in `CLAUDE.md`'s Current Status section.
+
+**Why**: `CLAUDE.md` rule 1 requires planning one step at a time before execution begins; this is that plan, made concrete and checkable rather than living only as a phase list in the PRD. It's also the mechanism that keeps a fresh session oriented without re-reading the whole codebase (rule 7) — the first unchecked box is always the next action.
+
+**Verification**: Re-ran the link/anchor verification script from the previous step against the full doc set (now including the execution plan) — all relative links and anchors resolve. Manually cross-checked every FR-/NFR- ID referenced in the plan against `docs/SRS.md` to confirm none are dangling.
+
+**Commit**: `6edfefd` — Add execution plan: phase-by-phase build order
+
+---
+
 ## 2026-09-20 — Formal documentation suite (PRD, SRS, System Design, ADRs)
 
 **What**: Replaced `PROJECT_PLAN.md` with a proper engineering documentation set: `docs/PRD.md` (problem statement, goals/non-goals, personas, MoSCoW-scoped v1 feature set, success metrics, risks, open questions), `docs/SRS.md` (functional requirements FR-101–FR-702 and non-functional requirements NFR-101–NFR-601, each traceable to a PRD goal), `docs/SYSTEM_DESIGN.md` (architecture diagram, component breakdown, data model/ERD, API design split between direct-client-to-Supabase and Edge-Function-mediated calls, three key sequence flows, security/privacy model, free-tier scaling analysis, failure modes, and an explicit "what we'd revisit as the system grows" section), and five ADRs in `docs/adr/` covering the mobile framework, backend platform, AI provider strategy, audio storage strategy, and monetization platform decisions — each with a real options-considered trade-off table, not just the chosen answer. Added a root `README.md` as the repo's entry point and doc index. Updated `CLAUDE.md` to point at the new doc set and to reference requirement IDs (FR-/NFR-) going forward instead of freeform feature descriptions.
