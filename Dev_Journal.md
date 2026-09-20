@@ -4,6 +4,18 @@ One entry per committed step, newest first. Each entry: what was done, why, how 
 
 ---
 
+## 2026-09-20 — CI pipeline (Execution Plan step 0.7)
+
+**What**: Added `.github/workflows/ci.yml` — a GitHub Actions workflow running `npm ci`, `npm run lint`, `npm run typecheck`, and `npm test` on every push to `master` and every PR into `master`.
+
+**Why**: Execution Plan step 0.7. Automates the same verification gate this project has been running manually before every commit, so it's enforced on every push rather than only when remembered locally.
+
+**Verification (the real kind, not simulated)**: Locally ran `npm ci` followed by the exact lint/typecheck/test sequence first — clean. Then pushed the workflow to `master` and confirmed on the actual GitHub Actions run (screenshot from the user, since this repo is private and inaccessible to an unauthenticated browser session) that the `verify` job succeeded in 47s across all steps. Then did the second half of the step's own success criterion — confirming a *broken* commit actually fails the pipeline, not just that a clean one passes — by creating a throwaway `ci-verify-broken` branch, adding a file with a deliberate TypeScript type error, confirming it failed `tsc --noEmit` locally, then opening a PR into `master` and confirming on GitHub that the `CI / verify` check failed ("1 failing check"). Closed the PR without merging, deleted the branch both locally and on the remote, confirmed `master`'s working tree is clean afterward.
+
+**Commit**: _pending_
+
+---
+
 ## 2026-09-20 — Testing harness: Jest + RNTL (Execution Plan step 0.6)
 
 **What**: Wrote [docs/TESTING_STRATEGY.md](docs/TESTING_STRATEGY.md) via `engineering:testing-strategy` — a coverage-by-layer table (unit tests for business logic like streak derivation and audio session state, component tests for critical UI interactions, RLS integration tests deferred to Phase 1 when the schema exists, no full E2E device automation for v1) rather than just bolting on Jest with no plan. Installed `jest-expo`, `jest`, `@testing-library/react-native`, `@types/jest` as devDependencies; configured Jest via the `jest-expo` preset in `package.json`; added `test`/`test:watch` scripts. Wrote one real (not vacuous) test — `app/index.test.tsx` renders the actual placeholder screen and asserts its text — proving the harness works against real app code rather than a throwaway `expect(1+1).toBe(2)`.
