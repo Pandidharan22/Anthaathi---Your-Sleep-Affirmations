@@ -3,6 +3,7 @@
     "name": "Anthaathi",
     "slug": "anthaathi",
     "version": "1.0.0",
+    "scheme": "anthaathi",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -20,6 +21,7 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": ["expo-router"]
   }
 }
