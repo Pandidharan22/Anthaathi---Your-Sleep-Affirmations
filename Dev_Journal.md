@@ -4,6 +4,18 @@ One entry per committed step, newest first. Each entry: what was done, why, how 
 
 ---
 
+## 2026-09-20 — Project config: ESLint, Prettier, Expo Router (Execution Plan step 0.5)
+
+**What**: Added [ADR-0006](docs/adr/0006-navigation-routing.md) deciding Expo Router over React Navigation for the app's routing, since step 0.5's folder structure and step 0.9's navigation shell both depend on that choice. Installed `expo-router` and its peer deps (`react-native-safe-area-context`, `react-native-screens`, `expo-linking`, `expo-constants`), added a `scheme` to `app.json` (needed for deep linking / future auth redirects), switched `package.json`'s `main` to `expo-router/entry`, and replaced `App.tsx`/`index.ts` with `app/_layout.tsx` (root `Stack`) and `app/index.tsx` (placeholder screen) — the `app/` directory is now the routing source of truth. Set up ESLint via `npx expo lint` (installs `eslint-config-expo`, generates `eslint.config.js`), added Prettier (`.prettierrc.json`, `.prettierignore` — deliberately excluding `*.md` since the hand-authored docs have deliberate table formatting Prettier would reflow) wired through `eslint-config-prettier` so the two tools don't fight over stylistic rules. Added `typecheck`, `format`, and `format:check` npm scripts alongside the existing `lint`. TypeScript strict mode was already on from the scaffold (`tsconfig.json` extends `expo/tsconfig.base` with `strict: true`) — confirmed rather than re-done. `components/`, `hooks/`, `lib/` are intentionally not pre-created empty; they'll appear when Phase 1+ steps give them real content (documented in ADR-0006's consequences).
+
+**Why**: Execution Plan step 0.5. The routing-library choice was elevated to its own ADR rather than an implicit pick, consistent with NFR-502 (every non-trivial architectural decision recorded before implementation) and the project's stated quality bar.
+
+**Verification**: `npm run typecheck` — clean. `npm run lint` — clean. `npm run format:check` — clean (after running `format` once to normalize `app.json`/`eslint.config.js`). Ran the app through the browser preview again on the new Expo Router entry point: confirmed via screenshot that the routing shell renders — Stack header showing the default "index" route title, placeholder text "Anthaathi — routing shell is live." visible — and the console log showed a clean mount with no errors (one benign "Disconnected from Metro" reconnect warning from the dev server restart, not an app error).
+
+**Commit**: _pending_
+
+---
+
 ## 2026-09-20 — Expo app scaffold (Execution Plan step 0.4)
 
 **What**: Scaffolded the app via `create-expo-app`'s `blank-typescript` template (into a temp directory first, then merged in), per [ADR-0001](docs/adr/0001-mobile-app-framework.md). Set `app.json`/`package.json` name/slug to Anthaathi and `userInterfaceStyle` to `automatic` (light/dark support, NFR-403). Added `react-dom`/`react-native-web` as a dev-only convenience so the app can be previewed in the browser pane on this machine, which has no iOS/Android simulator installed — mobile remains the only shipping target (ADR-0001 unchanged). Added `.claude/launch.json` wiring an `expo-web` preview config. Merged additional Expo-generated `.gitignore` entries (`.kotlin/`, `*.orig.*`, `.metro-health-check*`, `*.pem`, `*.tsbuildinfo`) into the existing file rather than overwriting it. Deliberately did not copy the scaffold's own `CLAUDE.md`/`AGENTS.md`/`LICENSE`/nested `.git` — those would have clobbered this repo's real instructions or nested a second git repo.
