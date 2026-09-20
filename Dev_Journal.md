@@ -4,6 +4,25 @@ One entry per committed step, newest first. Each entry: what was done, why, how 
 
 ---
 
+## 2026-09-20 — Design system: tokens, theming, light/dark mode (Execution Plan step 0.10, Phase 0 complete)
+
+**What**: Via `design:design-system`, defined the initial token set in `constants/theme.ts` — a night-leaning palette (deep warm-neutral darks, warm gold accent) with separate light/dark color sets, a typography scale, an 4px-based spacing scale, and border radii. Added `hooks/useThemeColors.ts` (reads `useColorScheme()`, returns the right token set) and wired `app/_layout.tsx` to theme the navigation chrome itself (header/tab bar background, text, border, tint) via `expo-router`'s own `ThemeProvider`/`DefaultTheme`/`DarkTheme`. Updated `PlaceholderScreen` to actually consume the tokens (background, text colors, spacing, typography) instead of default/unstyled values, so there's something real to verify rather than an unused token file.
+
+**Two real bugs found and fixed during this step, not just theory:**
+
+1. **`expo-router` + `@react-navigation/native` incompatibility.** Initially wired navigation theming by importing `ThemeProvider`/`DefaultTheme`/`DarkTheme` from `@react-navigation/native` directly (the previously-standard approach). This fails to bundle as of Expo SDK 56+: `expo-router` now vendors its own internal fork of React Navigation's theming and explicitly rejects being paired with the external package (confirmed via the actual Metro build error, not documentation — my working knowledge of this pattern was stale). Fixed by importing `ThemeProvider`/`DefaultTheme`/`DarkTheme` from `expo-router` itself (it re-exports them) and removing the `@react-navigation/native` dependency entirely.
+2. **Invisible link text in dark mode.** `expo-router`'s `Link` component renders with a literal black (`rgb(0,0,0)`) default text color that doesn't follow the app theme — confirmed via `getComputedStyle` in the browser, not just visual impression. Against the dark background this made the "Continue to app" / "View auth screen" links essentially unreadable. Fixed by adding `components/ThemedLink.tsx`, a thin wrapper applying `colors.primary` to every link — worth the small abstraction now (not premature) since Phase 1's real auth screens will introduce several more links (forgot password, create account, etc.) that would otherwise repeat the same defect.
+
+**Why**: Execution Plan step 0.10, the last step of Phase 0. Establishes the visual language now so Phase 1+ screens are styled consistently from the start rather than retrofitted later.
+
+**Verification**: `typecheck`, `lint`, `format:check`, `test` all pass. Drove the actual running app in the browser preview: confirmed light mode (warm off-white background, gold active-tab tint, correct header/surface colors) and dark mode (deep navy background, off-white text, same gold tint, readable throughout) via screenshots, including after fixing the black-link-text bug. One item flagged rather than silently accepted: the gold accent on the light background is legible but visually borderline for link-text contrast — not blocking, since a full WCAG contrast audit is already explicitly deferred to step 5.3 (`design:accessibility-review`), but noted here so it isn't forgotten by then.
+
+**Phase 0 is now complete**: running app (web preview, since this machine has no iOS/Android simulator), CI green on GitHub, Supabase reachable, no secrets committed, design tokens in place.
+
+**Commit**: _pending_
+
+---
+
 ## 2026-09-20 — Navigation shell (Execution Plan step 0.9)
 
 **What**: Built the placeholder route structure per [SYSTEM_DESIGN.md §3](docs/SYSTEM_DESIGN.md#3-component-breakdown): a root `Stack` (`app/_layout.tsx`) holding a `(tabs)` group and a separate `auth` screen. The `(tabs)` group is a `Tabs` navigator with five screens — Library (the default/index tab), Player, Goals, Journal, Settings — each a placeholder referencing the FR- IDs it'll eventually implement. Added a shared `components/PlaceholderScreen.tsx` (title + description + optional children) rather than duplicating the same ~15-line View/Text boilerplate six times — a justified abstraction since there are six concrete call sites right now, not a hypothetical future one. Settings links to `/auth` and Auth links back to the tabs, so the shell demonstrates both within-tabs and cross-stack navigation. Removed the old top-level `app/index.tsx`/`index.test.tsx`, superseded by `app/(tabs)/index.tsx`. Added a `@/*` path alias to `tsconfig.json` (dropped `baseUrl`, which TypeScript 6 deprecates in this mode — `paths` alone resolves correctly under `moduleResolution: "bundler"`) since the app now has real nested route folders where relative imports would start accumulating `../../`.
