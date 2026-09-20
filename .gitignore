@@ -23,6 +23,11 @@ expo-env.d.ts
 # Native build output (regenerated via `expo prebuild` / EAS — not hand-edited)
 ios/
 android/
+.kotlin/
+*.orig.*
+
+# Metro
+.metro-health-check*
 
 # Signing / credentials — must never be committed
 *.jks
@@ -41,6 +46,10 @@ credentials.json
 # OS junk
 .DS_Store
 Thumbs.db
+*.pem
+
+# TypeScript
+*.tsbuildinfo
 
 # Editors
 .vscode/
