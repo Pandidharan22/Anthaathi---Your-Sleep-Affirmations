@@ -21,7 +21,7 @@ Goal: a running, empty app with the right scaffolding — nothing user-facing ye
 - [x] **0.1** Decide product concept, name, tagline, scope
 - [x] **0.2** Write PRD, SRS, System Design doc, ADRs 0001–0005
 - [x] **0.3** Write this execution plan
-- [ ] **0.4** Scaffold the Expo app (TypeScript template) — implements [ADR-0001](adr/0001-mobile-app-framework.md). Verify: app builds and runs on at least one simulator/device.
+- [x] **0.4** Scaffold the Expo app (TypeScript template) — implements [ADR-0001](adr/0001-mobile-app-framework.md). Verify: app builds and runs on at least one simulator/device.
 - [ ] **0.5** Base project config: ESLint, Prettier, TypeScript strict mode, folder structure (`app/`, `components/`, `lib/`, `hooks/`, etc.). Verify: `lint`/`typecheck` scripts pass on the empty scaffold.
 - [ ] **0.6** Testing harness: Jest + React Native Testing Library, one trivial passing test. Use `engineering:testing-strategy` to decide the coverage approach up front (supports NFR-501). Verify: `test` script runs green in CI.
 - [ ] **0.7** CI pipeline: GitHub Actions running lint + typecheck + test on every push. Verify: a deliberately broken PR/commit fails the pipeline, a clean one passes.
