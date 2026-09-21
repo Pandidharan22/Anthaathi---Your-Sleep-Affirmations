@@ -38,7 +38,7 @@ Goal: a running, empty app with the right scaffolding — nothing user-facing ye
 Goal: the app is usable for its core purpose — record, organize, and loop-play your own voice — matching the reference app's core loop. Implements FR-101–FR-304.
 
 - [x] **1.1** Supabase schema + RLS migrations for `folders`, `affirmations` (metadata), matching [SYSTEM_DESIGN.md §4](SYSTEM_DESIGN.md#4-data-model). Verify: RLS policy test — user A cannot read/write user B's rows.
-- [ ] **1.2** Auth screens: sign up, sign in, sign out, persisted session. Implements FR-101–FR-103. Verify: manual test of all three flows + app-restart session persistence.
+- [x] **1.2** Auth screens: sign up, sign in, sign out, persisted session. Implements FR-101–FR-103. Verify: manual test of all three flows + app-restart session persistence.
 - [ ] **1.3** Local-first data layer: on-device SQLite + sync queue skeleton to Postgres — implements [ADR-0004](adr/0004-audio-storage-strategy.md). Verify: create a record offline, confirm it syncs once connectivity returns.
 - [ ] **1.4** Recording flow: mic capture, preview, discard/re-record, save. Implements FR-201–FR-202. Verify: manual record→save round trip on-device; mic permission rationale copy reviewed (NFR-204).
 - [ ] **1.5** Trim UI on a saved/pending recording. Implements FR-203.
