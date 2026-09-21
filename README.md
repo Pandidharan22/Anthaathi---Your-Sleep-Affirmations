@@ -2,13 +2,13 @@
 
 > Where old patterns end, new ones begin.
 
-Anthaathi is a mobile app for self-recorded sleep affirmations — record affirmations in your own voice, loop them to fall asleep to — extended with a manifestation and goal-tracking layer (vision boards, AI-assisted affirmation drafting, streaks, journaling). Built on a free-tier-first stack.
+Anthaathi is a mobile app for sleep affirmations, offering two modes — **Self-Recorded** (your own voice, looped to fall asleep to) and **AI Guided** (the same text narrated in a calm, on-device synthesized voice, male or female) — extended with a manifestation and goal-tracking layer (vision boards, AI-assisted affirmation drafting, streaks, journaling). Built on a free-tier-first stack.
 
 The name comes from the classical Tamil poetic form *Anthaathi* (அந்தாதி), where the last word of one verse becomes the first word of the next — an unbroken chain where every ending feeds the next beginning.
 
 ## Status
 
-Pre-development. See [`CLAUDE.md`](CLAUDE.md) (local, git-ignored) for live status, or [`Dev_Journal.md`](Dev_Journal.md) for the committed history of what's been built and why.
+Phase 0 (Foundations) complete; Phase 1 (Core Parity) starting next. See [`CLAUDE.md`](CLAUDE.md) (local, git-ignored) for live status, or [`Dev_Journal.md`](Dev_Journal.md) for the committed history of what's been built and why.
 
 ## Documentation
 
@@ -26,7 +26,7 @@ Pre-development. See [`CLAUDE.md`](CLAUDE.md) (local, git-ignored) for live stat
 - **Client**: React Native + Expo (TypeScript)
 - **Backend**: Supabase (Postgres, Auth, Storage, Edge Functions) — free tier
 - **AI text**: Gemini / Groq free-tier API, called server-side from an Edge Function
-- **AI voice (optional)**: self-hosted Piper/Coqui TTS
+- **AI voice**: native on-device TTS-to-file module (Android/iOS), no cloud TTS — [ADR-0007](docs/adr/0007-voice-synthesis-strategy.md)
 - **Monetization**: RevenueCat (deferred to post-MVP)
 
 Full rationale in [docs/adr/](docs/adr/).

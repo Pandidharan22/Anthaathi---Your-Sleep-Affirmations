@@ -68,15 +68,24 @@ Goal: the differentiator layer beyond the reference app. Implements FR-401–FR-
 
 ## Phase 3 — AI layer
 
-Goal: goal-to-affirmation drafting, without ever compromising the self-spoken principle or a secret key. Implements FR-501–FR-504, [ADR-0003](adr/0003-ai-provider-strategy.md).
+Goal: goal-to-affirmation text drafting (FR-501–FR-504, [ADR-0003](adr/0003-ai-provider-strategy.md)) and AI Guided voice sessions (FR-511–FR-516, [ADR-0007](adr/0007-voice-synthesis-strategy.md)), without ever compromising the self-spoken principle or a secret key.
 
+**Text drafting**
 - [ ] **3.1** Supabase Edge Function scaffold + provider secret stored server-side only. Verify: key is absent from the client bundle (grep the built artifact).
 - [ ] **3.2** `generate-affirmation` function: goal → draft text, per-user rate limiting. Implements FR-501, FR-504.
 - [ ] **3.3** Client integration: request draft → user edits/accepts → normal record flow. Implements FR-502 (never auto-narrated).
 - [ ] **3.4** Error/degradation handling for provider downtime or rate limits. Implements FR-503. Verify: simulate a 429/502 and confirm the app shows a clear error, not a crash.
-- [ ] **3.5** **Decision point**: ship the optional synthetic-voice (TTS) mode now or fast-follow post-launch — resolve the open question in [PRD.md §10](PRD.md#10-open-questions) before proceeding further in this phase.
 
-**Phase 3 exit criteria**: AI-assisted drafting works end-to-end and fails gracefully; core app is provably unaffected if the AI provider is unreachable.
+**AI Guided voice sessions (native, on-device — ADR-0007)**
+- [ ] **3.5** Set up `expo-dev-client` and an EAS development build profile — prerequisite; nothing below this can be tested via Expo Go or the web-preview workflow.
+- [ ] **3.6** Android native module (Kotlin): wrap `TextToSpeech.synthesizeToFile()`. Verify: synthesizes a known string to a playable WAV file on a real device/emulator.
+- [ ] **3.7** iOS native module (Swift): wrap `AVSpeechSynthesizer`'s buffer-writing API, assemble to a playable file. Verify: same check as 3.6, on a real device/simulator.
+- [ ] **3.8** Unify both behind one Expo Module JS interface: voice listing, `synthesize(text, voiceId) → local file path`. Implements FR-512, FR-513.
+- [ ] **3.9** Extend `affirmations` schema with `source`, `voice_id`, `script_text` (see [SYSTEM_DESIGN.md §4](SYSTEM_DESIGN.md#4-data-model)); wire caching/re-synthesis logic. Implements FR-514.
+- [ ] **3.10** Client integration: mode toggle (Self-Recorded / AI Guided) + voice picker, feeding into the same Library/Player as recordings. Implements FR-511, FR-515.
+- [ ] **3.11** Error/degradation handling for synthesis failure. Implements FR-516. Verify: simulate a synthesis failure and confirm a clear error, no crash, no partial file saved.
+
+**Phase 3 exit criteria**: AI-assisted text drafting works end-to-end and fails gracefully; AI Guided voice sessions generate, cache, and play through the standard Player exactly like a recording; core app is provably unaffected if either the LLM provider or on-device synthesis is unavailable.
 
 ---
 

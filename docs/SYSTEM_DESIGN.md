@@ -30,7 +30,13 @@ Full detail in [SRS.md](SRS.md). The requirements that most shape this design:
 │       └─────────────┴─────────────┴───────────┴────────────┘      │
 │                            │                                       │
 │                 Local storage (SQLite/MMKV + filesystem)           │
-│                 — recordings live here first, always                │
+│                 — recordings AND AI-synthesized audio live here     │
+│                                                                     │
+│  ┌───────────────────────────────────────────────────────────┐   │
+│  │  Native module: voice synthesis (Kotlin + Swift)            │   │
+│  │  device OS TTS engine → local audio file, no network         │   │
+│  │  (ADR-0007)                                                   │   │
+│  └───────────────────────────────────────────────────────────┘   │
 └────────────────────────────┬────────────────────────────────────┘
                               │ HTTPS (Supabase client SDK)
                               ▼
@@ -54,12 +60,6 @@ Full detail in [SRS.md](SRS.md). The requirements that most shape this design:
               │  Groq free tier)          │
               └──────────────────────────┘
 
-  Optional, deferred (see PRD open questions):
-  ┌──────────────────────────┐
-  │ Self-hosted Piper/Coqui   │  ← Cloud Run / HF Spaces free tier
-  │ TTS (synthetic voice mode)│
-  └──────────────────────────┘
-
   Post-MVP:
   ┌──────────────────────────┐
   │ RevenueCat (subscriptions)│  ← App Store / Play billing wrapper
@@ -75,6 +75,7 @@ Full detail in [SRS.md](SRS.md). The requirements that most shape this design:
 | Auth | Sign up/in/out, session persistence | Client (Supabase Auth SDK) |
 | Recorder | Mic capture, waveform preview, trim | Client (expo-av) |
 | Audio Studio | Layering ambience/music beds, mixing | Client (expo-av / ffmpeg-kit) |
+| Voice Synthesis | AI Guided Session narration: text → local audio file | Client (native module, on-device OS TTS engine — [ADR-0007](adr/0007-voice-synthesis-strategy.md)) |
 | Library | Folder/recording CRUD, list/search | Client + Postgres (metadata), local FS (audio) |
 | Player | Loop playback, sleep timer, background audio | Client (expo-av, background audio mode) |
 | Goals / Vision Board | Goal CRUD, image attachment | Client + Postgres + Storage (images) |
@@ -104,6 +105,11 @@ affirmations
   local_uri       text        -- path on device; source of truth for playback
   storage_path    text        -- nullable; set only if user opts into cloud backup
   duration_ms     integer
+  source          text        -- 'recorded' | 'ai_generated' (FR-511)
+  voice_id        text        -- nullable; which OS voice synthesized it, null for recordings
+  script_text     text        -- nullable; the text synthesized, null for recordings.
+                               -- kept so an ai_generated file can be re-synthesized if
+                               -- the text or voice changes (FR-514) without losing the script
   created_at      timestamptz
 
 goals
@@ -187,6 +193,21 @@ User → Recorder: records the (possibly edited) text in their own voice
                   [normal record-and-save flow from here]
 ```
 
+**AI Guided Session: generate once, cache, reuse (on-device, no network)**
+```
+User → Affirmation editor: choose "AI Guided" mode, pick a voice (male/female)
+Client → Native voice-synthesis module: synthesize(text, voiceId)
+Native module → Device OS TTS engine: request synthesis to file
+                 (Android: TextToSpeech.synthesizeToFile
+                  iOS: AVSpeechSynthesizer buffer-write, assembled to a file)
+Device OS TTS engine → Native module: local audio file
+Native module → Client: local file path
+Client → Local FS: save file
+Client → Local DB: insert affirmation row (source: 'ai_generated', voice_id, script_text)
+                    [same folder/Player/ambience integration as a recording from here — FR-515]
+(No network at any step. Re-synthesized only if script_text or voice_id changes - FR-514.)
+```
+
 **Nightly playback with sleep timer**
 ```
 User → Player: select affirmation(s) + folder, set timer
@@ -212,7 +233,7 @@ Local DB -- background sync --> Postgres: upsert playback_sessions row (streak s
 |---|---|---|
 | Supabase | ~500MB DB, ~1GB Storage, ~5GB egress/mo, 50k MAU (Auth) | DB/egress limits are the ones to watch; local-first design keeps Storage usage low. Upgrade path: Supabase Pro ($25/mo) — a monetization-funded expense, not a Phase 0–5 one. |
 | LLM provider (Gemini/Groq free tier) | Per-provider RPM/TPM caps, subject to change | Edge Function returns `429` → client shows "try again shortly" (FR-503); feature is non-critical so this never blocks core use |
-| Cloud Run (if TTS mode is built) | Generous always-free request/compute quota, scales to zero | Cold-start latency on first request after idle; acceptable for an optional feature |
+| Voice synthesis (on-device, ADR-0007) | None — runs entirely on the user's device, no shared quota at all | N/A; this is the one AI-adjacent feature with zero free-tier exposure |
 | Expo/EAS Build | Limited free builds/month | Batch builds deliberately; not a concern at solo-dev iteration speed |
 
 **Scaling path (explicitly out of scope until there's revenue or real multi-user load — noted here so it's not forgotten):** move DB-heavy read paths behind caching, evaluate Supabase Pro, revisit the LLM provider choice if usage patterns exceed free-tier design assumptions, consider a proper CDN for Storage-served images/audio.
@@ -230,6 +251,7 @@ Local DB -- background sync --> Postgres: upsert playback_sessions row (streak s
 | Recording interrupted (call, app killed) mid-record | Partial file discarded, user returned to pre-record state — no corrupt/incomplete affirmation ever saved |
 | Network unavailable during save | Local save succeeds (local-first); Postgres sync retried on next connectivity (background sync queue) |
 | LLM provider down or rate-limited | FR-503 — clear inline error, core app unaffected |
+| On-device voice synthesis fails (unsupported voice, OS TTS error) | FR-516 — clear inline error, user can retry or switch to Self-Recorded mode; no crash, no partial file saved |
 | Cloud-synced audio conflict (same affirmation edited on two devices) | Out of scope for v1 (single-device usage assumed for MVP); flagged here so it isn't silently ignored if multi-device becomes a real requirement |
 | App killed while playing (sleep timer active) | Expo background-audio task should survive backgrounding; if the OS kills the process, playback simply stops — acceptable degradation, no data loss since session log is written incrementally, not only at timer-end |
 
@@ -239,3 +261,4 @@ Local DB -- background sync --> Postgres: upsert playback_sessions row (streak s
 - **Streak computation**: recomputing from `playback_sessions` is fine at this row count; would need a materialized/cached value if the table grows into the tens of thousands of rows per user.
 - **Edge Function rate limiting**: a simple per-user counter is enough pre-launch; a real multi-user launch would want a proper rate-limiting layer (e.g. Upstash free tier) in front of the LLM call.
 - **Monetization integration**: RevenueCat is deferred entirely (see [ADR-0005](adr/0005-monetization-platform.md)) — not designed into the data model yet beyond leaving room for a future `subscriptions` table.
+- **Voice synthesis approach**: the native on-device module ([ADR-0007](adr/0007-voice-synthesis-strategy.md)) is accepted with its native-code cost explicitly. If it threatens the store-submission timeline, the self-hosted Piper/Coqui cloud approach is documented in that ADR as a ready fallback, not something to re-derive from scratch.

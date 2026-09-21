@@ -37,6 +37,7 @@ Anthaathi is a standalone mobile app (not a companion to any other product). It 
 ### 3.4 Design & implementation constraints
 - Free-tier infrastructure only through MVP (binds every requirement below — see [PRD.md §8](PRD.md#8-constraints--assumptions))
 - No secrets in client code; anything requiring an API key not safe to ship client-side must go through an Edge Function ([ADR-0003](adr/0003-ai-provider-strategy.md))
+- The AI Guided Session feature (§4.6) requires a native module and therefore a custom development build (`expo-dev-client`/EAS) — it cannot be verified via plain Expo Go or the web-preview workflow used for the rest of the app ([ADR-0007](adr/0007-voice-synthesis-strategy.md))
 
 ## 4. Functional requirements
 
@@ -73,13 +74,21 @@ Anthaathi is a standalone mobile app (not a companion to any other product). It 
 - **FR-503**: The system shall degrade gracefully (clear error state, no crash) if the AI provider is unavailable or a free-tier rate limit is hit.
 - **FR-504**: The AI drafting request shall be routed through a server-side function; no LLM API key shall be present in the client bundle.
 
-### 4.6 Streaks & journaling
+### 4.6 AI Guided Session (voice synthesis)
+- **FR-511**: The system shall allow a user to choose, per affirmation, between Self-Recorded (their own voice) and AI Guided (synthesized voice) modes.
+- **FR-512**: The system shall offer at least one male and one female voice option for AI Guided sessions.
+- **FR-513**: The system shall synthesize affirmation text to a local audio file on-device — never via a cloud TTS call — per [ADR-0007](adr/0007-voice-synthesis-strategy.md).
+- **FR-514**: The system shall cache the synthesized audio file after first generation and reuse it on subsequent playbacks, re-synthesizing only if the text or selected voice changes.
+- **FR-515**: An AI Guided affirmation shall integrate with the same Library, folder, Player, and ambience-layering experience as a self-recorded one (FR-204–FR-206, FR-301–FR-304) — no separate playback path.
+- **FR-516**: The system shall degrade gracefully (clear error state, no crash) if on-device voice synthesis fails, without affecting the rest of the app.
+
+### 4.7 Streaks & journaling
 - **FR-601**: The system shall track a daily streak counter, incremented once per calendar day on which the user completes at least one playback session.
 - **FR-602**: The system shall display the current streak and a visual growth metaphor (per [PRD.md §2](PRD.md#2-problem-statement), reinforcement loop).
 - **FR-603**: The system shall allow a user to create a journal entry, optionally against a daily prompt.
 - **FR-604**: The system shall allow a user to view past journal entries chronologically.
 
-### 4.7 Notifications
+### 4.8 Notifications
 - **FR-701**: The system shall allow a user to opt in to a daily local reminder notification at a user-chosen time.
 - **FR-702**: The system shall allow a user to disable reminders at any time.
 
@@ -121,6 +130,7 @@ Anthaathi is a standalone mobile app (not a companion to any other product). It 
 | Supabase Edge Functions | Client → Edge Function → LLM provider | Used for anything requiring a secret key (AI drafting) |
 | LLM provider (Gemini or Groq) | Edge Function → provider | Server-side only, never called from client |
 | Expo Push service | Client ↔ Expo | Local notifications for v1 (FR-701); remote push not required for MVP |
+| Device OS TTS engine (Android `TextToSpeech`, iOS `AVSpeechSynthesizer`) | Client (native module) → OS | On-device only, no network; see [ADR-0007](adr/0007-voice-synthesis-strategy.md) |
 | App Store / Google Play | Build/submission | EAS Build + store submission tooling |
 
 ## 7. Data requirements (high level)

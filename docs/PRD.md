@@ -11,6 +11,8 @@
 
 Anthaathi is a mobile app for recording and replaying self-spoken sleep affirmations, extended with a manifestation/goal-tracking layer. It targets people who already practice affirmations or want to start, and who believe (as the product does) that hearing a goal stated in your own voice, nightly, is a more effective habit-formation tool than a narrated meditation track.
 
+Alongside self-recorded affirmations, the app also offers an **AI Guided Session** mode — the same affirmation text read aloud in a calm, soothing voice (male/female choice), for users who don't want to record themselves. This is generated once per script and saved on-device, not streamed live — see [ADR-0007](adr/0007-voice-synthesis-strategy.md).
+
 The product is being built solo, on a free-tier-only budget, with two explicit outcomes: (1) a daily-use app for the author, and (2) a portfolio-quality, eventually monetized release.
 
 ## 2. Problem statement
@@ -62,9 +64,9 @@ Prioritized MoSCoW. Full functional detail in [SRS.md](SRS.md).
 - Ambience/music-bed layering in the audio studio
 - Manifestation journal with prompts
 - Local reminders/notifications
+- AI Guided Session mode: on-device text-to-speech narration of affirmation text, male/female voice choice, generated once and saved locally (see [ADR-0007](adr/0007-voice-synthesis-strategy.md))
 
 **Could have**
-- Optional synthetic-voice narration mode (self-hosted TTS)
 - Weekly goal check-in nudges
 
 **Won't have (v1)**
@@ -91,6 +93,7 @@ Post-launch (not v1-blocking): install count, D7 retention, streak-length distri
 - **Team**: solo developer (the author), assisted by Claude Code.
 - **Free-tier ceilings** (Supabase, LLM APIs, Cloud Run) are assumed sufficient for personal + early-portfolio-demo usage; they are not assumed sufficient at any meaningful scale. Revisit before any public marketing push — see [SYSTEM_DESIGN.md §8](SYSTEM_DESIGN.md#8-free-tier-limits--scaling-path).
 - **Voice recordings are sensitive personal data.** Product and technical decisions default to the more private option unless there's a clear reason not to (see [SRS.md §5.2](SRS.md#52-security--privacy)).
+- **AI Guided Session requires a custom development build.** The native TTS-to-file module means the app can no longer be tested via plain Expo Go or the web-preview workflow once that module exists — verification of this specific feature requires an `expo-dev-client`/EAS development build on a real device or emulator (see [ADR-0007](adr/0007-voice-synthesis-strategy.md)).
 
 ## 9. Risks
 
@@ -100,8 +103,10 @@ Post-launch (not v1-blocking): install count, D7 retention, streak-length distri
 | Solo-dev scope creep delays store submission | High | Medium | Strict MoSCoW scope, phased roadmap, no phase skipping |
 | App Store rejects app handling of microphone/voice data without clear privacy disclosure | Medium | High (blocks launch) | Privacy policy + explicit mic-permission rationale written before Phase 5 submission |
 | "Anthaathi" name collision with existing company (anthaathi.com) causes store/SEO confusion | Low–Medium | Medium | Accepted risk (see naming discussion in Dev_Journal); revisit if it becomes a real conflict post-launch |
+| Native TTS-to-file module (Kotlin + Swift) takes longer than a JS-only feature would, risking G5's timeline | Medium | Medium | Built as an isolated module behind a clean JS interface so it can be descoped to a fast-follow without blocking the rest of Phase 3 if it overruns |
 
 ## 10. Open questions
 
-- Does the synthetic-voice (TTS) mode ship as part of v1 or as a fast-follow? Leaning fast-follow to protect the store-submission timeline (tracked as an explicit decision point before Phase 3).
 - Exact subscription pricing/tiering — deferred to Phase 6, not blocking MVP.
+
+**Resolved**: the AI Guided Session (TTS) voice strategy was an open question as of the original draft. Decided: native on-device synthesis-to-file (not a cloud TTS call, not live-only OS speech) — see [ADR-0007](adr/0007-voice-synthesis-strategy.md). This means the feature requires real native code and a custom development-build workflow (`expo-dev-client`), which is a genuine scope/effort trade-off accepted deliberately — tracked as a risk in §9.
