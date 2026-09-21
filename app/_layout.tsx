@@ -1,8 +1,11 @@
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
+import { useEffect } from 'react';
 import { ActivityIndicator, StyleSheet, useColorScheme, View } from 'react-native';
 
 import { darkColors, lightColors } from '@/constants/theme';
 import { AuthProvider, useAuth } from '@/hooks/useAuth';
+import { useSyncQueue } from '@/hooks/useSyncQueue';
+import { installDebugTools } from '@/lib/devTools';
 
 const lightNavigationTheme = {
   ...DefaultTheme,
@@ -29,8 +32,14 @@ const darkNavigationTheme = {
 };
 
 function NavigationStack() {
-  const { session, loading } = useAuth();
+  const { session, loading, user } = useAuth();
   const colors = useColorScheme() === 'dark' ? darkColors : lightColors;
+
+  useSyncQueue(!!session);
+
+  useEffect(() => {
+    if (__DEV__) installDebugTools(user?.id ?? null);
+  }, [user?.id]);
 
   if (loading) {
     return (
