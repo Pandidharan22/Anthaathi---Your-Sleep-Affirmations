@@ -4,6 +4,26 @@ One entry per committed step, newest first. Each entry: what was done, why, how 
 
 ---
 
+## 2026-09-21 — AI Guided Session feature: on-device voice synthesis (new ADR-0007)
+
+**What**: Added a new v1 feature — **AI Guided Session** — affirmations narrated by a synthesized voice (male/female choice) as an alternative to Self-Recorded, generated once and cached as a local file so it fits the existing Player exactly like a recording. Researched three real implementation paths before deciding:
+
+1. `expo-speech` (Expo's OS-TTS wrapper) — inspected its actual TypeScript API directly rather than assuming: `speak()`, `getAvailableVoicesAsync()`, `isSpeakingAsync()`, `stop()`, `pause()`, `resume()`. Live-speech-only, no file-export method anywhere. Ruled out.
+2. Recording the live TTS playback through the microphone (the user's initial proposal) — ruled out on audio-quality grounds: speaker→mic round trip, possible echo-cancellation interference, device-hardware inconsistency. Not acceptable for a "calm and soothing" voice feature.
+3. **Chosen**: a custom native module wrapping each platform's actual file-synthesis capability — Android's `TextToSpeech.synthesizeToFile()`, iOS's `AVSpeechSynthesizer` buffer-writing API — unified behind one Expo Module JS interface. Fully on-device, $0 forever, no network, fits the file-based Player architecture with zero special-casing.
+
+Documented as [ADR-0007](docs/adr/0007-voice-synthesis-strategy.md), including a fourth option (self-hosted Piper/Coqui cloud TTS, what ADR-0003 had loosely assumed) as a documented fallback if the native module's engineering cost threatens the timeline.
+
+Updated the full doc set for consistency: `PRD.md` (new feature, moved from "Could-have" to "Should-have," new risk entry, resolved the old TTS-timing open question), `SRS.md` (new FR-511–FR-516 under a new §4.6, renumbered the old §4.6/§4.7 to §4.7/§4.8, new dev-build constraint in §3.4, new external-interface row), `SYSTEM_DESIGN.md` (new component row, `source`/`voice_id`/`script_text` columns on `affirmations`, new sequence flow, updated free-tier table, new failure-mode row, new §11 revisit note), `docs/adr/README.md` (index entry), and `EXECUTION_PLAN.md` (Phase 3 expanded from one decision-point step into 7 concrete steps: 3.5 dev-client setup, 3.6/3.7 the two native wrappers, 3.8 unified interface, 3.9 schema, 3.10 client integration, 3.11 error handling).
+
+**Why**: The user explicitly wants this as a real feature, not a maybe, and wants it genuinely on-device/free rather than cloud-hosted — consistent with the project's free-tier-first philosophy, but with real engineering cost (first native code in this project) that needed to be made explicit and deliberately accepted, not glossed over.
+
+**Verification**: This is a planning/documentation step — no code changes to verify at runtime. Verified via the same link/anchor-checking script used for the original doc suite (re-run against the full doc set after the SRS section renumbering and new cross-references) — all links and anchors resolve. Manually cross-checked the new FR-511–FR-516 IDs against FR-501–FR-504 for collisions — none; range left deliberately open (505–510) matching the gap pattern already used elsewhere in the spec.
+
+**Commit**: _pending_
+
+---
+
 ## 2026-09-20 — Design system: tokens, theming, light/dark mode (Execution Plan step 0.10, Phase 0 complete)
 
 **What**: Via `design:design-system`, defined the initial token set in `constants/theme.ts` — a night-leaning palette (deep warm-neutral darks, warm gold accent) with separate light/dark color sets, a typography scale, an 4px-based spacing scale, and border radii. Added `hooks/useThemeColors.ts` (reads `useColorScheme()`, returns the right token set) and wired `app/_layout.tsx` to theme the navigation chrome itself (header/tab bar background, text, border, tint) via `expo-router`'s own `ThemeProvider`/`DefaultTheme`/`DarkTheme`. Updated `PlaceholderScreen` to actually consume the tokens (background, text colors, spacing, typography) instead of default/unstyled values, so there's something real to verify rather than an unused token file.
