@@ -4,6 +4,24 @@ One entry per committed step, newest first. Each entry: what was done, why, how 
 
 ---
 
+## 2026-09-21 — UI/UX design pass: full app screens, gradient mesh, brand mark
+
+**What**: A multi-session design pass covering the whole app's visual identity, done outside this repo (see below for why). Landed on: a dark-first "warm, cozy, dreamy" theme (deep plum darks, moonlight gold, dusty mauve, soft terracotta — deliberately warmer than a generic near-black dark mode), Fraunces (warm serif) + Nunito (soft sans) for in-app type, and Playfair Display reserved solely for the "Anthaathi" brand wordmark. Explored a "gradient mesh" UI direction (soft multi-blob CSS gradients, trendy in 2024+ app design) after comparing it against 4 reference palettes the user found — none adopted as-is (too cold, too alarming-red, or too saturated for a bedtime app); built two in-palette alternatives instead ("Dawn Glow" and "Velvet Dusk") and adopted Dawn Glow as the signature treatment, restricted to hero moments and primary actions (buttons, the player's glow, card art, active tab indicator) rather than full-screen backgrounds, keeping base surfaces flat for calm and OLED battery reasons.
+
+Designed a full 24-screen set: the original 19 (Auth, Library, Recording flow, Player, Goals, AI-draft, Journal, Settings, Delete Account) plus 5 new ones for the AI Guided Session feature added earlier this same day ([ADR-0007](docs/adr/0007-voice-synthesis-strategy.md)) — Mode Choice, Script, Voice Picker, Generating, and a calm non-alarming Error state, plus small updates to Library/Folder-detail rows (a source badge distinguishing Self-Recorded vs "AI Guided · [voice name]") and the Player screen (mode+voice caption).
+
+Explored a brand mark blending the existing crescent-moon icon with **அ**, the first letter of "Anthaathi" in Tamil, so the two read as one unified symbol rather than a letter placed on top of an icon. Compared three directions and chose **B2 ("Descender")** — the crescent and the letter share strokes rather than sitting side by side — noted as the working choice, not necessarily final.
+
+**Why**: The app has no visual design yet beyond the raw token file (`constants/theme.ts`) from step 0.10 — this pass produces the actual screen-by-screen reference that Phase 1+ implementation will build against, and settles the brand identity (wordmark, mark, palette) before any of it gets hand-coded.
+
+**Where this actually lives**: entirely outside this git repo, as a Claude "Design" canvas artifact (`https://claude.ai/artifact/VV8H7x3HJ7qS2kcsW8bqmL`) — a multi-screen, pannable design canvas, not a local file. Originally started in Figma; abandoned after its MCP hit a hard Starter-plan rate limit mid-build with no visibility into reset timing. The final screen set (all 24 screens, the applied B2 mark) was actually generated in a separate product, Claude Design (`claude.ai/design`), from a detailed prompt containing every token/component decision made here, then folded into the canvas artifact above as its primary reference. This repo has no design files to show for any of it — this entry, and the two persistent-memory files (`project_figma_design_system.md`, tracked in Claude's memory system, not in this repo) are the only record. If this needs to survive a clone/handoff, the design should eventually be re-exported into `docs/` (e.g. token values into a real `docs/DESIGN.md`, or screenshots) — not done yet, flagged here so it isn't forgotten.
+
+**Verification**: Design review only, no code to run — every screen was read directly from the exported HTML (not just visually skimmed) and checked against the full token/component spec: exact hex values, correct fonts, gradient-mesh usage restricted to the right elements, all AI Guided screens and row-level source badges present. Caught and fixed two real gaps during that audit: a first mesh-redesign pass had silently dropped some button/input/card states before typography was even re-documented (fixed, then generalized into a standing rule — diff new vs. old variant lists explicitly before calling a redesign complete), and the Claude Design export was missing a screen-count label update and used an emoji instead of the app's own icon set (both fixed before folding in).
+
+**Commit**: this entry only — no application code changed in this pass.
+
+---
+
 ## 2026-09-21 — AI Guided Session feature: on-device voice synthesis (new ADR-0007)
 
 **What**: Added a new v1 feature — **AI Guided Session** — affirmations narrated by a synthesized voice (male/female choice) as an alternative to Self-Recorded, generated once and cached as a local file so it fits the existing Player exactly like a recording. Researched three real implementation paths before deciding:
@@ -20,7 +38,7 @@ Updated the full doc set for consistency: `PRD.md` (new feature, moved from "Cou
 
 **Verification**: This is a planning/documentation step — no code changes to verify at runtime. Verified via the same link/anchor-checking script used for the original doc suite (re-run against the full doc set after the SRS section renumbering and new cross-references) — all links and anchors resolve. Manually cross-checked the new FR-511–FR-516 IDs against FR-501–FR-504 for collisions — none; range left deliberately open (505–510) matching the gap pattern already used elsewhere in the spec.
 
-**Commit**: _pending_
+**Commit**: `d37127e` — Add AI Guided Session feature: on-device voice synthesis
 
 ---
 
