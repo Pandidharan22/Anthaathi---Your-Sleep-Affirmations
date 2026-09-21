@@ -59,3 +59,6 @@ Thumbs.db
 *.tmp
 .cache/
 coverage/
+
+# Local design exports (design lives on claude.ai, not in this repo — see Dev_Journal.md)
+Anthaathi UI Design.html
