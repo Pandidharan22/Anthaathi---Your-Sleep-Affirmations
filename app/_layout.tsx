@@ -1,7 +1,8 @@
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
-import { useColorScheme } from 'react-native';
+import { ActivityIndicator, StyleSheet, useColorScheme, View } from 'react-native';
 
 import { darkColors, lightColors } from '@/constants/theme';
+import { AuthProvider, useAuth } from '@/hooks/useAuth';
 
 const lightNavigationTheme = {
   ...DefaultTheme,
@@ -27,15 +28,46 @@ const darkNavigationTheme = {
   },
 };
 
+function NavigationStack() {
+  const { session, loading } = useAuth();
+  const colors = useColorScheme() === 'dark' ? darkColors : lightColors;
+
+  if (loading) {
+    return (
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
+        <ActivityIndicator color={colors.primary} />
+      </View>
+    );
+  }
+
+  return (
+    <Stack>
+      <Stack.Protected guard={!!session}>
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      </Stack.Protected>
+      <Stack.Protected guard={!session}>
+        <Stack.Screen name="auth" options={{ title: 'Sign in', headerBackVisible: false }} />
+      </Stack.Protected>
+    </Stack>
+  );
+}
+
 export default function RootLayout() {
   const scheme = useColorScheme();
 
   return (
     <ThemeProvider value={scheme === 'dark' ? darkNavigationTheme : lightNavigationTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="auth" options={{ title: 'Sign in' }} />
-      </Stack>
+      <AuthProvider>
+        <NavigationStack />
+      </AuthProvider>
     </ThemeProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});
