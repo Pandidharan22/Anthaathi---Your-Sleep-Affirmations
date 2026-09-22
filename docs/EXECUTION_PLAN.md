@@ -42,7 +42,7 @@ Goal: the app is usable for its core purpose — record, organize, and loop-play
 - [x] **1.3** Local-first data layer: on-device SQLite + sync queue skeleton to Postgres — implements [ADR-0004](adr/0004-audio-storage-strategy.md). Verify: create a record offline, confirm it syncs once connectivity returns.
 - [x] **1.4** Recording flow: mic capture, preview, discard/re-record, save. Implements FR-201–FR-202. Verify: manual record→save round trip on-device; mic permission rationale copy reviewed (NFR-204).
 - [x] **1.5** Trim UI on a saved/pending recording. Implements FR-203.
-- [ ] **1.6** Folder CRUD + assigning recordings to folders. Implements FR-204–FR-206.
+- [x] **1.6** Folder CRUD + assigning recordings to folders. Implements FR-204–FR-206.
 - [ ] **1.7** Player: loop playback, sleep timer, continues when backgrounded/locked. Implements FR-301–FR-303. Verify: playback survives lock screen on both iOS and Android test devices.
 - [ ] **1.8** Account deletion (data + auth). Implements FR-104, NFR-205.
 - [ ] **1.9** Phase review: run `engineering:code-review` over the phase's diff before moving to Phase 2.
