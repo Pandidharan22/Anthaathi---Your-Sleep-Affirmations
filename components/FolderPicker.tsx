@@ -35,7 +35,12 @@ function Chip({ label, selected, onPress }: ChipProps) {
 
 export function FolderPicker({ folders, selectedFolderId, onSelect }: FolderPickerProps) {
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={styles.scroll}
+      contentContainerStyle={styles.row}
+    >
       <Chip label="No folder" selected={selectedFolderId === null} onPress={() => onSelect(null)} />
       {folders.map((folder) => (
         <Chip
@@ -50,8 +55,13 @@ export function FolderPicker({ folders, selectedFolderId, onSelect }: FolderPick
 }
 
 const styles = StyleSheet.create({
+  scroll: {
+    flexGrow: 0,
+    alignSelf: 'stretch',
+  },
   row: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: spacing.sm,
   },
   chip: {
