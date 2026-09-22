@@ -1,3 +1,4 @@
+import { deleteAccount } from '@/lib/account';
 import {
   createLocalAffirmation,
   deleteLocalAffirmation,
@@ -27,6 +28,7 @@ export function installDebugTools(userId: string | null) {
         updateAffirmationFolder: updateLocalAffirmationFolder,
         deleteAffirmation: deleteLocalAffirmation,
         listAffirmations: () => listLocalAffirmations(userId),
+        deleteAccount: () => deleteAccount(userId),
         processQueue,
         db: getDatabase,
       }
