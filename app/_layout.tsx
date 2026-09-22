@@ -59,8 +59,9 @@ function NavigationStack() {
         />
         <Stack.Screen
           name="affirmation/[id]/trim"
-          options={{ title: 'Trim', presentation: 'modal' }}
+          options={{ title: 'Recording', presentation: 'modal' }}
         />
+        <Stack.Screen name="folders" options={{ title: 'Folders' }} />
       </Stack.Protected>
       <Stack.Protected guard={!session}>
         <Stack.Screen name="auth" options={{ title: 'Sign in', headerBackVisible: false }} />

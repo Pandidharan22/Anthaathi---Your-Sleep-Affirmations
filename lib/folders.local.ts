@@ -47,3 +47,44 @@ export async function listLocalFolders(userId: string): Promise<LocalFolder[]> {
     [userId],
   );
 }
+
+export async function getLocalFolder(id: string): Promise<LocalFolder | null> {
+  const database = await getDatabase();
+  const rows = await database.getAllAsync<LocalFolder>(`SELECT * FROM folders WHERE id = ? LIMIT 1`, [
+    id,
+  ]);
+  return rows[0] ?? null;
+}
+
+export async function renameLocalFolder(id: string, name: string): Promise<void> {
+  const database = await getDatabase();
+  const now = new Date().toISOString();
+
+  await database.runAsync(`UPDATE folders SET name = ?, updated_at = ? WHERE id = ?`, [
+    name,
+    now,
+    id,
+  ]);
+
+  await enqueue('folders', 'update', id, { name });
+}
+
+/**
+ * Deletes the folder and un-files any of its affirmations locally (folder_id -> null),
+ * mirroring the remote schema's `ON DELETE SET NULL` FK. Local SQLite has no FK cascade
+ * of its own, so this has to be done explicitly; the remote delete's own cascade handles
+ * affirmations that hadn't synced their folder assignment yet — sync is strictly FIFO,
+ * so this folder's delete is always queued after anything that referenced it.
+ */
+export async function deleteLocalFolder(id: string): Promise<void> {
+  const database = await getDatabase();
+  const now = new Date().toISOString();
+
+  await database.runAsync(
+    `UPDATE affirmations SET folder_id = NULL, updated_at = ? WHERE folder_id = ?`,
+    [now, id],
+  );
+  await database.runAsync(`DELETE FROM folders WHERE id = ?`, [id]);
+
+  await enqueue('folders', 'delete', id);
+}

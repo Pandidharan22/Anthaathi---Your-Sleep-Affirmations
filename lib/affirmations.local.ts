@@ -1,4 +1,5 @@
 import * as Crypto from 'expo-crypto';
+import { File } from 'expo-file-system';
 
 import { getDatabase } from '@/lib/db';
 import { enqueue } from '@/lib/syncQueue';
@@ -144,4 +145,38 @@ export async function updateLocalAffirmationTrim(
     trim_start_ms: trimStartMs,
     trim_end_ms: trimEndMs,
   });
+}
+
+/** Reassigns an affirmation to a different folder, or un-files it (folderId: null). */
+export async function updateLocalAffirmationFolder(
+  id: string,
+  folderId: string | null,
+): Promise<void> {
+  const database = await getDatabase();
+  const now = new Date().toISOString();
+
+  await database.runAsync(`UPDATE affirmations SET folder_id = ?, updated_at = ? WHERE id = ?`, [
+    folderId,
+    now,
+    id,
+  ]);
+
+  await enqueue('affirmations', 'update', id, { folder_id: folderId });
+}
+
+/** Deletes the affirmation locally and remotely, and best-effort removes its on-device audio file. */
+export async function deleteLocalAffirmation(id: string): Promise<void> {
+  const database = await getDatabase();
+  const affirmation = await getLocalAffirmation(id);
+
+  await database.runAsync(`DELETE FROM affirmations WHERE id = ?`, [id]);
+  await enqueue('affirmations', 'delete', id);
+
+  if (affirmation) {
+    try {
+      new File(affirmation.local_uri).delete();
+    } catch {
+      // Best-effort cleanup; a stray file isn't a correctness issue.
+    }
+  }
 }

@@ -9,13 +9,15 @@ import {
 import { File } from 'expo-file-system';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { FolderPicker } from '@/components/FolderPicker';
 import { TrimEditor } from '@/components/TrimEditor';
 import { radii, spacing, typography } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { createLocalAffirmation } from '@/lib/affirmations.local';
+import { listLocalFolders, type LocalFolder } from '@/lib/folders.local';
 
 type ScreenState =
   | 'checking'
@@ -43,6 +45,9 @@ export default function RecordScreen() {
   const [recordedUri, setRecordedUri] = useState<string | null>(null);
   const [recordedDurationMs, setRecordedDurationMs] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [title, setTitle] = useState('');
+  const [folders, setFolders] = useState<LocalFolder[]>([]);
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
 
   const recorder = useAudioRecorder(RECORDING_OPTIONS);
   const recorderState = useAudioRecorderState(recorder);
@@ -52,6 +57,10 @@ export default function RecordScreen() {
       setState(granted ? 'ready' : canAskAgain ? 'permission-needed' : 'permission-denied');
     });
   }, []);
+
+  useEffect(() => {
+    if (user) listLocalFolders(user.id).then(setFolders);
+  }, [user]);
 
   async function handleRequestPermission() {
     const { granted, canAskAgain } = await requestRecordingPermissionsAsync();
@@ -78,6 +87,7 @@ export default function RecordScreen() {
       if (!uri) throw new Error('Recording finished with no file');
       setRecordedUri(uri);
       setRecordedDurationMs(durationMs);
+      setTitle(`Recording — ${new Date().toLocaleString()}`);
       setState('reviewing');
     } catch {
       setError('Recording failed. Please try again.');
@@ -107,15 +117,21 @@ export default function RecordScreen() {
 
   async function handleSave(trimStartMs: number, trimEndMs: number) {
     if (!user || !recordedUri) return;
+    const trimmedTitle = title.trim();
+    if (!trimmedTitle) {
+      setError('Give this recording a title before saving.');
+      return;
+    }
     setState('saving');
     setError(null);
     try {
       await createLocalAffirmation({
         userId: user.id,
-        title: `Recording — ${new Date().toLocaleString()}`,
+        title: trimmedTitle,
         localUri: recordedUri,
         durationMs: recordedDurationMs,
         source: 'recorded',
+        folderId: selectedFolderId,
         trimStartMs,
         trimEndMs,
       });
@@ -198,6 +214,18 @@ export default function RecordScreen() {
             <Text style={{ color: colors.textPrimary }}>Re-record</Text>
           </Pressable>
         </View>
+
+        <TextInput
+          value={title}
+          onChangeText={setTitle}
+          placeholder="Title"
+          placeholderTextColor={colors.textSecondary}
+          style={[
+            styles.titleInput,
+            { color: colors.textPrimary, borderColor: colors.border, backgroundColor: colors.surface },
+          ]}
+        />
+        <FolderPicker folders={folders} selectedFolderId={selectedFolderId} onSelect={setSelectedFolderId} />
 
         <TrimEditor uri={recordedUri} durationMs={recordedDurationMs} onSave={handleSave} saveLabel="Save" />
       </View>
@@ -290,5 +318,13 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     gap: spacing.md,
+  },
+  titleInput: {
+    width: '100%',
+    borderWidth: 1,
+    borderRadius: radii.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    fontSize: typography.body.fontSize,
   },
 });

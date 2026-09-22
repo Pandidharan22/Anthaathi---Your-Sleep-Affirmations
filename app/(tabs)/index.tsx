@@ -6,6 +6,7 @@ import { radii, spacing, typography } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { listLocalAffirmations, type LocalAffirmation } from '@/lib/affirmations.local';
+import { listLocalFolders, type LocalFolder } from '@/lib/folders.local';
 
 function formatDuration(ms: number) {
   const totalSeconds = Math.floor(ms / 1000);
@@ -18,31 +19,39 @@ export default function LibraryScreen() {
   const colors = useThemeColors();
   const { user } = useAuth();
   const [affirmations, setAffirmations] = useState<LocalAffirmation[]>([]);
+  const [folders, setFolders] = useState<LocalFolder[]>([]);
 
   useFocusEffect(
     useCallback(() => {
       if (!user) return;
       listLocalAffirmations(user.id).then(setAffirmations);
+      listLocalFolders(user.id).then(setFolders);
     }, [user]),
   );
+
+  const folderNameById = new Map(folders.map((folder) => [folder.id, folder.name]));
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
         <Text style={[styles.title, { color: colors.textPrimary }]}>Library</Text>
-        <Pressable
-          onPress={() => router.push('/record')}
-          accessibilityRole="button"
-          style={[styles.recordButton, { backgroundColor: colors.primary }]}
-        >
-          <Text style={[styles.recordButtonLabel, { color: colors.background }]}>Record</Text>
-        </Pressable>
+        <View style={styles.headerActions}>
+          <Pressable onPress={() => router.push('/folders')} accessibilityRole="button">
+            <Text style={{ color: colors.primary }}>Folders</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => router.push('/record')}
+            accessibilityRole="button"
+            style={[styles.recordButton, { backgroundColor: colors.primary }]}
+          >
+            <Text style={[styles.recordButtonLabel, { color: colors.background }]}>Record</Text>
+          </Pressable>
+        </View>
       </View>
 
       {affirmations.length === 0 ? (
         <Text style={[styles.description, { color: colors.textSecondary }]}>
-          No recordings yet — tap Record to make your first affirmation. Folders and organizing
-          arrive in a later step (FR-204–FR-206).
+          No recordings yet — tap Record to make your first affirmation.
         </Text>
       ) : (
         <FlatList
@@ -57,6 +66,9 @@ export default function LibraryScreen() {
             >
               <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>{item.title}</Text>
               <Text style={[styles.rowMeta, { color: colors.textSecondary }]}>
+                {item.folder_id && folderNameById.has(item.folder_id)
+                  ? `${folderNameById.get(item.folder_id)} · `
+                  : ''}
                 {formatDuration(item.duration_ms)}
                 {item.trim_start_ms !== null ? ' · trimmed' : ''}
               </Text>
@@ -78,6 +90,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
   },
   title: {
     fontSize: typography.title.fontSize,

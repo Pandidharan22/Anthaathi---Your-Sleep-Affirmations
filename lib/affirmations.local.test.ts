@@ -1,13 +1,20 @@
 import {
   createLocalAffirmation,
+  deleteLocalAffirmation,
   getLocalAffirmation,
   listLocalAffirmations,
+  updateLocalAffirmationFolder,
   updateLocalAffirmationTrim,
 } from './affirmations.local';
+
+const mockFileDelete = jest.fn();
 
 jest.mock('expo-crypto', () => ({ randomUUID: jest.fn(() => 'fixed-uuid') }));
 jest.mock('@/lib/db', () => ({ getDatabase: jest.fn() }));
 jest.mock('@/lib/syncQueue', () => ({ enqueue: jest.fn().mockResolvedValue(undefined) }));
+jest.mock('expo-file-system', () => ({
+  File: jest.fn().mockImplementation(() => ({ delete: mockFileDelete })),
+}));
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { getDatabase } = require('@/lib/db');
@@ -26,7 +33,9 @@ function makeFakeDatabase(getAllResult: unknown[] = []) {
 }
 
 beforeEach(() => {
-  jest.resetAllMocks();
+  // clearAllMocks (not resetAllMocks): resetAllMocks would also wipe the
+  // File mock's mockImplementation set up in the jest.mock factory above.
+  jest.clearAllMocks();
   (require('expo-crypto').randomUUID as jest.Mock).mockReturnValue('fixed-uuid');
 });
 
@@ -159,5 +168,49 @@ describe('affirmations.local', () => {
       trim_start_ms: 1000,
       trim_end_ms: 9000,
     });
+  });
+
+  it('updateLocalAffirmationFolder updates folder_id and enqueues a partial update', async () => {
+    const db = makeFakeDatabase();
+    getDatabase.mockResolvedValue(db);
+
+    await updateLocalAffirmationFolder('aff-1', 'folder-2');
+
+    expect(db.runAsync).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE affirmations SET folder_id'),
+      ['folder-2', expect.any(String), 'aff-1'],
+    );
+    expect(enqueue).toHaveBeenCalledWith('affirmations', 'update', 'aff-1', { folder_id: 'folder-2' });
+  });
+
+  it('updateLocalAffirmationFolder can un-file (folderId: null)', async () => {
+    const db = makeFakeDatabase();
+    getDatabase.mockResolvedValue(db);
+
+    await updateLocalAffirmationFolder('aff-1', null);
+
+    expect(enqueue).toHaveBeenCalledWith('affirmations', 'update', 'aff-1', { folder_id: null });
+  });
+
+  it('deleteLocalAffirmation deletes the row, enqueues a delete, and removes the audio file', async () => {
+    const db = makeFakeDatabase([{ id: 'aff-1', local_uri: 'file:///doc/rec.m4a' }]);
+    getDatabase.mockResolvedValue(db);
+
+    await deleteLocalAffirmation('aff-1');
+
+    expect(db.runAsync).toHaveBeenCalledWith(expect.stringContaining('DELETE FROM affirmations'), [
+      'aff-1',
+    ]);
+    expect(enqueue).toHaveBeenCalledWith('affirmations', 'delete', 'aff-1');
+    expect(mockFileDelete).toHaveBeenCalled();
+  });
+
+  it('deleteLocalAffirmation is a no-op on the file when the row is already gone', async () => {
+    const db = makeFakeDatabase([]);
+    getDatabase.mockResolvedValue(db);
+
+    await deleteLocalAffirmation('missing');
+
+    expect(mockFileDelete).not.toHaveBeenCalled();
   });
 });

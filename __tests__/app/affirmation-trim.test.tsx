@@ -1,9 +1,13 @@
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { Alert } from 'react-native';
 
 import AffirmationTrimScreen from '@/app/affirmation/[id]/trim';
 
 const mockGetLocalAffirmation = jest.fn();
 const mockUpdateLocalAffirmationTrim = jest.fn();
+const mockUpdateLocalAffirmationFolder = jest.fn();
+const mockDeleteLocalAffirmation = jest.fn();
+const mockListLocalFolders = jest.fn();
 const mockRouterBack = jest.fn();
 
 jest.mock('expo-router', () => ({
@@ -11,9 +15,19 @@ jest.mock('expo-router', () => ({
   router: { back: (...args: unknown[]) => mockRouterBack(...args) },
 }));
 
+jest.mock('@/hooks/useAuth', () => ({
+  useAuth: () => ({ user: { id: 'user-1' } }),
+}));
+
 jest.mock('@/lib/affirmations.local', () => ({
   getLocalAffirmation: (...args: unknown[]) => mockGetLocalAffirmation(...args),
   updateLocalAffirmationTrim: (...args: unknown[]) => mockUpdateLocalAffirmationTrim(...args),
+  updateLocalAffirmationFolder: (...args: unknown[]) => mockUpdateLocalAffirmationFolder(...args),
+  deleteLocalAffirmation: (...args: unknown[]) => mockDeleteLocalAffirmation(...args),
+}));
+
+jest.mock('@/lib/folders.local', () => ({
+  listLocalFolders: (...args: unknown[]) => mockListLocalFolders(...args),
 }));
 
 jest.mock('@/components/TrimEditor', () => {
@@ -28,20 +42,28 @@ jest.mock('@/components/TrimEditor', () => {
   };
 });
 
+const mockAlert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+
+const baseAffirmation = {
+  id: 'aff-1',
+  title: 'Bedtime affirmation',
+  local_uri: 'file:///rec.m4a',
+  duration_ms: 10000,
+  folder_id: null,
+  trim_start_ms: null,
+  trim_end_ms: null,
+};
+
 beforeEach(() => {
   jest.clearAllMocks();
+  mockListLocalFolders.mockResolvedValue([
+    { id: 'folder-1', user_id: 'user-1', name: 'Sleep', created_at: '', updated_at: '', synced_at: null },
+  ]);
 });
 
 describe('AffirmationTrimScreen', () => {
   it('shows a loading state, then the affirmation title once loaded', async () => {
-    mockGetLocalAffirmation.mockResolvedValue({
-      id: 'aff-1',
-      title: 'Bedtime affirmation',
-      local_uri: 'file:///rec.m4a',
-      duration_ms: 10000,
-      trim_start_ms: null,
-      trim_end_ms: null,
-    });
+    mockGetLocalAffirmation.mockResolvedValue(baseAffirmation);
 
     const { getByText } = await render(<AffirmationTrimScreen />);
 
@@ -58,14 +80,7 @@ describe('AffirmationTrimScreen', () => {
   });
 
   it('saves the trim and navigates back', async () => {
-    mockGetLocalAffirmation.mockResolvedValue({
-      id: 'aff-1',
-      title: 'Bedtime affirmation',
-      local_uri: 'file:///rec.m4a',
-      duration_ms: 10000,
-      trim_start_ms: null,
-      trim_end_ms: null,
-    });
+    mockGetLocalAffirmation.mockResolvedValue(baseAffirmation);
     mockUpdateLocalAffirmationTrim.mockResolvedValue(undefined);
 
     const { getByText } = await render(<AffirmationTrimScreen />);
@@ -76,6 +91,36 @@ describe('AffirmationTrimScreen', () => {
     await waitFor(() =>
       expect(mockUpdateLocalAffirmationTrim).toHaveBeenCalledWith('aff-1', 1000, 5000),
     );
+    await waitFor(() => expect(mockRouterBack).toHaveBeenCalled());
+  });
+
+  it('reassigns the folder via the folder picker', async () => {
+    mockGetLocalAffirmation.mockResolvedValue(baseAffirmation);
+    mockUpdateLocalAffirmationFolder.mockResolvedValue(undefined);
+
+    const { getByText } = await render(<AffirmationTrimScreen />);
+    await waitFor(() => expect(getByText('Sleep')).toBeTruthy());
+
+    await fireEvent.press(getByText('Sleep'));
+
+    await waitFor(() =>
+      expect(mockUpdateLocalAffirmationFolder).toHaveBeenCalledWith('aff-1', 'folder-1'),
+    );
+  });
+
+  it('deletes the recording after confirming and navigates back', async () => {
+    mockGetLocalAffirmation.mockResolvedValue(baseAffirmation);
+    mockDeleteLocalAffirmation.mockResolvedValue(undefined);
+    mockAlert.mockImplementation((_title, _message, buttons) => {
+      buttons?.find((b) => b.text === 'Delete')?.onPress?.();
+    });
+
+    const { getByText } = await render(<AffirmationTrimScreen />);
+    await waitFor(() => expect(getByText('Delete recording')).toBeTruthy());
+
+    await fireEvent.press(getByText('Delete recording'));
+
+    await waitFor(() => expect(mockDeleteLocalAffirmation).toHaveBeenCalledWith('aff-1'));
     await waitFor(() => expect(mockRouterBack).toHaveBeenCalled());
   });
 });

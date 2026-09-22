@@ -1,0 +1,90 @@
+import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { Alert } from 'react-native';
+
+import FoldersScreen from '@/app/folders';
+
+const mockListLocalFolders = jest.fn();
+const mockCreateLocalFolder = jest.fn();
+const mockRenameLocalFolder = jest.fn();
+const mockDeleteLocalFolder = jest.fn();
+
+jest.mock('@/hooks/useAuth', () => ({
+  useAuth: () => ({ user: { id: 'user-1' } }),
+}));
+
+jest.mock('expo-router', () => ({
+  useFocusEffect: (effect: () => void) => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    require('react').useEffect(effect, []);
+  },
+}));
+
+jest.mock('@/lib/folders.local', () => ({
+  listLocalFolders: (...args: unknown[]) => mockListLocalFolders(...args),
+  createLocalFolder: (...args: unknown[]) => mockCreateLocalFolder(...args),
+  renameLocalFolder: (...args: unknown[]) => mockRenameLocalFolder(...args),
+  deleteLocalFolder: (...args: unknown[]) => mockDeleteLocalFolder(...args),
+}));
+
+const mockAlert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  mockListLocalFolders.mockResolvedValue([]);
+  mockCreateLocalFolder.mockResolvedValue(undefined);
+  mockRenameLocalFolder.mockResolvedValue(undefined);
+  mockDeleteLocalFolder.mockResolvedValue(undefined);
+});
+
+describe('FoldersScreen', () => {
+  it('shows an empty state, then lists folders once loaded', async () => {
+    mockListLocalFolders.mockResolvedValue([
+      { id: 'f1', user_id: 'user-1', name: 'Sleep', created_at: '', updated_at: '', synced_at: null },
+    ]);
+
+    const { getByText } = await render(<FoldersScreen />);
+
+    await waitFor(() => expect(getByText('Sleep')).toBeTruthy());
+  });
+
+  it('creates a folder from the name field and refreshes the list', async () => {
+    const { getByPlaceholderText, getByText } = await render(<FoldersScreen />);
+
+    await fireEvent.changeText(getByPlaceholderText('New folder name'), 'Focus');
+    await fireEvent.press(getByText('Create'));
+
+    await waitFor(() => expect(mockCreateLocalFolder).toHaveBeenCalledWith('user-1', 'Focus'));
+    expect(mockListLocalFolders).toHaveBeenCalledTimes(2); // initial load + refresh after create
+  });
+
+  it('renames a folder inline', async () => {
+    mockListLocalFolders.mockResolvedValue([
+      { id: 'f1', user_id: 'user-1', name: 'Sleep', created_at: '', updated_at: '', synced_at: null },
+    ]);
+
+    const { getByText, getByDisplayValue } = await render(<FoldersScreen />);
+    await waitFor(() => expect(getByText('Rename')).toBeTruthy());
+
+    await fireEvent.press(getByText('Rename'));
+    await fireEvent.changeText(getByDisplayValue('Sleep'), 'Bedtime');
+    await fireEvent.press(getByText('Save'));
+
+    await waitFor(() => expect(mockRenameLocalFolder).toHaveBeenCalledWith('f1', 'Bedtime'));
+  });
+
+  it('deletes a folder after confirming', async () => {
+    mockListLocalFolders.mockResolvedValue([
+      { id: 'f1', user_id: 'user-1', name: 'Sleep', created_at: '', updated_at: '', synced_at: null },
+    ]);
+    mockAlert.mockImplementation((_title, _message, buttons) => {
+      buttons?.find((b) => b.text === 'Delete')?.onPress?.();
+    });
+
+    const { getByText } = await render(<FoldersScreen />);
+    await waitFor(() => expect(getByText('Delete')).toBeTruthy());
+
+    await fireEvent.press(getByText('Delete'));
+
+    await waitFor(() => expect(mockDeleteLocalFolder).toHaveBeenCalledWith('f1'));
+  });
+});

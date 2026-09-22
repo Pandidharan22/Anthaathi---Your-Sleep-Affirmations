@@ -51,6 +51,11 @@ jest.mock('@/lib/affirmations.local', () => ({
   createLocalAffirmation: (...args: unknown[]) => mockCreateLocalAffirmation(...args),
 }));
 
+const mockListLocalFolders = jest.fn().mockResolvedValue([]);
+jest.mock('@/lib/folders.local', () => ({
+  listLocalFolders: (...args: unknown[]) => mockListLocalFolders(...args),
+}));
+
 beforeEach(() => {
   jest.clearAllMocks();
   mockRecorderObj.uri = null;
@@ -58,6 +63,9 @@ beforeEach(() => {
   mockPlayerStatus = { playing: false, currentTime: 0, duration: 0 };
   mockStop.mockResolvedValue(undefined);
   mockCreateLocalAffirmation.mockResolvedValue({});
+  mockListLocalFolders.mockResolvedValue([
+    { id: 'folder-1', user_id: 'user-1', name: 'Sleep', created_at: '', updated_at: '', synced_at: null },
+  ]);
 });
 
 describe('RecordScreen', () => {
@@ -85,7 +93,7 @@ describe('RecordScreen', () => {
   it('goes ready -> recording -> reviewing, and Save persists the affirmation', async () => {
     mockGetRecordingPermissionsAsync.mockResolvedValue({ granted: true, canAskAgain: true });
 
-    const { getByText, rerender } = await render(<RecordScreen />);
+    const { getByText, getByPlaceholderText, rerender } = await render(<RecordScreen />);
     await waitFor(() => expect(getByText('Tap to record')).toBeTruthy());
 
     await fireEvent.press(getByText('Tap to record'));
@@ -103,19 +111,44 @@ describe('RecordScreen', () => {
     expect(mockStop).toHaveBeenCalled();
     await waitFor(() => expect(getByText('Save')).toBeTruthy());
 
+    await fireEvent.changeText(getByPlaceholderText('Title'), 'My affirmation');
+    await fireEvent.press(getByText('Sleep'));
     await fireEvent.press(getByText('Save'));
 
     await waitFor(() =>
       expect(mockCreateLocalAffirmation).toHaveBeenCalledWith(
         expect.objectContaining({
           userId: 'user-1',
+          title: 'My affirmation',
           localUri: 'file:///doc/rec.m4a',
           durationMs: 4200,
           source: 'recorded',
+          folderId: 'folder-1',
         }),
       ),
     );
     await waitFor(() => expect(mockRouterBack).toHaveBeenCalled());
+  });
+
+  it('blocks saving with an empty title', async () => {
+    mockGetRecordingPermissionsAsync.mockResolvedValue({ granted: true, canAskAgain: true });
+
+    const { getByText, getByPlaceholderText, rerender } = await render(<RecordScreen />);
+    await waitFor(() => expect(getByText('Tap to record')).toBeTruthy());
+    await fireEvent.press(getByText('Tap to record'));
+    await waitFor(() => expect(getByText('Stop')).toBeTruthy());
+
+    mockRecorderObj.uri = 'file:///doc/rec.m4a';
+    mockRecorderState = { ...mockRecorderState, durationMillis: 4200 };
+    await rerender(<RecordScreen />);
+    await fireEvent.press(getByText('Stop'));
+    await waitFor(() => expect(getByText('Save')).toBeTruthy());
+
+    await fireEvent.changeText(getByPlaceholderText('Title'), '   ');
+    await fireEvent.press(getByText('Save'));
+
+    await waitFor(() => expect(getByText('Give this recording a title before saving.')).toBeTruthy());
+    expect(mockCreateLocalAffirmation).not.toHaveBeenCalled();
   });
 
   it('Discard deletes the file and returns to the ready state', async () => {
