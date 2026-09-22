@@ -53,6 +53,10 @@ function NavigationStack() {
     <Stack>
       <Stack.Protected guard={!!session}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="record"
+          options={{ title: 'New Recording', presentation: 'modal', headerBackVisible: false }}
+        />
       </Stack.Protected>
       <Stack.Protected guard={!session}>
         <Stack.Screen name="auth" options={{ title: 'Sign in', headerBackVisible: false }} />

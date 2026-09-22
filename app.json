@@ -24,7 +24,13 @@
     },
     "plugins": [
       "expo-router",
-      "expo-sqlite"
+      "expo-sqlite",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Anthaathi needs microphone access so you can record affirmations in your own voice."
+        }
+      ]
     ]
   }
 }
