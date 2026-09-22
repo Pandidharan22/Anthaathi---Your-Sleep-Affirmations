@@ -83,6 +83,72 @@ describe('TrimEditor', () => {
     expect(mockPause).toHaveBeenCalled();
   });
 
+  it('Play seeks to the trim start when the current position is outside the trim range', async () => {
+    mockStatus = { ...mockStatus, currentTime: 9 };
+
+    const { getByText } = await render(
+      <TrimEditor
+        uri="file:///rec.m4a"
+        durationMs={10000}
+        initialTrimStartMs={2000}
+        initialTrimEndMs={6000}
+        onSave={jest.fn()}
+      />,
+    );
+
+    await fireEvent.press(getByText('Play'));
+
+    expect(mockSeekTo).toHaveBeenCalledWith(2);
+    expect(mockPlay).toHaveBeenCalled();
+  });
+
+  it('Play does not re-seek when the current position is already inside the trim range', async () => {
+    mockStatus = { ...mockStatus, currentTime: 3 };
+
+    const { getByText } = await render(
+      <TrimEditor
+        uri="file:///rec.m4a"
+        durationMs={10000}
+        initialTrimStartMs={2000}
+        initialTrimEndMs={6000}
+        onSave={jest.fn()}
+      />,
+    );
+
+    await fireEvent.press(getByText('Play'));
+
+    expect(mockSeekTo).not.toHaveBeenCalled();
+    expect(mockPlay).toHaveBeenCalled();
+  });
+
+  it('pauses automatically once playback reaches the trim end', async () => {
+    mockStatus = { playing: true, currentTime: 5, duration: 10 };
+
+    const { rerender } = await render(
+      <TrimEditor
+        uri="file:///rec.m4a"
+        durationMs={10000}
+        initialTrimStartMs={2000}
+        initialTrimEndMs={6000}
+        onSave={jest.fn()}
+      />,
+    );
+    expect(mockPause).not.toHaveBeenCalled();
+
+    mockStatus = { playing: true, currentTime: 6, duration: 10 };
+    await rerender(
+      <TrimEditor
+        uri="file:///rec.m4a"
+        durationMs={10000}
+        initialTrimStartMs={2000}
+        initialTrimEndMs={6000}
+        onSave={jest.fn()}
+      />,
+    );
+
+    expect(mockPause).toHaveBeenCalled();
+  });
+
   it('reports null when an existing trim is reset back to the full range', async () => {
     const onSave = jest.fn();
     mockStatus = { ...mockStatus, currentTime: 0 };
@@ -113,16 +179,5 @@ describe('TrimEditor', () => {
 
     await fireEvent.press(getByText('Save trim'));
     expect(onSave).toHaveBeenCalledWith(null, null);
-  });
-
-  it('Preview trim seeks to the trim start and plays', async () => {
-    const { getByText } = await render(
-      <TrimEditor uri="file:///rec.m4a" durationMs={10000} initialTrimStartMs={3000} onSave={jest.fn()} />,
-    );
-
-    await fireEvent.press(getByText('Preview trim'));
-
-    await waitFor(() => expect(mockSeekTo).toHaveBeenCalledWith(3));
-    expect(mockPlay).toHaveBeenCalled();
   });
 });

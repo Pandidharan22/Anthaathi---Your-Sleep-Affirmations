@@ -12,7 +12,10 @@ jest.mock('@/hooks/useAuth', () => ({
   useAuth: () => ({ user: { id: 'user-1' } }),
 }));
 
+const mockRouterPush = jest.fn();
+
 jest.mock('expo-router', () => ({
+  router: { push: (...args: unknown[]) => mockRouterPush(...args) },
   useFocusEffect: (effect: () => void) => {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     require('react').useEffect(effect, []);
@@ -55,6 +58,32 @@ describe('FoldersScreen', () => {
 
     await waitFor(() => expect(mockCreateLocalFolder).toHaveBeenCalledWith('user-1', 'Focus'));
     expect(mockListLocalFolders).toHaveBeenCalledTimes(2); // initial load + refresh after create
+  });
+
+  it('navigates to the folder contents screen when a row is tapped', async () => {
+    mockListLocalFolders.mockResolvedValue([
+      { id: 'f1', user_id: 'user-1', name: 'Sleep', created_at: '', updated_at: '', synced_at: null },
+    ]);
+
+    const { getByText } = await render(<FoldersScreen />);
+    await waitFor(() => expect(getByText('Sleep')).toBeTruthy());
+
+    await fireEvent.press(getByText('Sleep'));
+
+    expect(mockRouterPush).toHaveBeenCalledWith('/folder/f1');
+  });
+
+  it('does not navigate when tapping Rename or Delete on a row', async () => {
+    mockListLocalFolders.mockResolvedValue([
+      { id: 'f1', user_id: 'user-1', name: 'Sleep', created_at: '', updated_at: '', synced_at: null },
+    ]);
+
+    const { getByText } = await render(<FoldersScreen />);
+    await waitFor(() => expect(getByText('Rename')).toBeTruthy());
+
+    await fireEvent.press(getByText('Rename'));
+
+    expect(mockRouterPush).not.toHaveBeenCalled();
   });
 
   it('renames a folder inline', async () => {

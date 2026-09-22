@@ -2,11 +2,11 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { AffirmationRow } from '@/components/AffirmationRow';
 import { radii, spacing, typography } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { listLocalAffirmations, type LocalAffirmation } from '@/lib/affirmations.local';
-import { formatDuration } from '@/lib/format';
 import { listLocalFolders, type LocalFolder } from '@/lib/folders.local';
 
 export default function LibraryScreen() {
@@ -53,20 +53,11 @@ export default function LibraryScreen() {
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
           renderItem={({ item }) => (
-            <Pressable
+            <AffirmationRow
+              affirmation={item}
+              folderName={item.folder_id ? folderNameById.get(item.folder_id) : null}
               onPress={() => router.push(`/affirmation/${item.id}/trim`)}
-              accessibilityRole="button"
-              style={[styles.row, { borderColor: colors.border }]}
-            >
-              <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>{item.title}</Text>
-              <Text style={[styles.rowMeta, { color: colors.textSecondary }]}>
-                {item.folder_id && folderNameById.has(item.folder_id)
-                  ? `${folderNameById.get(item.folder_id)} · `
-                  : ''}
-                {formatDuration(item.duration_ms)}
-                {item.trim_start_ms !== null ? ' · trimmed' : ''}
-              </Text>
-            </Pressable>
+            />
           )}
         />
       )}
@@ -110,20 +101,5 @@ const styles = StyleSheet.create({
   },
   list: {
     gap: spacing.sm,
-  },
-  row: {
-    borderWidth: 1,
-    borderRadius: radii.md,
-    padding: spacing.md,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  rowTitle: {
-    fontSize: typography.body.fontSize,
-    flexShrink: 1,
-  },
-  rowMeta: {
-    fontSize: typography.caption.fontSize,
   },
 });

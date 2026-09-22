@@ -1,6 +1,6 @@
 import Slider from '@react-native-community/slider';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { radii, spacing, typography } from '@/constants/theme';
@@ -38,22 +38,25 @@ export function TrimEditor({
   const [trimEndMs, setTrimEndMs] = useState(initialTrimEndMs ?? durationMs);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  // Not rendered — just gates the auto-stop-at-trim-end effect below, so a ref
-  // (not state) avoids a setState-in-effect cascade for a value nothing displays.
-  const previewingRef = useRef(false);
 
+  // Playback always respects the current trim range — pressing Play previews
+  // exactly what will be saved. Position is only clamped at the point Play is
+  // pressed (not continuously), so dragging the slider past either boundary
+  // still works for picking a new start/end point.
   useEffect(() => {
-    if (previewingRef.current && status.currentTime * 1000 >= trimEndMs) {
+    if (status.playing && status.currentTime * 1000 >= trimEndMs) {
       player.pause();
-      previewingRef.current = false;
     }
-  }, [status.currentTime, trimEndMs, player]);
+  }, [status.playing, status.currentTime, trimEndMs, player]);
 
   function handleTogglePlay() {
     if (status.playing) {
       player.pause();
-      previewingRef.current = false;
     } else {
+      const positionMs = status.currentTime * 1000;
+      if (positionMs < trimStartMs || positionMs >= trimEndMs) {
+        player.seekTo(trimStartMs / 1000);
+      }
       player.play();
     }
   }
@@ -76,13 +79,6 @@ export function TrimEditor({
     }
     setError(null);
     setTrimEndMs(positionMs);
-  }
-
-  async function handlePreview() {
-    setError(null);
-    await player.seekTo(trimStartMs / 1000);
-    previewingRef.current = true;
-    player.play();
   }
 
   async function handleSave() {
@@ -113,6 +109,7 @@ export function TrimEditor({
         style={styles.slider}
         minimumValue={0}
         maximumValue={durationMs / 1000}
+        value={status.currentTime}
         minimumTrackTintColor={colors.primary}
         maximumTrackTintColor={colors.border}
         thumbTintColor={colors.primary}
@@ -149,14 +146,6 @@ export function TrimEditor({
       <Text style={[styles.trimSummary, { color: colors.textSecondary }]}>
         Trim: {formatDuration(trimStartMs)} – {formatDuration(trimEndMs)}
       </Text>
-
-      <Pressable
-        onPress={handlePreview}
-        accessibilityRole="button"
-        style={[styles.secondaryButton, { borderColor: colors.border }]}
-      >
-        <Text style={{ color: colors.textPrimary }}>Preview trim</Text>
-      </Pressable>
 
       {error ? <Text style={[styles.error, { color: colors.error }]}>{error}</Text> : null}
 

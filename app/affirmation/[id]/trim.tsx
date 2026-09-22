@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { FolderPicker } from '@/components/FolderPicker';
 import { TrimEditor } from '@/components/TrimEditor';
@@ -11,10 +11,13 @@ import {
   deleteLocalAffirmation,
   getLocalAffirmation,
   updateLocalAffirmationFolder,
+  updateLocalAffirmationTitle,
   updateLocalAffirmationTrim,
   type LocalAffirmation,
 } from '@/lib/affirmations.local';
 import { listLocalFolders, type LocalFolder } from '@/lib/folders.local';
+
+const ERROR_MESSAGE = 'Something went wrong. Please try again.';
 
 export default function AffirmationTrimScreen() {
   const colors = useThemeColors();
@@ -22,9 +25,15 @@ export default function AffirmationTrimScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [affirmation, setAffirmation] = useState<LocalAffirmation | null | undefined>(undefined);
   const [folders, setFolders] = useState<LocalFolder[]>([]);
+  const [title, setTitle] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
   const loadAffirmation = useCallback(() => {
-    if (id) getLocalAffirmation(id).then(setAffirmation);
+    if (!id) return;
+    getLocalAffirmation(id).then((result) => {
+      setAffirmation(result);
+      if (result) setTitle(result.title);
+    });
   }, [id]);
 
   useEffect(loadAffirmation, [loadAffirmation]);
@@ -37,6 +46,22 @@ export default function AffirmationTrimScreen() {
     if (!affirmation) return;
     await updateLocalAffirmationFolder(affirmation.id, folderId);
     setAffirmation({ ...affirmation, folder_id: folderId });
+  }
+
+  async function handleTitleBlur() {
+    if (!affirmation) return;
+    const trimmedTitle = title.trim();
+    if (!trimmedTitle || trimmedTitle === affirmation.title) {
+      setTitle(affirmation.title);
+      return;
+    }
+    try {
+      await updateLocalAffirmationTitle(affirmation.id, trimmedTitle);
+      setAffirmation({ ...affirmation, title: trimmedTitle });
+    } catch {
+      setError(ERROR_MESSAGE);
+      setTitle(affirmation.title);
+    }
   }
 
   function handleDelete() {
@@ -72,7 +97,20 @@ export default function AffirmationTrimScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Text style={[styles.title, { color: colors.textPrimary }]}>{affirmation.title}</Text>
+      {error ? <Text style={[styles.error, { color: colors.error }]}>{error}</Text> : null}
+
+      <TextInput
+        value={title}
+        onChangeText={setTitle}
+        onBlur={handleTitleBlur}
+        placeholder="Title"
+        placeholderTextColor={colors.textSecondary}
+        style={[
+          styles.title,
+          styles.titleInput,
+          { color: colors.textPrimary, borderColor: colors.border, backgroundColor: colors.surface },
+        ]}
+      />
 
       <FolderPicker
         folders={folders}
@@ -114,6 +152,17 @@ const styles = StyleSheet.create({
     fontSize: typography.title.fontSize,
     lineHeight: typography.title.lineHeight,
     fontWeight: typography.title.fontWeight,
+    textAlign: 'center',
+  },
+  titleInput: {
+    width: '100%',
+    borderWidth: 1,
+    borderRadius: radii.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  error: {
+    fontSize: typography.caption.fontSize,
     textAlign: 'center',
   },
   deleteButton: {

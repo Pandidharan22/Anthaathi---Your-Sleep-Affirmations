@@ -147,6 +147,20 @@ export async function updateLocalAffirmationTrim(
   });
 }
 
+/** Renames an affirmation. */
+export async function updateLocalAffirmationTitle(id: string, title: string): Promise<void> {
+  const database = await getDatabase();
+  const now = new Date().toISOString();
+
+  await database.runAsync(`UPDATE affirmations SET title = ?, updated_at = ? WHERE id = ?`, [
+    title,
+    now,
+    id,
+  ]);
+
+  await enqueue('affirmations', 'update', id, { title });
+}
+
 /** Reassigns an affirmation to a different folder, or un-files it (folderId: null). */
 export async function updateLocalAffirmationFolder(
   id: string,

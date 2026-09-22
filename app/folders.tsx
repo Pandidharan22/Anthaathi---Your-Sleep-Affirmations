@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { Alert, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { radii, spacing, typography } from '@/constants/theme';
@@ -128,7 +128,11 @@ export default function FoldersScreen() {
                 </Pressable>
               </View>
             ) : (
-              <View style={[styles.folderRow, { borderColor: colors.border }]}>
+              <Pressable
+                onPress={() => router.push(`/folder/${item.id}`)}
+                accessibilityRole="button"
+                style={[styles.folderRow, { borderColor: colors.border }]}
+              >
                 <Text style={[styles.folderName, { color: colors.textPrimary }]}>{item.name}</Text>
                 <View style={styles.actions}>
                   <Pressable onPress={() => startEditing(item)} accessibilityRole="button">
@@ -138,7 +142,7 @@ export default function FoldersScreen() {
                     <Text style={{ color: colors.error }}>Delete</Text>
                   </Pressable>
                 </View>
-              </View>
+              </Pressable>
             )
           }
         />

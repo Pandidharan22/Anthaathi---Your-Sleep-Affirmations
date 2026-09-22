@@ -6,6 +6,7 @@ import AffirmationTrimScreen from '@/app/affirmation/[id]/trim';
 const mockGetLocalAffirmation = jest.fn();
 const mockUpdateLocalAffirmationTrim = jest.fn();
 const mockUpdateLocalAffirmationFolder = jest.fn();
+const mockUpdateLocalAffirmationTitle = jest.fn();
 const mockDeleteLocalAffirmation = jest.fn();
 const mockListLocalFolders = jest.fn();
 const mockRouterBack = jest.fn();
@@ -23,6 +24,7 @@ jest.mock('@/lib/affirmations.local', () => ({
   getLocalAffirmation: (...args: unknown[]) => mockGetLocalAffirmation(...args),
   updateLocalAffirmationTrim: (...args: unknown[]) => mockUpdateLocalAffirmationTrim(...args),
   updateLocalAffirmationFolder: (...args: unknown[]) => mockUpdateLocalAffirmationFolder(...args),
+  updateLocalAffirmationTitle: (...args: unknown[]) => mockUpdateLocalAffirmationTitle(...args),
   deleteLocalAffirmation: (...args: unknown[]) => mockDeleteLocalAffirmation(...args),
 }));
 
@@ -65,10 +67,38 @@ describe('AffirmationTrimScreen', () => {
   it('shows a loading state, then the affirmation title once loaded', async () => {
     mockGetLocalAffirmation.mockResolvedValue(baseAffirmation);
 
-    const { getByText } = await render(<AffirmationTrimScreen />);
+    const { getByDisplayValue } = await render(<AffirmationTrimScreen />);
 
     expect(mockGetLocalAffirmation).toHaveBeenCalledWith('aff-1');
-    await waitFor(() => expect(getByText('Bedtime affirmation')).toBeTruthy());
+    await waitFor(() => expect(getByDisplayValue('Bedtime affirmation')).toBeTruthy());
+  });
+
+  it('renames the recording when the title field is edited and loses focus', async () => {
+    mockGetLocalAffirmation.mockResolvedValue(baseAffirmation);
+    mockUpdateLocalAffirmationTitle.mockResolvedValue(undefined);
+
+    const { getByDisplayValue } = await render(<AffirmationTrimScreen />);
+    const titleInput = await waitFor(() => getByDisplayValue('Bedtime affirmation'));
+
+    await fireEvent.changeText(titleInput, 'New name');
+    await fireEvent(titleInput, 'blur');
+
+    await waitFor(() =>
+      expect(mockUpdateLocalAffirmationTitle).toHaveBeenCalledWith('aff-1', 'New name'),
+    );
+  });
+
+  it('reverts the title on blur if left empty, without saving', async () => {
+    mockGetLocalAffirmation.mockResolvedValue(baseAffirmation);
+
+    const { getByDisplayValue } = await render(<AffirmationTrimScreen />);
+    const titleInput = await waitFor(() => getByDisplayValue('Bedtime affirmation'));
+
+    await fireEvent.changeText(titleInput, '   ');
+    await fireEvent(titleInput, 'blur');
+
+    await waitFor(() => expect(getByDisplayValue('Bedtime affirmation')).toBeTruthy());
+    expect(mockUpdateLocalAffirmationTitle).not.toHaveBeenCalled();
   });
 
   it('shows a not-found message when the affirmation does not exist', async () => {

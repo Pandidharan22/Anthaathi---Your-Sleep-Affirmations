@@ -4,6 +4,7 @@ import {
   getLocalAffirmation,
   listLocalAffirmations,
   updateLocalAffirmationFolder,
+  updateLocalAffirmationTitle,
   updateLocalAffirmationTrim,
 } from './affirmations.local';
 
@@ -168,6 +169,20 @@ describe('affirmations.local', () => {
       trim_start_ms: 1000,
       trim_end_ms: 9000,
     });
+  });
+
+  it('updateLocalAffirmationTitle updates the title and enqueues a partial update', async () => {
+    const db = makeFakeDatabase();
+    getDatabase.mockResolvedValue(db);
+
+    await updateLocalAffirmationTitle('aff-1', 'New title');
+
+    expect(db.runAsync).toHaveBeenCalledWith(expect.stringContaining('UPDATE affirmations SET title'), [
+      'New title',
+      expect.any(String),
+      'aff-1',
+    ]);
+    expect(enqueue).toHaveBeenCalledWith('affirmations', 'update', 'aff-1', { title: 'New title' });
   });
 
   it('updateLocalAffirmationFolder updates folder_id and enqueues a partial update', async () => {
