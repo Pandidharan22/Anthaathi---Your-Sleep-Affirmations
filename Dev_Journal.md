@@ -4,6 +4,21 @@ One entry per committed step, newest first. Each entry: what was done, why, how 
 
 ---
 
+## 2026-09-22 — Fix trimmed-duration display; document background-audio config
+
+**What**: Two more issues from the same real-device test session (following the rename/folder/trim fix pass):
+
+1. **Library/folder rows showed the original, untrimmed duration.** A 7s recording trimmed to 2000–5000ms still showed "0:07" in the Library even though the Player already played the correctly trimmed 3s span — a pure display bug, not a data bug. Added `getEffectiveDurationMs()` — the trimmed span (`trim_end_ms - trim_start_ms`) when a trim exists, otherwise the full `duration_ms` — and wired [components/AffirmationRow.tsx](components/AffirmationRow.tsx) to use it instead of the raw column. First attempt placed this helper on `lib/affirmations.local.ts` next to the `LocalAffirmation` type it operates on, which seemed like the natural home — but that module transitively imports `lib/supabase.ts` → `@react-native-async-storage/async-storage`, and `jest.requireActual`-ing it to get this one pure function into component tests (which only mock the local-CRUD surface, not the whole Supabase chain) broke on a native-module-not-available error. Moved it to [lib/format.ts](lib/format.ts) instead (a type-only import of `LocalAffirmation`, zero runtime dependencies) — the right home for a pure display derivation anyway, right next to `formatDuration`.
+2. **"Failed to activate lock screen controls - service binding failed" console warning.** Made `app.json`'s `expo-audio` plugin config explicit (`enableBackgroundPlayback: true`, matching its own already-true default) — correct hygiene, but investigated further and confirmed this does **not** actually resolve the warning: it comes from a config-plugin-injected native `AndroidManifest.xml` service declaration, and config plugins only take effect through a native rebuild. Plain Expo Go is a generic, shared, pre-built client — it never runs a project's own config plugins, so no `app.json` value can fix this while testing through Expo Go. It's cosmetic only (playback itself is unaffected, already confirmed working). **User decision: leave as a known, documented limitation until Phase 3**, which already plans to adopt `expo-dev-client` for the AI Guided voice feature (ADR-0007) — the same underlying constraint, so no separate decision was made to pull that forward early just for this.
+
+**Why**: Both surfaced from the same on-device test pass as the previous entry's fixes — same rationale (real bugs the sandbox couldn't catch, worth closing out before Phase 2 layers more UI on the same primitives). The background-audio item specifically needed to be diagnosed rather than blindly "fixed," since the obvious-looking config change doesn't actually solve it — reported that honestly rather than claiming a fix that wouldn't hold up.
+
+**Verification**: 96/96 tests passing (`lib/format.test.ts` gained direct coverage of `getEffectiveDurationMs` for both the untrimmed and trimmed cases; `__tests__/app/library.test.tsx`'s existing fixture — which happened to encode the old buggy expectation, `duration_ms: 10000` trimmed to `0-8000` asserting "0:10" — corrected to assert "0:08"). Typecheck and lint clean. Verified for real against the local Supabase stack: created a 7s recording, set `trim_start_ms`/`trim_end_ms` to 2000/5000 directly, confirmed the Library now shows "0:03 · trimmed" instead of the old "0:07". `.env` restored to the live project, local stack stopped, `git status --porcelain -uall` clean before committing.
+
+**Commit**: `67a04ad` — Fix trimmed-duration display; document background-audio config
+
+---
+
 ## 2026-09-22 — Fix recording rename, folder contents view, and trim playback (real-device testing)
 
 **What**: First real-device pass (user's own phone, via Expo Go) surfaced four issues that neither the unit test suite nor the web-preview sandbox had caught:
