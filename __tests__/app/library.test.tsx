@@ -66,7 +66,7 @@ describe('LibraryScreen', () => {
     const { getByText } = await render(<LibraryScreen />);
 
     await waitFor(() => expect(getByText('Bedtime affirmation')).toBeTruthy());
-    expect(getByText('Sleep · 0:10 · trimmed')).toBeTruthy();
+    expect(getByText('Sleep · 0:08 · trimmed')).toBeTruthy();
     expect(getByText('Unfiled one')).toBeTruthy();
     expect(getByText('0:05')).toBeTruthy();
   });

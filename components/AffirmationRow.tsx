@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text } from 'react-native';
 import { radii, spacing, typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import type { LocalAffirmation } from '@/lib/affirmations.local';
-import { formatDuration } from '@/lib/format';
+import { formatDuration, getEffectiveDurationMs } from '@/lib/format';
 
 type AffirmationRowProps = {
   affirmation: LocalAffirmation;
@@ -19,7 +19,7 @@ export function AffirmationRow({ affirmation, folderName, onPress }: Affirmation
       <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>{affirmation.title}</Text>
       <Text style={[styles.rowMeta, { color: colors.textSecondary }]}>
         {folderName ? `${folderName} · ` : ''}
-        {formatDuration(affirmation.duration_ms)}
+        {formatDuration(getEffectiveDurationMs(affirmation))}
         {affirmation.trim_start_ms !== null ? ' · trimmed' : ''}
       </Text>
     </Pressable>

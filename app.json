@@ -28,7 +28,8 @@
       [
         "expo-audio",
         {
-          "microphonePermission": "Anthaathi needs microphone access so you can record affirmations in your own voice."
+          "microphonePermission": "Anthaathi needs microphone access so you can record affirmations in your own voice.",
+          "enableBackgroundPlayback": true
         }
       ]
     ]
