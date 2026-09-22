@@ -80,11 +80,16 @@ export async function deleteLocalFolder(id: string): Promise<void> {
   const database = await getDatabase();
   const now = new Date().toISOString();
 
+  // Looked up before the row is gone: carried in the delete's queue payload so
+  // account deletion can still attribute this queue entry to its user even
+  // after the local folder row itself no longer exists to look it up from.
+  const existing = await getLocalFolder(id);
+
   await database.runAsync(
     `UPDATE affirmations SET folder_id = NULL, updated_at = ? WHERE folder_id = ?`,
     [now, id],
   );
   await database.runAsync(`DELETE FROM folders WHERE id = ?`, [id]);
 
-  await enqueue('folders', 'delete', id);
+  await enqueue('folders', 'delete', id, existing ? { user_id: existing.user_id } : undefined);
 }

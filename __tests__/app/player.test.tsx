@@ -122,6 +122,29 @@ describe('PlayerScreen', () => {
     expect(getByText('Calm')).toBeTruthy();
   });
 
+  it('loops a single selected track indefinitely, not just once', async () => {
+    const { getByText } = await render(<PlayerScreen />);
+    await waitFor(() => expect(getByText('Calm')).toBeTruthy());
+
+    await fireEvent.press(getByText('Calm'));
+    await fireEvent.press(getByText('Play (1)'));
+    await waitFor(() => expect(getByText('Track 1 of 1')).toBeTruthy());
+    expect(mockSeekTo).toHaveBeenCalledTimes(1);
+    expect(mockPlay).toHaveBeenCalledTimes(1);
+
+    // First loop: crossing the single track's trim_end_ms (9000) should restart it.
+    statusListener?.({ currentTime: 9.1 });
+    await waitFor(() => expect(mockSeekTo).toHaveBeenCalledTimes(2));
+    expect(mockPlay).toHaveBeenCalledTimes(2);
+
+    // Second loop: this is the case the missing `playCount` dependency broke —
+    // the advance listener must resubscribe (and its `advanced` guard reset)
+    // even though `currentTrack`/`player` never change identity for one track.
+    statusListener?.({ currentTime: 9.1 });
+    await waitFor(() => expect(mockSeekTo).toHaveBeenCalledTimes(3));
+    expect(mockPlay).toHaveBeenCalledTimes(3);
+  });
+
   it('Stop pauses playback and returns to the selection screen', async () => {
     const { getByText } = await render(<PlayerScreen />);
     await waitFor(() => expect(getByText('Calm')).toBeTruthy());

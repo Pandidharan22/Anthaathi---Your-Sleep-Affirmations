@@ -25,7 +25,7 @@ beforeEach(() => {
 });
 
 describe('TrimEditor', () => {
-  it('defaults trim range to the full duration and rejects an invalid save', async () => {
+  it('defaults trim range to the full duration, and saving an untouched range reports null (not trimmed)', async () => {
     const onSave = jest.fn();
     const { getByText } = await render(
       <TrimEditor uri="file:///rec.m4a" durationMs={10000} onSave={onSave} />,
@@ -33,7 +33,7 @@ describe('TrimEditor', () => {
 
     expect(getByText('Trim: 0:00 – 0:10')).toBeTruthy();
     await fireEvent.press(getByText('Save trim'));
-    expect(onSave).toHaveBeenCalledWith(0, 10000);
+    expect(onSave).toHaveBeenCalledWith(null, null);
   });
 
   it('Set start here / Set end here use the current playback position', async () => {
@@ -81,6 +81,38 @@ describe('TrimEditor', () => {
     await rerender(<TrimEditor uri="file:///rec.m4a" durationMs={10000} onSave={jest.fn()} />);
     await fireEvent.press(getByText('Pause'));
     expect(mockPause).toHaveBeenCalled();
+  });
+
+  it('reports null when an existing trim is reset back to the full range', async () => {
+    const onSave = jest.fn();
+    mockStatus = { ...mockStatus, currentTime: 0 };
+
+    const { getByText, rerender } = await render(
+      <TrimEditor
+        uri="file:///rec.m4a"
+        durationMs={10000}
+        initialTrimStartMs={1000}
+        initialTrimEndMs={9000}
+        onSave={onSave}
+      />,
+    );
+    await fireEvent.press(getByText('Set start here'));
+
+    mockStatus = { ...mockStatus, currentTime: 10 };
+    await rerender(
+      <TrimEditor
+        uri="file:///rec.m4a"
+        durationMs={10000}
+        initialTrimStartMs={1000}
+        initialTrimEndMs={9000}
+        onSave={onSave}
+      />,
+    );
+    await fireEvent.press(getByText('Set end here'));
+    await waitFor(() => expect(getByText('Trim: 0:00 – 0:10')).toBeTruthy());
+
+    await fireEvent.press(getByText('Save trim'));
+    expect(onSave).toHaveBeenCalledWith(null, null);
   });
 
   it('Preview trim seeks to the trim start and plays', async () => {

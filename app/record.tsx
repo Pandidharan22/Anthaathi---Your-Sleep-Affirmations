@@ -17,6 +17,7 @@ import { radii, spacing, typography } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { createLocalAffirmation } from '@/lib/affirmations.local';
+import { formatDuration } from '@/lib/format';
 import { listLocalFolders, type LocalFolder } from '@/lib/folders.local';
 
 type ScreenState =
@@ -29,13 +30,6 @@ type ScreenState =
   | 'saving';
 
 const RECORDING_OPTIONS = { ...RecordingPresets.HIGH_QUALITY, directory: 'document' as const };
-
-function formatDuration(ms: number) {
-  const totalSeconds = Math.floor(ms / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-}
 
 export default function RecordScreen() {
   const colors = useThemeColors();
@@ -115,7 +109,7 @@ export default function RecordScreen() {
     await handleStartRecording();
   }
 
-  async function handleSave(trimStartMs: number, trimEndMs: number) {
+  async function handleSave(trimStartMs: number | null, trimEndMs: number | null) {
     if (!user || !recordedUri) return;
     const trimmedTitle = title.trim();
     if (!trimmedTitle) {

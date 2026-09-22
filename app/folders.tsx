@@ -13,6 +13,8 @@ import {
   type LocalFolder,
 } from '@/lib/folders.local';
 
+const ERROR_MESSAGE = 'Something went wrong. Please try again.';
+
 export default function FoldersScreen() {
   const colors = useThemeColors();
   const { user } = useAuth();
@@ -20,6 +22,7 @@ export default function FoldersScreen() {
   const [newFolderName, setNewFolderName] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(() => {
     if (user) listLocalFolders(user.id).then(setFolders);
@@ -30,12 +33,18 @@ export default function FoldersScreen() {
   async function handleCreate() {
     const name = newFolderName.trim();
     if (!user || !name) return;
-    await createLocalFolder(user.id, name);
-    setNewFolderName('');
-    refresh();
+    setError(null);
+    try {
+      await createLocalFolder(user.id, name);
+      setNewFolderName('');
+      refresh();
+    } catch {
+      setError(ERROR_MESSAGE);
+    }
   }
 
   function startEditing(folder: LocalFolder) {
+    setError(null);
     setEditingId(folder.id);
     setEditingName(folder.name);
   }
@@ -43,7 +52,11 @@ export default function FoldersScreen() {
   async function saveEditing() {
     const name = editingName.trim();
     if (editingId && name) {
-      await renameLocalFolder(editingId, name);
+      try {
+        await renameLocalFolder(editingId, name);
+      } catch {
+        setError(ERROR_MESSAGE);
+      }
     }
     setEditingId(null);
     refresh();
@@ -56,8 +69,13 @@ export default function FoldersScreen() {
         text: 'Delete',
         style: 'destructive',
         onPress: async () => {
-          await deleteLocalFolder(folder.id);
-          refresh();
+          setError(null);
+          try {
+            await deleteLocalFolder(folder.id);
+            refresh();
+          } catch {
+            setError(ERROR_MESSAGE);
+          }
         },
       },
     ]);
@@ -65,6 +83,8 @@ export default function FoldersScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {error ? <Text style={[styles.error, { color: colors.error }]}>{error}</Text> : null}
+
       <View style={styles.row}>
         <TextInput
           value={newFolderName}
@@ -154,6 +174,10 @@ const styles = StyleSheet.create({
   description: {
     fontSize: typography.body.fontSize,
     lineHeight: typography.body.lineHeight,
+  },
+  error: {
+    fontSize: typography.caption.fontSize,
+    textAlign: 'center',
   },
   list: {
     gap: spacing.sm,

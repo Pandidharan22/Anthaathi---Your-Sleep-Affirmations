@@ -87,4 +87,48 @@ describe('FoldersScreen', () => {
 
     await waitFor(() => expect(mockDeleteLocalFolder).toHaveBeenCalledWith('f1'));
   });
+
+  it('shows an error message when creating a folder fails', async () => {
+    mockCreateLocalFolder.mockRejectedValue(new Error('disk full'));
+
+    const { getByPlaceholderText, getByText } = await render(<FoldersScreen />);
+
+    await fireEvent.changeText(getByPlaceholderText('New folder name'), 'Focus');
+    await fireEvent.press(getByText('Create'));
+
+    await waitFor(() => expect(getByText('Something went wrong. Please try again.')).toBeTruthy());
+  });
+
+  it('shows an error message when renaming a folder fails', async () => {
+    mockListLocalFolders.mockResolvedValue([
+      { id: 'f1', user_id: 'user-1', name: 'Sleep', created_at: '', updated_at: '', synced_at: null },
+    ]);
+    mockRenameLocalFolder.mockRejectedValue(new Error('disk full'));
+
+    const { getByText, getByDisplayValue } = await render(<FoldersScreen />);
+    await waitFor(() => expect(getByText('Rename')).toBeTruthy());
+
+    await fireEvent.press(getByText('Rename'));
+    await fireEvent.changeText(getByDisplayValue('Sleep'), 'Bedtime');
+    await fireEvent.press(getByText('Save'));
+
+    await waitFor(() => expect(getByText('Something went wrong. Please try again.')).toBeTruthy());
+  });
+
+  it('shows an error message when deleting a folder fails', async () => {
+    mockListLocalFolders.mockResolvedValue([
+      { id: 'f1', user_id: 'user-1', name: 'Sleep', created_at: '', updated_at: '', synced_at: null },
+    ]);
+    mockDeleteLocalFolder.mockRejectedValue(new Error('disk full'));
+    mockAlert.mockImplementation((_title, _message, buttons) => {
+      buttons?.find((b) => b.text === 'Delete')?.onPress?.();
+    });
+
+    const { getByText } = await render(<FoldersScreen />);
+    await waitFor(() => expect(getByText('Delete')).toBeTruthy());
+
+    await fireEvent.press(getByText('Delete'));
+
+    await waitFor(() => expect(getByText('Something went wrong. Please try again.')).toBeTruthy());
+  });
 });

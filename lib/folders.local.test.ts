@@ -88,8 +88,10 @@ describe('folders.local', () => {
     expect(enqueue).toHaveBeenCalledWith('folders', 'update', 'folder-1', { name: 'Focus' });
   });
 
-  it('deleteLocalFolder un-files affirmations locally, deletes the folder, and enqueues a delete', async () => {
-    const db = makeFakeDatabase();
+  it('deleteLocalFolder un-files affirmations locally, deletes the folder, and enqueues a delete carrying user_id', async () => {
+    const db = makeFakeDatabase([
+      { id: 'folder-1', user_id: 'user-1', name: 'Sleep', created_at: '', updated_at: '', synced_at: null },
+    ]);
     getDatabase.mockResolvedValue(db);
 
     await deleteLocalFolder('folder-1');
@@ -101,6 +103,15 @@ describe('folders.local', () => {
       ],
       [expect.stringContaining('DELETE FROM folders'), ['folder-1']],
     ]);
-    expect(enqueue).toHaveBeenCalledWith('folders', 'delete', 'folder-1');
+    expect(enqueue).toHaveBeenCalledWith('folders', 'delete', 'folder-1', { user_id: 'user-1' });
+  });
+
+  it('deleteLocalFolder enqueues a delete with no payload when the folder is already gone', async () => {
+    const db = makeFakeDatabase([]);
+    getDatabase.mockResolvedValue(db);
+
+    await deleteLocalFolder('missing');
+
+    expect(enqueue).toHaveBeenCalledWith('folders', 'delete', 'missing', undefined);
   });
 });

@@ -7,15 +7,9 @@ import { radii, spacing, typography } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { listLocalAffirmations, type LocalAffirmation } from '@/lib/affirmations.local';
+import { formatDuration } from '@/lib/format';
 
 const SLEEP_TIMER_OPTIONS = [15, 30, 45, 60] as const;
-
-function formatTime(ms: number) {
-  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-}
 
 export default function PlayerScreen() {
   const colors = useThemeColors();
@@ -56,7 +50,11 @@ export default function PlayerScreen() {
 
   // Advance the queue when the track reaches its trim end (or natural end).
   // A real event listener (not a useAudioPlayerStatus-driven effect) so the
-  // advance-once guard lives in the closure, not in state/renders.
+  // advance-once guard lives in the closure, not in state/renders. `playCount`
+  // is in the deps (even though it isn't read in the body) so this resubscribes
+  // — and its `advanced` guard resets — on every loop iteration, including
+  // repeats of the same single track, where `currentTrack`/`player` never
+  // change identity on their own.
   useEffect(() => {
     if (screenState !== 'playing' || !currentTrack) return;
     const trimEndMs = currentTrack.trim_end_ms ?? currentTrack.duration_ms;
@@ -68,15 +66,18 @@ export default function PlayerScreen() {
       }
     });
     return () => subscription.remove();
-  }, [screenState, currentTrack, player]);
+  }, [playCount, screenState, currentTrack, player]);
 
-  function handleStop() {
+  // Depends on `player` so this identity changes whenever the current track
+  // does — the sleep-timer effect below resubscribes to match, instead of a
+  // stale closure pausing whichever track was playing when the timer started.
+  const handleStop = useCallback(() => {
     player.pause();
     setScreenState('selecting');
     setPlayCount(0);
     setRemainingSeconds(null);
     timerEndRef.current = null;
-  }
+  }, [player]);
 
   // Sleep timer countdown.
   useEffect(() => {
@@ -90,8 +91,7 @@ export default function PlayerScreen() {
       setRemainingSeconds(Math.round(remainingMs / 1000));
     }, 1000);
     return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [screenState]);
+  }, [screenState, handleStop]);
 
   function toggleSelected(id: string) {
     setSelectedIds((prev) => {
@@ -132,12 +132,12 @@ export default function PlayerScreen() {
         </Text>
         <Text style={[styles.title, { color: colors.textPrimary }]}>{currentTrack.title}</Text>
         <Text style={[styles.time, { color: colors.textPrimary }]}>
-          {formatTime(elapsedMs)} / {formatTime(trackDurationMs)}
+          {formatDuration(elapsedMs)} / {formatDuration(trackDurationMs)}
         </Text>
 
         {remainingSeconds !== null ? (
           <Text style={[styles.timerRemaining, { color: colors.textSecondary }]}>
-            Sleep timer: {formatTime(remainingSeconds * 1000)} remaining
+            Sleep timer: {formatDuration(remainingSeconds * 1000)} remaining
           </Text>
         ) : null}
 

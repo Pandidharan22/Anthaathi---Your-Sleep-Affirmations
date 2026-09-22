@@ -192,8 +192,10 @@ describe('affirmations.local', () => {
     expect(enqueue).toHaveBeenCalledWith('affirmations', 'update', 'aff-1', { folder_id: null });
   });
 
-  it('deleteLocalAffirmation deletes the row, enqueues a delete, and removes the audio file', async () => {
-    const db = makeFakeDatabase([{ id: 'aff-1', local_uri: 'file:///doc/rec.m4a' }]);
+  it('deleteLocalAffirmation deletes the row, enqueues a delete carrying user_id, and removes the audio file', async () => {
+    const db = makeFakeDatabase([
+      { id: 'aff-1', user_id: 'user-1', local_uri: 'file:///doc/rec.m4a' },
+    ]);
     getDatabase.mockResolvedValue(db);
 
     await deleteLocalAffirmation('aff-1');
@@ -201,16 +203,17 @@ describe('affirmations.local', () => {
     expect(db.runAsync).toHaveBeenCalledWith(expect.stringContaining('DELETE FROM affirmations'), [
       'aff-1',
     ]);
-    expect(enqueue).toHaveBeenCalledWith('affirmations', 'delete', 'aff-1');
+    expect(enqueue).toHaveBeenCalledWith('affirmations', 'delete', 'aff-1', { user_id: 'user-1' });
     expect(mockFileDelete).toHaveBeenCalled();
   });
 
-  it('deleteLocalAffirmation is a no-op on the file when the row is already gone', async () => {
+  it('deleteLocalAffirmation enqueues a delete with no payload when the row is already gone', async () => {
     const db = makeFakeDatabase([]);
     getDatabase.mockResolvedValue(db);
 
     await deleteLocalAffirmation('missing');
 
+    expect(enqueue).toHaveBeenCalledWith('affirmations', 'delete', 'missing', undefined);
     expect(mockFileDelete).not.toHaveBeenCalled();
   });
 });

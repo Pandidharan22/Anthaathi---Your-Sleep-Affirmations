@@ -58,13 +58,22 @@ async function initSchema(database: SQLite.SQLiteDatabase) {
   }
 }
 
-/** Lazily opens (once) and migrates the on-device database. Safe to call repeatedly. */
+/**
+ * Lazily opens (once) and migrates the on-device database. Safe to call repeatedly.
+ * If opening/migrating fails, the failed attempt is not cached — the next call
+ * retries from scratch instead of permanently failing for the rest of the session.
+ */
 export function getDatabase(): Promise<SQLite.SQLiteDatabase> {
   if (!databasePromise) {
-    databasePromise = SQLite.openDatabaseAsync(DATABASE_NAME).then(async (database) => {
-      await initSchema(database);
-      return database;
-    });
+    databasePromise = SQLite.openDatabaseAsync(DATABASE_NAME)
+      .then(async (database) => {
+        await initSchema(database);
+        return database;
+      })
+      .catch((error: unknown) => {
+        databasePromise = null;
+        throw error;
+      });
   }
   return databasePromise;
 }

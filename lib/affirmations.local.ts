@@ -130,8 +130,8 @@ export async function getLocalAffirmation(id: string): Promise<LocalAffirmation 
  */
 export async function updateLocalAffirmationTrim(
   id: string,
-  trimStartMs: number,
-  trimEndMs: number,
+  trimStartMs: number | null,
+  trimEndMs: number | null,
 ): Promise<void> {
   const database = await getDatabase();
   const now = new Date().toISOString();
@@ -170,7 +170,9 @@ export async function deleteLocalAffirmation(id: string): Promise<void> {
   const affirmation = await getLocalAffirmation(id);
 
   await database.runAsync(`DELETE FROM affirmations WHERE id = ?`, [id]);
-  await enqueue('affirmations', 'delete', id);
+  // user_id carried in the payload so account deletion can still attribute
+  // this queue entry to its user even after the local row itself is gone.
+  await enqueue('affirmations', 'delete', id, affirmation ? { user_id: affirmation.user_id } : undefined);
 
   if (affirmation) {
     try {

@@ -47,6 +47,16 @@ function makeFakeDatabase() {
   };
 }
 
+function fullFolderPayload(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    id: 'folder-1',
+    user_id: 'user-1',
+    name: 'Sleep',
+    created_at: '2026-01-01T00:00:00.000Z',
+    ...overrides,
+  };
+}
+
 beforeEach(() => {
   jest.resetAllMocks();
 });
@@ -55,12 +65,32 @@ describe('syncQueue', () => {
   it('enqueue inserts a row into sync_queue with the given payload', async () => {
     const db = makeFakeDatabase();
     getDatabase.mockResolvedValue(db);
+    const payload = fullFolderPayload();
 
-    await enqueue('folders', 'upsert', 'folder-1', { id: 'folder-1', name: 'Sleep' });
+    await enqueue('folders', 'upsert', 'folder-1', payload);
 
     expect(db.__rows()).toHaveLength(1);
     expect(db.__rows()[0]).toMatchObject({ table_name: 'folders', operation: 'upsert', row_id: 'folder-1' });
-    expect(JSON.parse(db.__rows()[0].payload as string)).toEqual({ id: 'folder-1', name: 'Sleep' });
+    expect(JSON.parse(db.__rows()[0].payload as string)).toEqual(payload);
+  });
+
+  it("enqueue rejects an 'upsert' payload missing a required (NOT NULL) column", async () => {
+    const db = makeFakeDatabase();
+    getDatabase.mockResolvedValue(db);
+
+    await expect(
+      enqueue('folders', 'upsert', 'folder-1', { id: 'folder-1', name: 'Sleep' }),
+    ).rejects.toThrow(/missing required field\(s\): user_id, created_at/);
+    expect(db.__rows()).toHaveLength(0);
+  });
+
+  it("enqueue allows an 'update' payload with only the changed columns", async () => {
+    const db = makeFakeDatabase();
+    getDatabase.mockResolvedValue(db);
+
+    await enqueue('folders', 'update', 'folder-1', { name: 'Renamed' });
+
+    expect(db.__rows()).toHaveLength(1);
   });
 
   it('processQueue pushes queued upserts to Supabase and clears them', async () => {
@@ -69,8 +99,8 @@ describe('syncQueue', () => {
     const upsert = jest.fn().mockResolvedValue({ error: null });
     supabase.from.mockReturnValue({ upsert });
 
-    await enqueue('folders', 'upsert', 'folder-1', { id: 'folder-1', name: 'Sleep' });
-    await enqueue('folders', 'upsert', 'folder-2', { id: 'folder-2', name: 'Focus' });
+    await enqueue('folders', 'upsert', 'folder-1', fullFolderPayload({ id: 'folder-1' }));
+    await enqueue('folders', 'upsert', 'folder-2', fullFolderPayload({ id: 'folder-2', name: 'Focus' }));
 
     const result = await processQueue();
 
@@ -122,9 +152,9 @@ describe('syncQueue', () => {
       .mockResolvedValueOnce({ error: { message: 'network error' } });
     supabase.from.mockReturnValue({ upsert });
 
-    await enqueue('folders', 'upsert', 'folder-1', { id: 'folder-1' });
-    await enqueue('folders', 'upsert', 'folder-2', { id: 'folder-2' });
-    await enqueue('folders', 'upsert', 'folder-3', { id: 'folder-3' });
+    await enqueue('folders', 'upsert', 'folder-1', fullFolderPayload({ id: 'folder-1' }));
+    await enqueue('folders', 'upsert', 'folder-2', fullFolderPayload({ id: 'folder-2' }));
+    await enqueue('folders', 'upsert', 'folder-3', fullFolderPayload({ id: 'folder-3' }));
 
     const result = await processQueue();
 

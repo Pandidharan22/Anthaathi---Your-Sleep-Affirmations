@@ -4,6 +4,17 @@ import { supabase } from '@/lib/supabase';
 export type SyncTable = 'folders' | 'affirmations';
 export type SyncOperation = 'upsert' | 'update' | 'delete';
 
+// The remote NOT NULL columns per table (see supabase/migrations). Checked at
+// enqueue() time for 'upsert' so a caller that reaches for 'upsert' with a
+// partial payload out of habit fails loudly right away, in local code —
+// instead of silently reproducing the exact NOT-NULL-on-partial-upsert bug
+// this module was already patched once for (see the 'update' operation doc
+// below), which previously only surfaced against real Postgres at sync time.
+const REQUIRED_UPSERT_FIELDS: Record<SyncTable, string[]> = {
+  folders: ['id', 'user_id', 'name', 'created_at'],
+  affirmations: ['id', 'user_id', 'title', 'local_uri', 'duration_ms', 'source', 'created_at'],
+};
+
 type QueueRow = {
   queue_id: number;
   table_name: SyncTable;
@@ -31,6 +42,16 @@ export async function enqueue(
   rowId: string,
   payload?: Record<string, unknown>,
 ): Promise<void> {
+  if (operation === 'upsert') {
+    const missing = REQUIRED_UPSERT_FIELDS[table].filter((field) => payload?.[field] == null);
+    if (missing.length > 0) {
+      throw new Error(
+        `enqueue('${table}', 'upsert', ...) payload is missing required field(s): ${missing.join(', ')}. ` +
+          `'upsert' needs the full row — use 'update' for a partial change.`,
+      );
+    }
+  }
+
   const database = await getDatabase();
   await database.runAsync(
     `INSERT INTO sync_queue (table_name, operation, row_id, payload, created_at) VALUES (?, ?, ?, ?, ?)`,

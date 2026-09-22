@@ -5,22 +5,17 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 
 import { radii, spacing, typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { formatDuration } from '@/lib/format';
 
 type TrimEditorProps = {
   uri: string;
   durationMs: number;
   initialTrimStartMs?: number | null;
   initialTrimEndMs?: number | null;
-  onSave: (trimStartMs: number, trimEndMs: number) => Promise<void> | void;
+  /** Both args are null when the trim covers the full, untouched duration — "no trim". */
+  onSave: (trimStartMs: number | null, trimEndMs: number | null) => Promise<void> | void;
   saveLabel?: string;
 };
-
-function formatTime(ms: number) {
-  const totalSeconds = Math.floor(ms / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-}
 
 /**
  * Non-destructive trim: the audio file is never re-encoded. Trim points are just
@@ -98,7 +93,11 @@ export function TrimEditor({
     setSaving(true);
     setError(null);
     try {
-      await onSave(trimStartMs, trimEndMs);
+      // The full, untouched range means "not actually trimmed" — store null
+      // rather than the concrete 0/durationMs bounds, so callers and the
+      // Library's "trimmed" label can tell the difference.
+      const isFullRange = trimStartMs === 0 && trimEndMs === durationMs;
+      await onSave(isFullRange ? null : trimStartMs, isFullRange ? null : trimEndMs);
     } finally {
       setSaving(false);
     }
@@ -107,7 +106,7 @@ export function TrimEditor({
   return (
     <View style={styles.container}>
       <Text style={[styles.time, { color: colors.textPrimary }]}>
-        {formatTime(status.currentTime * 1000)} / {formatTime(durationMs)}
+        {formatDuration(status.currentTime * 1000)} / {formatDuration(durationMs)}
       </Text>
 
       <Slider
@@ -148,7 +147,7 @@ export function TrimEditor({
       </View>
 
       <Text style={[styles.trimSummary, { color: colors.textSecondary }]}>
-        Trim: {formatTime(trimStartMs)} – {formatTime(trimEndMs)}
+        Trim: {formatDuration(trimStartMs)} – {formatDuration(trimEndMs)}
       </Text>
 
       <Pressable
