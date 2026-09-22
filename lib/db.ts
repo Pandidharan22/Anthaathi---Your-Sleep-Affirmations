@@ -28,6 +28,8 @@ async function initSchema(database: SQLite.SQLiteDatabase) {
       source TEXT NOT NULL,
       voice_id TEXT,
       script_text TEXT,
+      trim_start_ms INTEGER,
+      trim_end_ms INTEGER,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       synced_at TEXT
@@ -42,6 +44,18 @@ async function initSchema(database: SQLite.SQLiteDatabase) {
       created_at TEXT NOT NULL
     );
   `);
+
+  // Best-effort column additions for dev databases created before this column existed.
+  // No real users/devices exist yet, so a full migration framework would be premature —
+  // this just keeps existing local dev data usable across schema tweaks pre-launch.
+  const columns = await database.getAllAsync<{ name: string }>(`PRAGMA table_info(affirmations)`);
+  const columnNames = new Set(columns.map((c) => c.name));
+  if (!columnNames.has('trim_start_ms')) {
+    await database.execAsync(`ALTER TABLE affirmations ADD COLUMN trim_start_ms INTEGER`);
+  }
+  if (!columnNames.has('trim_end_ms')) {
+    await database.execAsync(`ALTER TABLE affirmations ADD COLUMN trim_end_ms INTEGER`);
+  }
 }
 
 /** Lazily opens (once) and migrates the on-device database. Safe to call repeatedly. */

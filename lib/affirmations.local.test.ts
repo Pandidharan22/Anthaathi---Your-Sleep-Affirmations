@@ -1,4 +1,9 @@
-import { createLocalAffirmation, listLocalAffirmations } from './affirmations.local';
+import {
+  createLocalAffirmation,
+  getLocalAffirmation,
+  listLocalAffirmations,
+  updateLocalAffirmationTrim,
+} from './affirmations.local';
 
 jest.mock('expo-crypto', () => ({ randomUUID: jest.fn(() => 'fixed-uuid') }));
 jest.mock('@/lib/db', () => ({ getDatabase: jest.fn() }));
@@ -9,13 +14,13 @@ const { getDatabase } = require('@/lib/db');
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { enqueue } = require('@/lib/syncQueue');
 
-function makeFakeDatabase() {
+function makeFakeDatabase(getAllResult: unknown[] = []) {
   const inserted: unknown[][] = [];
   return {
     runAsync: jest.fn(async (_sql: string, params: unknown[]) => {
       inserted.push(params);
     }),
-    getAllAsync: jest.fn(async () => []),
+    getAllAsync: jest.fn(async () => getAllResult),
     __inserted: inserted,
   };
 }
@@ -36,6 +41,8 @@ describe('affirmations.local', () => {
       localUri: 'file:///doc/rec.m4a',
       durationMs: 5000,
       source: 'recorded',
+      trimStartMs: 500,
+      trimEndMs: 4500,
     });
 
     expect(affirmation).toMatchObject({
@@ -49,6 +56,8 @@ describe('affirmations.local', () => {
       source: 'recorded',
       voice_id: null,
       script_text: null,
+      trim_start_ms: 500,
+      trim_end_ms: 4500,
     });
     expect(db.runAsync).toHaveBeenCalledWith(
       expect.stringContaining('INSERT INTO affirmations'),
@@ -63,6 +72,8 @@ describe('affirmations.local', () => {
         'recorded',
         null,
         null,
+        500,
+        4500,
         affirmation.created_at,
         affirmation.updated_at,
         null,
@@ -79,8 +90,26 @@ describe('affirmations.local', () => {
       source: 'recorded',
       voice_id: null,
       script_text: null,
+      trim_start_ms: 500,
+      trim_end_ms: 4500,
       created_at: affirmation.created_at,
     });
+  });
+
+  it('createLocalAffirmation defaults trim fields to null when omitted', async () => {
+    const db = makeFakeDatabase();
+    getDatabase.mockResolvedValue(db);
+
+    const affirmation = await createLocalAffirmation({
+      userId: 'user-1',
+      title: 'Recording',
+      localUri: 'file:///doc/rec.m4a',
+      durationMs: 5000,
+      source: 'recorded',
+    });
+
+    expect(affirmation.trim_start_ms).toBeNull();
+    expect(affirmation.trim_end_ms).toBeNull();
   });
 
   it('listLocalAffirmations queries by user_id', async () => {
@@ -92,5 +121,43 @@ describe('affirmations.local', () => {
     expect(db.getAllAsync).toHaveBeenCalledWith(expect.stringContaining('WHERE user_id = ?'), [
       'user-1',
     ]);
+  });
+
+  it('getLocalAffirmation returns the row when found', async () => {
+    const row = { id: 'aff-1', title: 'Test' };
+    const db = makeFakeDatabase([row]);
+    getDatabase.mockResolvedValue(db);
+
+    const result = await getLocalAffirmation('aff-1');
+
+    expect(db.getAllAsync).toHaveBeenCalledWith(expect.stringContaining('WHERE id = ?'), [
+      'aff-1',
+    ]);
+    expect(result).toBe(row);
+  });
+
+  it('getLocalAffirmation returns null when not found', async () => {
+    const db = makeFakeDatabase([]);
+    getDatabase.mockResolvedValue(db);
+
+    const result = await getLocalAffirmation('missing');
+
+    expect(result).toBeNull();
+  });
+
+  it('updateLocalAffirmationTrim updates the row and enqueues a partial update (not upsert)', async () => {
+    const db = makeFakeDatabase();
+    getDatabase.mockResolvedValue(db);
+
+    await updateLocalAffirmationTrim('aff-1', 1000, 9000);
+
+    expect(db.runAsync).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE affirmations SET trim_start_ms'),
+      [1000, 9000, expect.any(String), 'aff-1'],
+    );
+    expect(enqueue).toHaveBeenCalledWith('affirmations', 'update', 'aff-1', {
+      trim_start_ms: 1000,
+      trim_end_ms: 9000,
+    });
   });
 });

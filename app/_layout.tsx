@@ -57,6 +57,10 @@ function NavigationStack() {
           name="record"
           options={{ title: 'New Recording', presentation: 'modal', headerBackVisible: false }}
         />
+        <Stack.Screen
+          name="affirmation/[id]/trim"
+          options={{ title: 'Trim', presentation: 'modal' }}
+        />
       </Stack.Protected>
       <Stack.Protected guard={!session}>
         <Stack.Screen name="auth" options={{ title: 'Sign in', headerBackVisible: false }} />

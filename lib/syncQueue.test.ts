@@ -80,6 +80,24 @@ describe('syncQueue', () => {
     expect(db.__localRows()['folder-1'].synced_at).toBeTruthy();
   });
 
+  it('processQueue issues a real partial update for update-op rows, not an upsert', async () => {
+    const db = makeFakeDatabase();
+    getDatabase.mockResolvedValue(db);
+    const eq = jest.fn().mockResolvedValue({ error: null });
+    const update = jest.fn(() => ({ eq }));
+    const upsert = jest.fn();
+    supabase.from.mockReturnValue({ update, upsert });
+
+    await enqueue('affirmations', 'update', 'aff-1', { trim_start_ms: 1000, trim_end_ms: 9000 });
+    const result = await processQueue();
+
+    expect(result).toEqual({ processed: 1, remaining: 0 });
+    expect(update).toHaveBeenCalledWith({ trim_start_ms: 1000, trim_end_ms: 9000 });
+    expect(eq).toHaveBeenCalledWith('id', 'aff-1');
+    expect(upsert).not.toHaveBeenCalled();
+    expect(db.__localRows()['aff-1'].synced_at).toBeTruthy();
+  });
+
   it('processQueue issues a delete for delete-op rows', async () => {
     const db = makeFakeDatabase();
     getDatabase.mockResolvedValue(db);

@@ -3,8 +3,6 @@ import {
   RecordingPresets,
   requestRecordingPermissionsAsync,
   setAudioModeAsync,
-  useAudioPlayer,
-  useAudioPlayerStatus,
   useAudioRecorder,
   useAudioRecorderState,
 } from 'expo-audio';
@@ -13,6 +11,7 @@ import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { TrimEditor } from '@/components/TrimEditor';
 import { radii, spacing, typography } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { useThemeColors } from '@/hooks/useThemeColors';
@@ -47,8 +46,6 @@ export default function RecordScreen() {
 
   const recorder = useAudioRecorder(RECORDING_OPTIONS);
   const recorderState = useAudioRecorderState(recorder);
-  const player = useAudioPlayer(recordedUri ?? undefined);
-  const playerStatus = useAudioPlayerStatus(player);
 
   useEffect(() => {
     getRecordingPermissionsAsync().then(({ granted, canAskAgain }) => {
@@ -108,7 +105,7 @@ export default function RecordScreen() {
     await handleStartRecording();
   }
 
-  async function handleSave() {
+  async function handleSave(trimStartMs: number, trimEndMs: number) {
     if (!user || !recordedUri) return;
     setState('saving');
     setError(null);
@@ -119,6 +116,8 @@ export default function RecordScreen() {
         localUri: recordedUri,
         durationMs: recordedDurationMs,
         source: 'recorded',
+        trimStartMs,
+        trimEndMs,
       });
       router.back();
     } catch {
@@ -176,25 +175,12 @@ export default function RecordScreen() {
     );
   }
 
-  if (state === 'reviewing') {
+  if (state === 'reviewing' && recordedUri) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <Text style={[styles.title, { color: colors.textPrimary }]}>Review your recording</Text>
-        <Text style={[styles.duration, { color: colors.textPrimary }]}>
-          {formatDuration(recordedDurationMs)}
-        </Text>
 
         {error ? <Text style={[styles.error, { color: colors.error }]}>{error}</Text> : null}
-
-        <Pressable
-          onPress={() => (playerStatus.playing ? player.pause() : player.play())}
-          accessibilityRole="button"
-          style={[styles.primaryButton, { backgroundColor: colors.primary }]}
-        >
-          <Text style={[styles.primaryButtonLabel, { color: colors.background }]}>
-            {playerStatus.playing ? 'Pause' : 'Play'}
-          </Text>
-        </Pressable>
 
         <View style={styles.row}>
           <Pressable
@@ -213,13 +199,7 @@ export default function RecordScreen() {
           </Pressable>
         </View>
 
-        <Pressable
-          onPress={handleSave}
-          accessibilityRole="button"
-          style={[styles.primaryButton, { backgroundColor: colors.secondary }]}
-        >
-          <Text style={[styles.primaryButtonLabel, { color: colors.background }]}>Save</Text>
-        </Pressable>
+        <TrimEditor uri={recordedUri} durationMs={recordedDurationMs} onSave={handleSave} saveLabel="Save" />
       </View>
     );
   }

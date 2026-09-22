@@ -16,7 +16,7 @@ const mockCreateLocalAffirmation = jest.fn();
 
 const mockRecorderObj = { record: mockRecord, stop: mockStop, prepareToRecordAsync: mockPrepareToRecordAsync, uri: null as string | null };
 let mockRecorderState = { isRecording: false, durationMillis: 0, canRecord: true, url: null };
-let mockPlayerStatus = { playing: false };
+let mockPlayerStatus = { playing: false, currentTime: 0, duration: 0 };
 
 jest.mock('expo-audio', () => ({
   RecordingPresets: { HIGH_QUALITY: { extension: '.m4a', sampleRate: 44100, numberOfChannels: 2, bitRate: 128000 } },
@@ -25,9 +25,15 @@ jest.mock('expo-audio', () => ({
   setAudioModeAsync: (...args: unknown[]) => mockSetAudioModeAsync(...args),
   useAudioRecorder: () => mockRecorderObj,
   useAudioRecorderState: () => mockRecorderState,
-  useAudioPlayer: () => ({ play: mockPlayerPlay, pause: mockPlayerPause }),
+  useAudioPlayer: () => ({ play: mockPlayerPlay, pause: mockPlayerPause, seekTo: jest.fn().mockResolvedValue(undefined) }),
   useAudioPlayerStatus: () => mockPlayerStatus,
 }));
+
+jest.mock('@react-native-community/slider', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { View } = require('react-native');
+  return { __esModule: true, default: (props: object) => <View {...props} /> };
+});
 
 jest.mock('expo-file-system', () => ({
   File: jest.fn().mockImplementation(() => ({ delete: mockFileDelete })),
@@ -49,7 +55,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockRecorderObj.uri = null;
   mockRecorderState = { isRecording: false, durationMillis: 0, canRecord: true, url: null };
-  mockPlayerStatus = { playing: false };
+  mockPlayerStatus = { playing: false, currentTime: 0, duration: 0 };
   mockStop.mockResolvedValue(undefined);
   mockCreateLocalAffirmation.mockResolvedValue({});
 });

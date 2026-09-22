@@ -50,12 +50,17 @@ export default function LibraryScreen() {
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
           renderItem={({ item }) => (
-            <View style={[styles.row, { borderColor: colors.border }]}>
+            <Pressable
+              onPress={() => router.push(`/affirmation/${item.id}/trim`)}
+              accessibilityRole="button"
+              style={[styles.row, { borderColor: colors.border }]}
+            >
               <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>{item.title}</Text>
               <Text style={[styles.rowMeta, { color: colors.textSecondary }]}>
                 {formatDuration(item.duration_ms)}
+                {item.trim_start_ms !== null ? ' · trimmed' : ''}
               </Text>
-            </View>
+            </Pressable>
           )}
         />
       )}

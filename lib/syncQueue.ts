@@ -2,7 +2,7 @@ import { getDatabase } from '@/lib/db';
 import { supabase } from '@/lib/supabase';
 
 export type SyncTable = 'folders' | 'affirmations';
-export type SyncOperation = 'upsert' | 'delete';
+export type SyncOperation = 'upsert' | 'update' | 'delete';
 
 type QueueRow = {
   queue_id: number;
@@ -15,8 +15,15 @@ type QueueRow = {
 
 /**
  * Queues a local change for later push to Supabase. `payload` must already be
- * shaped as the remote row (remote-only columns — no local bookkeeping fields
- * like synced_at) and is required for 'upsert', ignored for 'delete'.
+ * shaped as remote columns (no local bookkeeping fields like synced_at).
+ * Required for 'upsert' (the full row — this is what creates it remotely) and
+ * 'update' (just the changed columns), ignored for 'delete'.
+ *
+ * 'update' issues a real partial UPDATE rather than upsert()'s INSERT ... ON
+ * CONFLICT DO UPDATE: Postgres validates NOT NULL constraints on the proposed
+ * insert row before it even checks for a conflict, so a partial payload sent
+ * through upsert() fails on any column not included, even when the row
+ * already exists. A true UPDATE only ever touches the columns given.
  */
 export async function enqueue(
   table: SyncTable,
@@ -62,7 +69,7 @@ export async function processQueue(): Promise<{ processed: number; remaining: nu
       }
 
       await database.runAsync(`DELETE FROM sync_queue WHERE queue_id = ?`, [next.queue_id]);
-      if (next.operation === 'upsert') {
+      if (next.operation === 'upsert' || next.operation === 'update') {
         await database.runAsync(`UPDATE ${next.table_name} SET synced_at = ? WHERE id = ?`, [
           new Date().toISOString(),
           next.row_id,
@@ -85,7 +92,15 @@ async function pushOne(row: QueueRow): Promise<void> {
   }
 
   const payload = row.payload ? JSON.parse(row.payload) : null;
-  if (!payload) throw new Error(`Queued upsert for ${row.table_name}/${row.row_id} has no payload`);
+  if (!payload) {
+    throw new Error(`Queued ${row.operation} for ${row.table_name}/${row.row_id} has no payload`);
+  }
+
+  if (row.operation === 'update') {
+    const { error } = await supabase.from(row.table_name).update(payload).eq('id', row.row_id);
+    if (error) throw error;
+    return;
+  }
 
   const { error } = await supabase.from(row.table_name).upsert(payload);
   if (error) throw error;
