@@ -31,6 +31,14 @@
           "microphonePermission": "Anthaathi needs microphone access so you can record affirmations in your own voice.",
           "enableBackgroundPlayback": true
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Anthaathi needs photo library access so you can add an image to a goal.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
       ]
     ]
   }
