@@ -56,7 +56,7 @@ Goal: the app is usable for its core purpose — record, organize, and loop-play
 Goal: the differentiator layer beyond the reference app. Implements FR-401–FR-404, FR-601–FR-604, FR-701–FR-702.
 
 - [x] **2.1** Goals schema + vision board CRUD UI (text + optional image). Implements FR-401–FR-403.
-- [ ] **2.2** Mark-achieved / completed-goals view. Implements FR-404.
+- [x] **2.2** Mark-achieved / completed-goals view. Implements FR-404. (Already satisfied by step 2.1's implementation — see Dev_Journal.md.)
 - [ ] **2.3** `playback_sessions` logging + derived streak calculation and display. Implements FR-601–FR-602.
 - [ ] **2.4** Journal entries (prompted + freeform), chronological view. Implements FR-603–FR-604.
 - [ ] **2.5** Local daily reminder notifications, opt-in/opt-out. Implements FR-701–FR-702.

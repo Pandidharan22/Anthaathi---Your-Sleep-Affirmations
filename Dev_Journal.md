@@ -4,6 +4,18 @@ One entry per committed step, newest first. Each entry: what was done, why, how 
 
 ---
 
+## 2026-09-23 — Step 2.2 closed out with no new code (Execution Plan step 2.2)
+
+**What**: Re-read FR-404 ("allow a user to mark a goal as achieved, retaining it in a completed-goals view rather than deleting it") against step 2.1's already-shipped implementation before writing anything new. Both clauses are already met: `app/goal/[id].tsx`'s "Mark achieved" / "Move back to active" toggle (backed by `updateLocalGoalStatus`) satisfies the first; `app/(tabs)/goals.tsx`'s persistent "Achieved" `SectionList` section satisfies the second — an achieved goal is never deleted, just re-sectioned, and stays there until the user explicitly deletes it. Both are already covered by tests written for step 2.1 (`goal-detail.test.tsx`'s achieved/back-to-active round trip, `goals.test.tsx`'s section-grouping test). No code changes made.
+
+**Why**: CLAUDE.md rule 6 (fewer, well-considered changes over broad speculative ones) — building a second, separate "completed goals" screen that duplicates the Achieved section already on the main Goals tab would be scope padding, not a real gap. FR-404's wording doesn't ask for anything the current implementation lacks (no mention of showing the achievement date, a dedicated filter, etc.), so adding any of that now would be speculative rather than requirement-driven. Flagged this possibility to the user in the previous step's summary rather than silently skipping; confirmed with the user to move forward, which included verifying this before starting 2.3.
+
+**Verification**: No new code — nothing to typecheck/lint/test beyond what step 2.1 already ran (133/133 passing at that commit). Re-checked `docs/PRD.md` and `docs/SYSTEM_DESIGN.md` for any elaboration on "completed-goals view" beyond the SRS's one-sentence FR-404 — found none, confirming there's no missed intent behind the step being scoped separately from 2.1 (most likely the Execution Plan's authors, this project's original AI-assisted planning pass, split it out defensively without knowing 2.1's eventual implementation would already cover it).
+
+**Commit**: _pending_ — bundled with the Execution Plan checkbox update.
+
+---
+
 ## 2026-09-23 — Vision board CRUD UI (Execution Plan step 2.1, part 2 of 2)
 
 **What**: Second half of step 2.1, built on the previous commit's schema/data layer. `app/(tabs)/goals.tsx` replaces the placeholder with a real vision board — a `SectionList` grouping goals into "Active" and "Achieved" sections (only rendered when non-empty), an "Add goal" button, and an empty state. New `components/GoalCard.tsx` renders a goal's optional image thumbnail, title, description snippet, and an "Achieved" badge, following the same card-row conventions as `AffirmationRow.tsx`. `app/goal/new.tsx` is a modal creation form (title, description, optional image); `app/goal/[id].tsx` is the detail/edit screen — title/description save inline on blur (mirroring `app/affirmation/[id]/trim.tsx`'s pattern), image can be added/replaced/removed, a toggle button implements FR-404's mark-achieved/move-back-to-active, and delete goes through the same `Alert.alert` confirm pattern used elsewhere. Both routes registered in `app/_layout.tsx` (`goal/new` as a modal, `goal/[id]` with a plain title). Added `expo-image-picker` (with its config plugin in `app.json` — camera and microphone permissions explicitly disabled since this app only ever picks from the library, never the camera) for the image picker itself; it copies the picked photo into the app's persistent document directory before handing the local path to `lib/goals.local.ts`, the same "copy into persistent storage immediately" pattern `app/record.tsx` already uses for microphone recordings.
