@@ -46,6 +46,11 @@ jest.mock('@/lib/affirmations.local', () => ({
   listLocalAffirmations: (...args: unknown[]) => mockListLocalAffirmations(...args),
 }));
 
+const mockLogLocalPlaybackSession = jest.fn().mockResolvedValue(undefined);
+jest.mock('@/lib/playbackSessions.local', () => ({
+  logLocalPlaybackSession: (...args: unknown[]) => mockLogLocalPlaybackSession(...args),
+}));
+
 const track1 = {
   id: 'aff-1',
   title: 'Calm',
@@ -145,7 +150,7 @@ describe('PlayerScreen', () => {
     expect(mockPlay).toHaveBeenCalledTimes(3);
   });
 
-  it('Stop pauses playback and returns to the selection screen', async () => {
+  it('Stop pauses playback, logs a completed playback session, and returns to the selection screen', async () => {
     const { getByText } = await render(<PlayerScreen />);
     await waitFor(() => expect(getByText('Calm')).toBeTruthy());
 
@@ -156,10 +161,23 @@ describe('PlayerScreen', () => {
     await fireEvent.press(getByText('Stop'));
 
     expect(mockPause).toHaveBeenCalled();
+    await waitFor(() => expect(mockLogLocalPlaybackSession).toHaveBeenCalledTimes(1));
+    const [userId, playedAt, durationMs] = mockLogLocalPlaybackSession.mock.calls[0];
+    expect(userId).toBe('user-1');
+    expect(typeof playedAt).toBe('string');
+    expect(durationMs).toBeGreaterThanOrEqual(0);
     await waitFor(() => expect(getByText('Player')).toBeTruthy());
   });
 
-  it('stops playback automatically when the sleep timer elapses', async () => {
+  it('does not log a session if Stop is somehow reached without a session ever starting', async () => {
+    // Regression guard: sessionStartRef must be checked, not assumed set.
+    const { getByText } = await render(<PlayerScreen />);
+    await waitFor(() => expect(getByText('Calm')).toBeTruthy());
+
+    expect(mockLogLocalPlaybackSession).not.toHaveBeenCalled();
+  });
+
+  it('stops playback automatically when the sleep timer elapses, and logs a session', async () => {
     jest.useFakeTimers();
     const { getByText } = await render(<PlayerScreen />);
     await waitFor(() => expect(getByText('Calm')).toBeTruthy());
@@ -174,6 +192,7 @@ describe('PlayerScreen', () => {
     });
 
     await waitFor(() => expect(mockPause).toHaveBeenCalled());
+    await waitFor(() => expect(mockLogLocalPlaybackSession).toHaveBeenCalledTimes(1));
     jest.useRealTimers();
   });
 });

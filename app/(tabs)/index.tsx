@@ -3,23 +3,30 @@ import { useCallback, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AffirmationRow } from '@/components/AffirmationRow';
+import { StreakBadge } from '@/components/StreakBadge';
 import { radii, spacing, typography } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { listLocalAffirmations, type LocalAffirmation } from '@/lib/affirmations.local';
 import { listLocalFolders, type LocalFolder } from '@/lib/folders.local';
+import { listLocalPlaybackSessions } from '@/lib/playbackSessions.local';
+import { computeStreak } from '@/lib/streak';
 
 export default function LibraryScreen() {
   const colors = useThemeColors();
   const { user } = useAuth();
   const [affirmations, setAffirmations] = useState<LocalAffirmation[]>([]);
   const [folders, setFolders] = useState<LocalFolder[]>([]);
+  const [streak, setStreak] = useState(0);
 
   useFocusEffect(
     useCallback(() => {
       if (!user) return;
       listLocalAffirmations(user.id).then(setAffirmations);
       listLocalFolders(user.id).then(setFolders);
+      listLocalPlaybackSessions(user.id).then((sessions) =>
+        setStreak(computeStreak(sessions.map((s) => s.played_at))),
+      );
     }, [user]),
   );
 
@@ -42,6 +49,8 @@ export default function LibraryScreen() {
           </Pressable>
         </View>
       </View>
+
+      <StreakBadge streak={streak} />
 
       {affirmations.length === 0 ? (
         <Text style={[styles.description, { color: colors.textSecondary }]}>

@@ -93,6 +93,15 @@ describe('syncQueue', () => {
     ).rejects.toThrow(/missing required field\(s\): user_id, status, created_at/);
   });
 
+  it("enqueue rejects a 'playback_sessions' upsert missing a required column", async () => {
+    const db = makeFakeDatabase();
+    getDatabase.mockResolvedValue(db);
+
+    await expect(
+      enqueue('playback_sessions', 'upsert', 'session-1', { id: 'session-1', user_id: 'user-1' }),
+    ).rejects.toThrow(/missing required field\(s\): played_at, duration_ms/);
+  });
+
   it("enqueue allows an 'update' payload with only the changed columns", async () => {
     const db = makeFakeDatabase();
     getDatabase.mockResolvedValue(db);

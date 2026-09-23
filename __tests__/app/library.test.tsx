@@ -25,10 +25,23 @@ jest.mock('@/lib/folders.local', () => ({
   listLocalFolders: (...args: unknown[]) => mockListLocalFolders(...args),
 }));
 
+const mockListLocalPlaybackSessions = jest.fn();
+jest.mock('@/lib/playbackSessions.local', () => ({
+  listLocalPlaybackSessions: (...args: unknown[]) => mockListLocalPlaybackSessions(...args),
+}));
+
+const mockComputeStreak = jest.fn();
+jest.mock('@/lib/streak', () => ({
+  computeStreak: (...args: unknown[]) => mockComputeStreak(...args),
+  getStreakEmoji: jest.requireActual('@/lib/streak').getStreakEmoji,
+}));
+
 beforeEach(() => {
   jest.clearAllMocks();
   mockListLocalAffirmations.mockResolvedValue([]);
   mockListLocalFolders.mockResolvedValue([]);
+  mockListLocalPlaybackSessions.mockResolvedValue([]);
+  mockComputeStreak.mockReturnValue(0);
 });
 
 describe('LibraryScreen', () => {
@@ -69,5 +82,23 @@ describe('LibraryScreen', () => {
     expect(getByText('Sleep · 0:08 · trimmed')).toBeTruthy();
     expect(getByText('Unfiled one')).toBeTruthy();
     expect(getByText('0:05')).toBeTruthy();
+  });
+
+  it('shows a no-streak message when there are no playback sessions yet', async () => {
+    const { getByText } = await render(<LibraryScreen />);
+
+    await waitFor(() => expect(getByText('No streak yet — play tonight to start one')).toBeTruthy());
+  });
+
+  it('shows the computed streak with its growth emoji', async () => {
+    mockListLocalPlaybackSessions.mockResolvedValue([
+      { id: 's1', user_id: 'user-1', played_at: '2026-09-23T22:00:00.000Z', duration_ms: 1000, synced_at: null },
+    ]);
+    mockComputeStreak.mockReturnValue(4);
+
+    const { getByText } = await render(<LibraryScreen />);
+
+    await waitFor(() => expect(getByText('🌿 4-day streak')).toBeTruthy());
+    expect(mockComputeStreak).toHaveBeenCalledWith(['2026-09-23T22:00:00.000Z']);
   });
 });

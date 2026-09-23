@@ -8,6 +8,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { listLocalAffirmations, type LocalAffirmation } from '@/lib/affirmations.local';
 import { formatDuration } from '@/lib/format';
+import { logLocalPlaybackSession } from '@/lib/playbackSessions.local';
 
 const SLEEP_TIMER_OPTIONS = [15, 30, 45, 60] as const;
 
@@ -24,6 +25,7 @@ export default function PlayerScreen() {
   const [playCount, setPlayCount] = useState(0);
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
   const timerEndRef = useRef<number | null>(null);
+  const sessionStartRef = useRef<number | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -73,11 +75,20 @@ export default function PlayerScreen() {
   // stale closure pausing whichever track was playing when the timer started.
   const handleStop = useCallback(() => {
     player.pause();
+    // Logs the session however it ends (manual Stop or sleep-timer expiry) —
+    // FR-601 counts a session as "completed" once playback stops, not just
+    // on a specific ending path. played_at is the session's *start* time so
+    // a session spanning midnight still belongs to the night it started.
+    if (sessionStartRef.current !== null && user) {
+      const startedAt = sessionStartRef.current;
+      logLocalPlaybackSession(user.id, new Date(startedAt).toISOString(), Date.now() - startedAt);
+    }
     setScreenState('selecting');
     setPlayCount(0);
     setRemainingSeconds(null);
     timerEndRef.current = null;
-  }, [player]);
+    sessionStartRef.current = null;
+  }, [player, user]);
 
   // Sleep timer countdown.
   useEffect(() => {
@@ -112,6 +123,7 @@ export default function PlayerScreen() {
       interruptionMode: 'doNotMix',
     });
 
+    sessionStartRef.current = Date.now();
     timerEndRef.current = sleepTimerMinutes ? Date.now() + sleepTimerMinutes * 60_000 : null;
     setRemainingSeconds(sleepTimerMinutes ? sleepTimerMinutes * 60 : null);
     setQueue(selected);

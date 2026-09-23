@@ -49,6 +49,14 @@ async function initSchema(database: SQLite.SQLiteDatabase) {
       synced_at TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS playback_sessions (
+      id TEXT PRIMARY KEY NOT NULL,
+      user_id TEXT NOT NULL,
+      played_at TEXT NOT NULL,
+      duration_ms INTEGER NOT NULL,
+      synced_at TEXT
+    );
+
     CREATE TABLE IF NOT EXISTS sync_queue (
       queue_id INTEGER PRIMARY KEY AUTOINCREMENT,
       table_name TEXT NOT NULL,
