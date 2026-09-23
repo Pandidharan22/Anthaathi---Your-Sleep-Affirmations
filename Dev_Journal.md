@@ -12,7 +12,7 @@ One entry per committed step, newest first. Each entry: what was done, why, how 
 
 **Verification**: No new code — nothing to typecheck/lint/test beyond what step 2.1 already ran (133/133 passing at that commit). Re-checked `docs/PRD.md` and `docs/SYSTEM_DESIGN.md` for any elaboration on "completed-goals view" beyond the SRS's one-sentence FR-404 — found none, confirming there's no missed intent behind the step being scoped separately from 2.1 (most likely the Execution Plan's authors, this project's original AI-assisted planning pass, split it out defensively without knowing 2.1's eventual implementation would already cover it).
 
-**Commit**: _pending_ — bundled with the Execution Plan checkbox update.
+**Commit**: `58d205c` — Log step 2.2 in dev journal, check off Execution Plan
 
 ---
 
