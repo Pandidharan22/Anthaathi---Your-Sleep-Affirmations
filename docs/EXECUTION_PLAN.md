@@ -60,7 +60,7 @@ Goal: the differentiator layer beyond the reference app. Implements FR-401–FR-
 - [x] **2.3** `playback_sessions` logging + derived streak calculation and display. Implements FR-601–FR-602.
 - [x] **2.4** Journal entries (prompted + freeform), chronological view. Implements FR-603–FR-604.
 - [x] **2.5** Local daily reminder notifications, opt-in/opt-out. Implements FR-701–FR-702.
-- [ ] **2.6** Design pass over all Phase 2 screens: `design:design-critique` then `design:accessibility-review` (NFR-401–NFR-403).
+- [x] **2.6** Design pass over all Phase 2 screens: `design:design-critique` then `design:accessibility-review` (NFR-401–NFR-403).
 
 **Phase 2 exit criteria**: a user can set a goal, get reinforced by a streak, and journal — the full manifestation loop works without AI involvement yet.
 
