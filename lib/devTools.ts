@@ -7,6 +7,15 @@ import {
 } from '@/lib/affirmations.local';
 import { getDatabase } from '@/lib/db';
 import { createLocalFolder, deleteLocalFolder, listLocalFolders, renameLocalFolder } from '@/lib/folders.local';
+import { uploadPendingGoalImages } from '@/lib/goalImages';
+import {
+  createLocalGoal,
+  deleteLocalGoal,
+  listLocalGoals,
+  updateLocalGoalImage,
+  updateLocalGoalStatus,
+  updateLocalGoalText,
+} from '@/lib/goals.local';
 import { processQueue } from '@/lib/syncQueue';
 
 /**
@@ -28,8 +37,16 @@ export function installDebugTools(userId: string | null) {
         updateAffirmationFolder: updateLocalAffirmationFolder,
         deleteAffirmation: deleteLocalAffirmation,
         listAffirmations: () => listLocalAffirmations(userId),
+        createGoal: (title: string, description = '') =>
+          createLocalGoal({ userId, title, description }),
+        updateGoalText: updateLocalGoalText,
+        updateGoalImage: updateLocalGoalImage,
+        updateGoalStatus: updateLocalGoalStatus,
+        deleteGoal: deleteLocalGoal,
+        listGoals: () => listLocalGoals(userId),
         deleteAccount: () => deleteAccount(userId),
         processQueue,
+        uploadPendingGoalImages,
         db: getDatabase,
       }
     : undefined;

@@ -84,6 +84,15 @@ describe('syncQueue', () => {
     expect(db.__rows()).toHaveLength(0);
   });
 
+  it("enqueue rejects a 'goals' upsert missing a required column", async () => {
+    const db = makeFakeDatabase();
+    getDatabase.mockResolvedValue(db);
+
+    await expect(
+      enqueue('goals', 'upsert', 'goal-1', { id: 'goal-1', title: 'Run a marathon' }),
+    ).rejects.toThrow(/missing required field\(s\): user_id, status, created_at/);
+  });
+
   it("enqueue allows an 'update' payload with only the changed columns", async () => {
     const db = makeFakeDatabase();
     getDatabase.mockResolvedValue(db);

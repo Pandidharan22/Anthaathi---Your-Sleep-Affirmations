@@ -8,12 +8,16 @@ jest.mock('@react-native-community/netinfo', () => ({
   addEventListener: (...args: unknown[]) => mockAddEventListener(...args),
 }));
 jest.mock('@/lib/syncQueue', () => ({ processQueue: jest.fn() }));
+jest.mock('@/lib/goalImages', () => ({ uploadPendingGoalImages: jest.fn() }));
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { processQueue } = require('@/lib/syncQueue');
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { uploadPendingGoalImages } = require('@/lib/goalImages');
 
 beforeEach(() => {
   jest.resetAllMocks();
+  processQueue.mockResolvedValue({ processed: 0, remaining: 0 });
 });
 
 describe('useSyncQueue', () => {
@@ -42,6 +46,39 @@ describe('useSyncQueue', () => {
     listener({ isConnected: false });
     listener({ isConnected: true });
     expect(processQueue).toHaveBeenCalledTimes(2);
+  });
+
+  it('uploads pending goal images and re-flushes the queue after a full drain', async () => {
+    const unsubscribe = jest.fn();
+    mockAddEventListener.mockReturnValue(unsubscribe);
+    processQueue
+      .mockResolvedValueOnce({ processed: 1, remaining: 0 })
+      .mockResolvedValueOnce({ processed: 0, remaining: 0 });
+    uploadPendingGoalImages.mockResolvedValue(undefined);
+
+    await renderHook(() => useSyncQueue(true));
+    const listener = mockAddEventListener.mock.calls[0][0];
+
+    listener({ isConnected: true });
+    await new Promise<void>((resolve) => setImmediate(() => resolve()));
+
+    expect(uploadPendingGoalImages).toHaveBeenCalledTimes(1);
+    expect(processQueue).toHaveBeenCalledTimes(2);
+  });
+
+  it('skips goal image upload when the queue does not fully drain', async () => {
+    const unsubscribe = jest.fn();
+    mockAddEventListener.mockReturnValue(unsubscribe);
+    processQueue.mockResolvedValueOnce({ processed: 1, remaining: 3 });
+
+    await renderHook(() => useSyncQueue(true));
+    const listener = mockAddEventListener.mock.calls[0][0];
+
+    listener({ isConnected: true });
+    await new Promise<void>((resolve) => setImmediate(() => resolve()));
+
+    expect(uploadPendingGoalImages).not.toHaveBeenCalled();
+    expect(processQueue).toHaveBeenCalledTimes(1);
   });
 
   it('unsubscribes when the session goes away', async () => {

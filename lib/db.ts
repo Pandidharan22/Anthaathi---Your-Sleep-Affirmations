@@ -35,6 +35,20 @@ async function initSchema(database: SQLite.SQLiteDatabase) {
       synced_at TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS goals (
+      id TEXT PRIMARY KEY NOT NULL,
+      user_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL,
+      image_local_uri TEXT,
+      image_path TEXT,
+      status TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      achieved_at TEXT,
+      updated_at TEXT NOT NULL,
+      synced_at TEXT
+    );
+
     CREATE TABLE IF NOT EXISTS sync_queue (
       queue_id INTEGER PRIMARY KEY AUTOINCREMENT,
       table_name TEXT NOT NULL,
