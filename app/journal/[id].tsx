@@ -53,7 +53,7 @@ export default function JournalEntryDetailScreen() {
   return (
     <ScrollView contentContainerStyle={[styles.container, { backgroundColor: colors.background }]}>
       <Text style={[styles.date, { color: colors.textSecondary }]}>{formatDate(entry.created_at)}</Text>
-      {entry.prompt ? <Text style={[styles.prompt, { color: colors.secondary }]}>{entry.prompt}</Text> : null}
+      {entry.prompt ? <Text style={[styles.prompt, { color: colors.accentText }]}>{entry.prompt}</Text> : null}
       <Text style={[styles.body, { color: colors.textPrimary }]}>{entry.body}</Text>
 
       <Pressable

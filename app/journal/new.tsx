@@ -55,13 +55,17 @@ export default function NewJournalEntryScreen() {
 
       {usePrompt ? (
         <View style={styles.promptRow}>
-          <Text style={[styles.prompt, { color: colors.secondary }]}>{dailyPrompt}</Text>
-          <Pressable onPress={() => setUsePrompt(false)} accessibilityRole="button">
+          <Text style={[styles.prompt, { color: colors.accentText }]}>{dailyPrompt}</Text>
+          <Pressable
+            onPress={() => setUsePrompt(false)}
+            accessibilityRole="button"
+            hitSlop={8}
+          >
             <Text style={{ color: colors.primary }}>Write freeform instead</Text>
           </Pressable>
         </View>
       ) : (
-        <Pressable onPress={() => setUsePrompt(true)} accessibilityRole="button">
+        <Pressable onPress={() => setUsePrompt(true)} accessibilityRole="button" hitSlop={8}>
           <Text style={{ color: colors.primary }}>Use today&apos;s prompt instead</Text>
         </Pressable>
       )}
@@ -106,7 +110,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   promptRow: {
-    gap: spacing.xs,
+    gap: spacing.sm,
   },
   prompt: {
     fontSize: typography.subtitle.fontSize,

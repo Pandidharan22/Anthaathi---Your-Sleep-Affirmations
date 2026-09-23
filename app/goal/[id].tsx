@@ -171,12 +171,12 @@ export default function GoalDetailScreen() {
 
       {goal.image_local_uri ? (
         <View style={styles.imageRow}>
-          <Image source={{ uri: goal.image_local_uri }} style={styles.imagePreview} />
+          <Image source={{ uri: goal.image_local_uri }} style={styles.imagePreview} accessibilityLabel="Goal image" />
           <View style={styles.imageActions}>
-            <Pressable onPress={handlePickImage} accessibilityRole="button">
+            <Pressable onPress={handlePickImage} accessibilityRole="button" hitSlop={8}>
               <Text style={{ color: colors.primary }}>Replace image</Text>
             </Pressable>
-            <Pressable onPress={handleRemoveImage} accessibilityRole="button">
+            <Pressable onPress={handleRemoveImage} accessibilityRole="button" hitSlop={8}>
               <Text style={{ color: colors.error }}>Remove image</Text>
             </Pressable>
           </View>

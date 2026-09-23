@@ -4,12 +4,24 @@
  * Full WCAG contrast audit is deferred to Execution Plan step 5.3
  * (design:accessibility-review); values below were chosen for generous perceptual
  * contrast as a working baseline, not yet formally verified.
+ *
+ * `primary`/`secondary`/`success`/`error`/`info` were originally flat (identical
+ * value in both color schemes), unlike the neutrals above them — fine for a fill
+ * or border, but a single hex can't hit AA contrast as *text* against both a
+ * near-black and a near-white background at once. `success` is now mode-aware
+ * (Execution Plan step 2.6's design pass — its only current uses, the goal
+ * "Achieved" badge/toggle, are text) and `accentText` is a dedicated
+ * text-safe variant of the violet accent (used for journal prompts), so the
+ * `secondary` fill color itself (e.g. TrimEditor's save button) stays untouched.
+ * `primary`/`error` as text/fill-partner still fail AA in light mode (primary as
+ * text ~2.2:1, error as caption-size text ~3.2:1) but are used pervasively across
+ * every phase's buttons — left for the full step 5.3 audit rather than changed
+ * here as a side effect of a Phase-2-scoped pass.
  */
 
 const palette = {
   gold: '#D9A441',
   violet: '#6B5CA5',
-  success: '#4CAF7D',
   error: '#E5654D',
   info: '#5B8DEF',
 } as const;
@@ -22,6 +34,8 @@ export type ThemeColors = {
   textSecondary: string;
   primary: string;
   secondary: string;
+  /** Text-safe variant of the violet accent — use for violet text, not `secondary`'s fills/borders. */
+  accentText: string;
   success: string;
   error: string;
   info: string;
@@ -35,7 +49,8 @@ export const lightColors: ThemeColors = {
   textSecondary: '#5C5A56',
   primary: palette.gold,
   secondary: palette.violet,
-  success: palette.success,
+  accentText: palette.violet, // 5.44:1 on this mode's background — already AA-safe as-is
+  success: '#357A58', // darkened from the flat #4CAF7D — 4.94:1 on this mode's background (was 2.60:1)
   error: palette.error,
   info: palette.info,
 };
@@ -48,7 +63,8 @@ export const darkColors: ThemeColors = {
   textSecondary: '#A8A6A0',
   primary: palette.gold,
   secondary: palette.violet,
-  success: palette.success,
+  accentText: '#897DB7', // lightened from the flat #6B5CA5 — 5.11:1 on this mode's background (was 3.33:1)
+  success: '#4CAF7D',
   error: palette.error,
   info: palette.info,
 };

@@ -115,8 +115,8 @@ export default function NewGoalScreen() {
 
       {imageLocalUri ? (
         <View style={styles.imageRow}>
-          <Image source={{ uri: imageLocalUri }} style={styles.imagePreview} />
-          <Pressable onPress={handleRemoveImage} accessibilityRole="button">
+          <Image source={{ uri: imageLocalUri }} style={styles.imagePreview} accessibilityLabel="Selected goal image" />
+          <Pressable onPress={handleRemoveImage} accessibilityRole="button" hitSlop={8}>
             <Text style={{ color: colors.error }}>Remove image</Text>
           </Pressable>
         </View>

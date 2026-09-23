@@ -15,7 +15,7 @@ export function GoalCard({ goal, onPress }: GoalCardProps) {
   return (
     <Pressable onPress={onPress} accessibilityRole="button" style={[styles.card, { borderColor: colors.border }]}>
       {goal.image_local_uri ? (
-        <Image source={{ uri: goal.image_local_uri }} style={styles.image} />
+        <Image source={{ uri: goal.image_local_uri }} style={styles.image} accessibilityLabel="Goal image" />
       ) : null}
       <View style={styles.textColumn}>
         <Text style={[styles.title, { color: colors.textPrimary }]} numberOfLines={1}>

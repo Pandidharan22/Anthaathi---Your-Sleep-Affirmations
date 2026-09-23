@@ -50,7 +50,7 @@ export default function JournalScreen() {
             >
               <Text style={[styles.entryDate, { color: colors.textSecondary }]}>{formatDate(item.created_at)}</Text>
               {item.prompt ? (
-                <Text style={[styles.entryPrompt, { color: colors.secondary }]} numberOfLines={1}>
+                <Text style={[styles.entryPrompt, { color: colors.accentText }]} numberOfLines={1}>
                   {item.prompt}
                 </Text>
               ) : null}
