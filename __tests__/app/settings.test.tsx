@@ -14,10 +14,26 @@ jest.mock('@/lib/account', () => ({
   deleteAccount: (...args: unknown[]) => mockDeleteAccount(...args),
 }));
 
+const mockGetReminderPreference = jest.fn();
+const mockEnableReminder = jest.fn();
+const mockDisableReminder = jest.fn();
+
+jest.mock('@/lib/reminders', () => ({
+  getReminderPreference: (...args: unknown[]) => mockGetReminderPreference(...args),
+  enableReminder: (...args: unknown[]) => mockEnableReminder(...args),
+  disableReminder: (...args: unknown[]) => mockDisableReminder(...args),
+  formatReminderTime: (hour: number, minute: number) => {
+    const period = hour >= 12 ? 'PM' : 'AM';
+    const displayHour = hour % 12 === 0 ? 12 : hour % 12;
+    return `${displayHour}:${minute.toString().padStart(2, '0')} ${period}`;
+  },
+}));
+
 const mockAlert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockGetReminderPreference.mockResolvedValue({ enabled: false, hour: 21, minute: 0 });
 });
 
 describe('SettingsScreen', () => {
@@ -69,5 +85,61 @@ describe('SettingsScreen', () => {
       expect(getByText('Could not delete your account. Please check your connection and try again.')).toBeTruthy(),
     );
     expect(getByText('Delete account').parent?.props.accessibilityState?.disabled).toBe(false);
+  });
+
+  it('shows the current reminder preference and no time chips while disabled', async () => {
+    const { getByText, queryByText } = await render(<SettingsScreen />);
+
+    await waitFor(() => expect(getByText('Daily reminder')).toBeTruthy());
+    expect(queryByText('9:00 PM')).toBeNull();
+  });
+
+  it('enables the reminder and shows time options when the switch is toggled on', async () => {
+    mockEnableReminder.mockResolvedValue({ success: true });
+
+    const { getByRole, getByText } = await render(<SettingsScreen />);
+    await waitFor(() => expect(getByText('Daily reminder')).toBeTruthy());
+
+    await fireEvent(getByRole('switch'), 'valueChange', true);
+
+    await waitFor(() => expect(mockEnableReminder).toHaveBeenCalledWith(21, 0));
+    await waitFor(() => expect(getByText('9:00 PM')).toBeTruthy());
+  });
+
+  it('shows an inline error and leaves the reminder off when permission is denied', async () => {
+    mockEnableReminder.mockResolvedValue({ success: false, canAskAgain: true });
+
+    const { getByRole, getByText, queryByText } = await render(<SettingsScreen />);
+    await waitFor(() => expect(getByText('Daily reminder')).toBeTruthy());
+
+    await fireEvent(getByRole('switch'), 'valueChange', true);
+
+    await waitFor(() => expect(getByText('Notification permission is needed for reminders.')).toBeTruthy());
+    expect(queryByText('9:00 PM')).toBeNull();
+  });
+
+  it('disables the reminder when the switch is toggled off', async () => {
+    mockGetReminderPreference.mockResolvedValue({ enabled: true, hour: 22, minute: 0 });
+    mockDisableReminder.mockResolvedValue(undefined);
+
+    const { getByRole, getByText, queryByText } = await render(<SettingsScreen />);
+    await waitFor(() => expect(getByText('10:00 PM')).toBeTruthy());
+
+    await fireEvent(getByRole('switch'), 'valueChange', false);
+
+    await waitFor(() => expect(mockDisableReminder).toHaveBeenCalled());
+    await waitFor(() => expect(queryByText('10:00 PM')).toBeNull());
+  });
+
+  it('reschedules when a different time chip is selected while enabled', async () => {
+    mockGetReminderPreference.mockResolvedValue({ enabled: true, hour: 21, minute: 0 });
+    mockEnableReminder.mockResolvedValue({ success: true });
+
+    const { getByText } = await render(<SettingsScreen />);
+    await waitFor(() => expect(getByText('10:00 PM')).toBeTruthy());
+
+    await fireEvent.press(getByText('10:00 PM'));
+
+    await waitFor(() => expect(mockEnableReminder).toHaveBeenCalledWith(22, 0));
   });
 });
