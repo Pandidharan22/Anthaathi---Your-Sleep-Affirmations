@@ -15,3 +15,14 @@ export function getEffectiveDurationMs(affirmation: LocalAffirmation): number {
   }
   return affirmation.duration_ms;
 }
+
+/**
+ * Formats an ISO timestamp as a short local date, e.g. "Sep 23, 2026".
+ * Locale is pinned to 'en-US' rather than left to the device default — the
+ * device's own locale still governs Intl formatting elsewhere in the OS, but
+ * pinning here keeps this specific format (and its test) deterministic
+ * rather than silently varying by device (e.g. "23 Sept 2026" elsewhere).
+ */
+export function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}

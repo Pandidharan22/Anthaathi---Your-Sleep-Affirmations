@@ -64,6 +64,8 @@ function NavigationStack() {
         <Stack.Screen name="folders" options={{ title: 'Folders' }} />
         <Stack.Screen name="goal/new" options={{ title: 'New Goal', presentation: 'modal' }} />
         <Stack.Screen name="goal/[id]" options={{ title: 'Goal' }} />
+        <Stack.Screen name="journal/new" options={{ title: 'New Journal Entry', presentation: 'modal' }} />
+        <Stack.Screen name="journal/[id]" options={{ title: 'Journal Entry' }} />
       </Stack.Protected>
       <Stack.Protected guard={!session}>
         <Stack.Screen name="auth" options={{ title: 'Sign in', headerBackVisible: false }} />

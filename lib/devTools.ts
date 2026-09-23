@@ -16,6 +16,7 @@ import {
   updateLocalGoalStatus,
   updateLocalGoalText,
 } from '@/lib/goals.local';
+import { createLocalJournalEntry, deleteLocalJournalEntry, listLocalJournalEntries } from '@/lib/journal.local';
 import { listLocalPlaybackSessions, logLocalPlaybackSession } from '@/lib/playbackSessions.local';
 import { computeStreak } from '@/lib/streak';
 import { processQueue } from '@/lib/syncQueue';
@@ -51,6 +52,10 @@ export function installDebugTools(userId: string | null) {
         listPlaybackSessions: () => listLocalPlaybackSessions(userId),
         getStreak: async () =>
           computeStreak((await listLocalPlaybackSessions(userId)).map((s) => s.played_at)),
+        createJournalEntry: (body: string, prompt: string | null = null) =>
+          createLocalJournalEntry({ userId, prompt, body }),
+        deleteJournalEntry: deleteLocalJournalEntry,
+        listJournalEntries: () => listLocalJournalEntries(userId),
         deleteAccount: () => deleteAccount(userId),
         processQueue,
         uploadPendingGoalImages,

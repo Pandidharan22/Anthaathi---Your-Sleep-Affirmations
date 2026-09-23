@@ -32,6 +32,7 @@ function makeFakeDatabase(
   goals: { id: string; image_local_uri: string | null }[] = [],
   deleteOpQueueRows: { queue_id: number; payload: string | null }[] = [],
   playbackSessions: { id: string }[] = [],
+  journalEntries: { id: string }[] = [],
 ) {
   const runCalls: [string, unknown[]][] = [];
   return {
@@ -40,6 +41,7 @@ function makeFakeDatabase(
       if (sql.includes('FROM affirmations')) return affirmations;
       if (sql.includes('FROM goals')) return goals;
       if (sql.includes('FROM playback_sessions')) return playbackSessions;
+      if (sql.includes('FROM journal_entries')) return journalEntries;
       if (sql.includes("operation = 'delete'")) return deleteOpQueueRows;
       return [];
     }),
@@ -67,6 +69,7 @@ describe('deleteAccount', () => {
       [{ id: 'goal-1', image_local_uri: 'file:///doc/goal-1.jpg' }],
       [],
       [{ id: 'session-1' }],
+      [{ id: 'journal-1' }],
     );
     getDatabase.mockResolvedValue(db);
 
@@ -90,8 +93,12 @@ describe('deleteAccount', () => {
       ['user-1'],
     );
     expect(db.runAsync).toHaveBeenCalledWith(
+      expect.stringContaining('DELETE FROM journal_entries WHERE user_id = ?'),
+      ['user-1'],
+    );
+    expect(db.runAsync).toHaveBeenCalledWith(
       expect.stringContaining('DELETE FROM sync_queue WHERE row_id IN'),
-      ['folder-1', 'aff-1', 'goal-1', 'session-1'],
+      ['folder-1', 'aff-1', 'goal-1', 'session-1', 'journal-1'],
     );
     expect(mockSignOut).toHaveBeenCalled();
   });

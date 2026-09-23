@@ -1,7 +1,7 @@
 import { getDatabase } from '@/lib/db';
 import { supabase } from '@/lib/supabase';
 
-export type SyncTable = 'folders' | 'affirmations' | 'goals' | 'playback_sessions';
+export type SyncTable = 'folders' | 'affirmations' | 'goals' | 'playback_sessions' | 'journal_entries';
 export type SyncOperation = 'upsert' | 'update' | 'delete';
 
 // The remote NOT NULL columns per table (see supabase/migrations). Checked at
@@ -15,6 +15,7 @@ const REQUIRED_UPSERT_FIELDS: Record<SyncTable, string[]> = {
   affirmations: ['id', 'user_id', 'title', 'local_uri', 'duration_ms', 'source', 'created_at'],
   goals: ['id', 'user_id', 'title', 'status', 'created_at'],
   playback_sessions: ['id', 'user_id', 'played_at', 'duration_ms'],
+  journal_entries: ['id', 'user_id', 'body', 'created_at'],
 };
 
 type QueueRow = {

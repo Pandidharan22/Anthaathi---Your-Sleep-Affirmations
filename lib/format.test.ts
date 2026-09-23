@@ -1,5 +1,5 @@
 import type { LocalAffirmation } from './affirmations.local';
-import { formatDuration, getEffectiveDurationMs } from './format';
+import { formatDate, formatDuration, getEffectiveDurationMs } from './format';
 
 function makeAffirmation(overrides: Partial<LocalAffirmation> = {}): LocalAffirmation {
   return {
@@ -48,5 +48,14 @@ describe('getEffectiveDurationMs', () => {
   it('returns the trimmed span, not the original duration, when trimmed', () => {
     const affirmation = makeAffirmation({ duration_ms: 10000, trim_start_ms: 2000, trim_end_ms: 5000 });
     expect(getEffectiveDurationMs(affirmation)).toBe(3000);
+  });
+});
+
+describe('formatDate', () => {
+  it('formats an ISO timestamp as a short local date', () => {
+    // Constructed from local components (not a fixed UTC literal) so this
+    // holds regardless of the machine's timezone running the test.
+    const localNoon = new Date(2026, 8, 23, 12, 0, 0);
+    expect(formatDate(localNoon.toISOString())).toBe('Sep 23, 2026');
   });
 });

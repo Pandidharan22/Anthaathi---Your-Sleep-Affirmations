@@ -26,11 +26,11 @@ async function deleteGoalImages(userId: string): Promise<void> {
  * previous one has actually succeeded: goal images (no cascade for Storage
  * objects), then the RPC. If either fails (offline, server error), local
  * data is left untouched so nothing is destroyed without the account
- * actually being deleted. `folders`/`affirmations`/`goals`/`playback_sessions`
- * cascade-delete remotely via their user_id FK once the auth.users row is
- * gone (see the migrations), so only local cleanup is needed after that:
- * SQLite rows, on-device audio/image files, and any now-orphaned sync_queue
- * entries for this user's rows.
+ * actually being deleted. `folders`/`affirmations`/`goals`/`playback_sessions`/
+ * `journal_entries` cascade-delete remotely via their user_id FK once the
+ * auth.users row is gone (see the migrations), so only local cleanup is
+ * needed after that: SQLite rows, on-device audio/image files, and any
+ * now-orphaned sync_queue entries for this user's rows.
  */
 export async function deleteAccount(userId: string): Promise<void> {
   await deleteGoalImages(userId);
@@ -40,7 +40,7 @@ export async function deleteAccount(userId: string): Promise<void> {
 
   const database = await getDatabase();
 
-  const [folderRows, affirmationRows, goalRows, playbackSessionRows] = await Promise.all([
+  const [folderRows, affirmationRows, goalRows, playbackSessionRows, journalEntryRows] = await Promise.all([
     database.getAllAsync<{ id: string }>(`SELECT id FROM folders WHERE user_id = ?`, [userId]),
     database.getAllAsync<{ id: string; local_uri: string }>(
       `SELECT id, local_uri FROM affirmations WHERE user_id = ?`,
@@ -51,6 +51,7 @@ export async function deleteAccount(userId: string): Promise<void> {
       [userId],
     ),
     database.getAllAsync<{ id: string }>(`SELECT id FROM playback_sessions WHERE user_id = ?`, [userId]),
+    database.getAllAsync<{ id: string }>(`SELECT id FROM journal_entries WHERE user_id = ?`, [userId]),
   ]);
 
   for (const affirmation of affirmationRows) {
@@ -75,6 +76,7 @@ export async function deleteAccount(userId: string): Promise<void> {
     database.runAsync(`DELETE FROM folders WHERE user_id = ?`, [userId]),
     database.runAsync(`DELETE FROM goals WHERE user_id = ?`, [userId]),
     database.runAsync(`DELETE FROM playback_sessions WHERE user_id = ?`, [userId]),
+    database.runAsync(`DELETE FROM journal_entries WHERE user_id = ?`, [userId]),
   ]);
 
   // Queue entries for rows that still existed locally just now (above).
@@ -83,6 +85,7 @@ export async function deleteAccount(userId: string): Promise<void> {
     ...affirmationRows.map((a) => a.id),
     ...goalRows.map((g) => g.id),
     ...playbackSessionRows.map((p) => p.id),
+    ...journalEntryRows.map((j) => j.id),
   ];
   if (presentIds.length > 0) {
     const placeholders = presentIds.map(() => '?').join(',');

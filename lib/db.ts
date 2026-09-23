@@ -57,6 +57,15 @@ async function initSchema(database: SQLite.SQLiteDatabase) {
       synced_at TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS journal_entries (
+      id TEXT PRIMARY KEY NOT NULL,
+      user_id TEXT NOT NULL,
+      prompt TEXT,
+      body TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      synced_at TEXT
+    );
+
     CREATE TABLE IF NOT EXISTS sync_queue (
       queue_id INTEGER PRIMARY KEY AUTOINCREMENT,
       table_name TEXT NOT NULL,
