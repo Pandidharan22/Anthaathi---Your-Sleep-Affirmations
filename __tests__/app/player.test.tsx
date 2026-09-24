@@ -11,14 +11,15 @@ const mockAddListener = jest.fn();
 const mockListLocalAffirmations = jest.fn();
 
 let mockPlayerStatus: { playing: boolean; currentTime: number } = { playing: false, currentTime: 0 };
-let statusListener: ((status: { currentTime: number }) => void) | null = null;
+type StatusEvent = { currentTime: number; didJustFinish?: boolean };
+let statusListener: ((status: StatusEvent) => void) | null = null;
 
 const mockPlayerObj = {
   play: mockPlay,
   pause: mockPause,
   seekTo: mockSeekTo,
   setActiveForLockScreen: mockSetActiveForLockScreen,
-  addListener: (event: string, cb: (status: { currentTime: number }) => void) => {
+  addListener: (event: string, cb: (status: StatusEvent) => void) => {
     mockAddListener(event, cb);
     statusListener = cb;
     return { remove: jest.fn() };
@@ -125,6 +126,39 @@ describe('PlayerScreen', () => {
     statusListener?.({ currentTime: 5.1 });
     await waitFor(() => expect(getByText('Track 1 of 2')).toBeTruthy());
     expect(getByText('Calm')).toBeTruthy();
+  });
+
+  it('advances when a file ends naturally before its recorded duration', async () => {
+    // Real-device regression: duration_ms comes from the recorder's clock at
+    // Stop, and the encoded file can be shorter — the file ends (didJustFinish)
+    // before currentTime ever reaches duration_ms - 50, so the queue stalled.
+    const { getByText } = await render(<PlayerScreen />);
+    await waitFor(() => expect(getByText('Calm')).toBeTruthy());
+
+    await fireEvent.press(getByText('Calm'));
+    await fireEvent.press(getByText('Focus'));
+    await fireEvent.press(getByText('Play (2)'));
+    await waitFor(() => expect(getByText('Track 1 of 2')).toBeTruthy());
+
+    statusListener?.({ currentTime: 9.1 });
+    await waitFor(() => expect(getByText('Track 2 of 2')).toBeTruthy());
+
+    // track2 is untrimmed with duration_ms 5000, but the file actually ends at 4.7s.
+    statusListener?.({ currentTime: 4.7, didJustFinish: true });
+    await waitFor(() => expect(getByText('Track 1 of 2')).toBeTruthy());
+  });
+
+  it('does not advance early on an ordinary mid-track status update', async () => {
+    const { getByText } = await render(<PlayerScreen />);
+    await waitFor(() => expect(getByText('Calm')).toBeTruthy());
+
+    await fireEvent.press(getByText('Calm'));
+    await fireEvent.press(getByText('Focus'));
+    await fireEvent.press(getByText('Play (2)'));
+    await waitFor(() => expect(getByText('Track 1 of 2')).toBeTruthy());
+
+    statusListener?.({ currentTime: 4.7, didJustFinish: false });
+    expect(getByText('Track 1 of 2')).toBeTruthy();
   });
 
   it('loops a single selected track indefinitely, not just once', async () => {

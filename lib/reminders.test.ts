@@ -1,9 +1,15 @@
+import { Platform } from 'react-native';
+
 import {
+  areRemindersSupported,
   disableReminder,
   enableReminder,
   formatReminderTime,
   getReminderPreference,
 } from './reminders';
+
+const mockIsRunningInExpoGo = jest.fn();
+jest.mock('expo', () => ({ isRunningInExpoGo: () => mockIsRunningInExpoGo() }));
 
 const mockGetItem = jest.fn();
 const mockSetItem = jest.fn();
@@ -30,6 +36,31 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockGetItem.mockResolvedValue(null);
   mockScheduleNotificationAsync.mockResolvedValue('notif-1');
+  mockIsRunningInExpoGo.mockReturnValue(false);
+});
+
+describe('areRemindersSupported', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('is false on Android inside Expo Go, where loading expo-notifications throws', () => {
+    jest.replaceProperty(Platform, 'OS', 'android');
+    mockIsRunningInExpoGo.mockReturnValue(true);
+    expect(areRemindersSupported()).toBe(false);
+  });
+
+  it('is true on Android outside Expo Go (a development/production build)', () => {
+    jest.replaceProperty(Platform, 'OS', 'android');
+    mockIsRunningInExpoGo.mockReturnValue(false);
+    expect(areRemindersSupported()).toBe(true);
+  });
+
+  it('is true on iOS inside Expo Go, where the library only warns', () => {
+    jest.replaceProperty(Platform, 'OS', 'ios');
+    mockIsRunningInExpoGo.mockReturnValue(true);
+    expect(areRemindersSupported()).toBe(true);
+  });
 });
 
 describe('getReminderPreference', () => {

@@ -17,8 +17,10 @@ jest.mock('@/lib/account', () => ({
 const mockGetReminderPreference = jest.fn();
 const mockEnableReminder = jest.fn();
 const mockDisableReminder = jest.fn();
+const mockAreRemindersSupported = jest.fn();
 
 jest.mock('@/lib/reminders', () => ({
+  areRemindersSupported: () => mockAreRemindersSupported(),
   getReminderPreference: (...args: unknown[]) => mockGetReminderPreference(...args),
   enableReminder: (...args: unknown[]) => mockEnableReminder(...args),
   disableReminder: (...args: unknown[]) => mockDisableReminder(...args),
@@ -34,6 +36,7 @@ const mockAlert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
 beforeEach(() => {
   jest.clearAllMocks();
   mockGetReminderPreference.mockResolvedValue({ enabled: false, hour: 21, minute: 0 });
+  mockAreRemindersSupported.mockReturnValue(true);
 });
 
 describe('SettingsScreen', () => {
@@ -129,6 +132,22 @@ describe('SettingsScreen', () => {
 
     await waitFor(() => expect(mockDisableReminder).toHaveBeenCalled());
     await waitFor(() => expect(queryByText('10:00 PM')).toBeNull());
+  });
+
+  it('disables the reminder switch and explains why where reminders are unsupported', async () => {
+    mockAreRemindersSupported.mockReturnValue(false);
+    mockGetReminderPreference.mockResolvedValue({ enabled: true, hour: 22, minute: 0 });
+
+    const { getByRole, getByText, queryByText } = await render(<SettingsScreen />);
+
+    await waitFor(() =>
+      expect(
+        getByText("Reminders aren't available in Expo Go on Android — they'll work in the full app build."),
+      ).toBeTruthy(),
+    );
+    expect(getByRole('switch').props.accessibilityState?.disabled ?? getByRole('switch').props.disabled).toBe(true);
+    expect(queryByText('10:00 PM')).toBeNull();
+    expect(mockEnableReminder).not.toHaveBeenCalled();
   });
 
   it('reschedules when a different time chip is selected while enabled', async () => {

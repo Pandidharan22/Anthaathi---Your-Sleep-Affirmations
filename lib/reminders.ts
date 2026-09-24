@@ -1,5 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Notifications from 'expo-notifications';
+import { isRunningInExpoGo } from 'expo';
+import type * as NotificationsModule from 'expo-notifications';
+import { Platform } from 'react-native';
 
 const STORAGE_KEY = 'anthaathi.reminder';
 
@@ -17,14 +19,40 @@ type StoredReminderState = ReminderPreference & { identifier?: string };
 // this to on-device scheduling with no server round trip, and a scheduled
 // notification only ever exists on the device that scheduled it anyway, so
 // there's nothing meaningful to sync.
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: false,
-    shouldSetBadge: false,
-  }),
-});
+
+/**
+ * On Android inside Expo Go (SDK 53+), merely *loading* expo-notifications
+ * throws: its index eagerly imports DevicePushTokenAutoRegistration.fx, which
+ * registers a push-token listener at module-evaluation time, and that call
+ * throws there. So the module must never be imported in that environment —
+ * not even via a static top-level import. A development build (Phase 3)
+ * doesn't have this restriction.
+ */
+export function areRemindersSupported(): boolean {
+  return !(Platform.OS === 'android' && isRunningInExpoGo());
+}
+
+let notifications: typeof NotificationsModule | null = null;
+
+function loadNotifications(): typeof NotificationsModule {
+  if (!notifications) {
+    // A call-time require, not a top-level import: evaluating the module is
+    // what throws on Android Expo Go, so it's only evaluated once a reminder
+    // is actually used — which callers only do where areRemindersSupported().
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const loaded: typeof NotificationsModule = require('expo-notifications');
+    loaded.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowBanner: true,
+        shouldShowList: true,
+        shouldPlaySound: false,
+        shouldSetBadge: false,
+      }),
+    });
+    notifications = loaded;
+  }
+  return notifications;
+}
 
 async function readState(): Promise<StoredReminderState> {
   const raw = await AsyncStorage.getItem(STORAGE_KEY);
@@ -48,6 +76,7 @@ export async function getReminderPreference(): Promise<ReminderPreference> {
 async function cancelExistingSchedule(): Promise<void> {
   const state = await readState();
   if (!state.identifier) return;
+  const Notifications = loadNotifications();
   try {
     await Notifications.cancelScheduledNotificationAsync(state.identifier);
   } catch {
@@ -60,9 +89,11 @@ export type EnableReminderResult = { success: true } | { success: false; canAskA
 /**
  * Enables (or reschedules) the daily reminder (FR-701). Requests notification
  * permission only if not already decided — never re-nags if the user
- * previously declined and can't be asked again.
+ * previously declined and can't be asked again. Callers must check
+ * areRemindersSupported() first.
  */
 export async function enableReminder(hour: number, minute: number): Promise<EnableReminderResult> {
+  const Notifications = loadNotifications();
   let permission = await Notifications.getPermissionsAsync();
   if (!permission.granted && permission.canAskAgain) {
     permission = await Notifications.requestPermissionsAsync();

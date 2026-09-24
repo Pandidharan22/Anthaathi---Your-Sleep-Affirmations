@@ -50,7 +50,12 @@ export default function PlayerScreen() {
     player.play();
   }, [playCount, screenState, currentTrack, player]);
 
-  // Advance the queue when the track reaches its trim end (or natural end).
+  // Advance the queue when the track reaches its trim end or its natural end.
+  // `didJustFinish` matters for untrimmed tracks: `duration_ms` is the
+  // recorder's clock at Stop, and the encoded file is often a few tens of ms
+  // shorter — so the file can end before `currentTime` ever reaches the
+  // threshold, leaving the player sitting at end-of-media (where play() is a
+  // no-op) instead of advancing.
   // A real event listener (not a useAudioPlayerStatus-driven effect) so the
   // advance-once guard lives in the closure, not in state/renders. `playCount`
   // is in the deps (even though it isn't read in the body) so this resubscribes
@@ -62,7 +67,7 @@ export default function PlayerScreen() {
     const trimEndMs = currentTrack.trim_end_ms ?? currentTrack.duration_ms;
     let advanced = false;
     const subscription = player.addListener('playbackStatusUpdate', (s) => {
-      if (!advanced && s.currentTime * 1000 >= trimEndMs - 50) {
+      if (!advanced && (s.didJustFinish || s.currentTime * 1000 >= trimEndMs - 50)) {
         advanced = true;
         setPlayCount((count) => count + 1);
       }

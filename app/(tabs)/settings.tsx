@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { deleteAccount } from '@/lib/account';
 import {
+  areRemindersSupported,
   disableReminder,
   enableReminder,
   formatReminderTime,
@@ -29,6 +30,7 @@ export default function SettingsScreen() {
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const remindersSupported = areRemindersSupported();
   const [reminder, setReminder] = useState<ReminderPreference>({ enabled: false, hour: 21, minute: 0 });
   const [reminderError, setReminderError] = useState<string | null>(null);
 
@@ -102,13 +104,19 @@ export default function SettingsScreen() {
       <View style={[styles.reminderSection, { borderColor: colors.border }]}>
         <View style={styles.reminderHeader}>
           <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Daily reminder</Text>
-          <Switch value={reminder.enabled} onValueChange={handleToggleReminder} />
+          <Switch
+            value={remindersSupported && reminder.enabled}
+            onValueChange={handleToggleReminder}
+            disabled={!remindersSupported}
+          />
         </View>
         <Text style={[styles.description, { color: colors.textSecondary }]}>
-          Get a nightly reminder to play your affirmations.
+          {remindersSupported
+            ? 'Get a nightly reminder to play your affirmations.'
+            : "Reminders aren't available in Expo Go on Android — they'll work in the full app build."}
         </Text>
         {reminderError ? <Text style={[styles.error, { color: colors.error }]}>{reminderError}</Text> : null}
-        {reminder.enabled ? (
+        {remindersSupported && reminder.enabled ? (
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
