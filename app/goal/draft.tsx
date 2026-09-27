@@ -9,10 +9,13 @@ import { getLocalGoal, type LocalGoal } from '@/lib/goals.local';
 
 type ScreenState = 'loading' | 'drafting' | 'ready' | 'error';
 
+// invalid_request and unknown intentionally share copy: neither is something the
+// user did wrong or can act on differently, so there's no reason to distinguish
+// them on screen (kept distinct in DraftErrorKind for future debugging/telemetry).
 const ERROR_MESSAGES: Record<DraftErrorKind, string> = {
-  rate_limited: "You've reached today's limit for AI drafts. Please try again later.",
-  provider_unavailable: 'The AI drafting service is unavailable right now. Please try again shortly.',
-  invalid_request: 'Something went wrong preparing that request.',
+  rate_limited: "You've reached the limit for AI drafts for now — try again in a little while.",
+  provider_unavailable: "Drafting isn't working right now. Please try again shortly.",
+  invalid_request: 'Something went wrong. Please try again.',
   unknown: 'Something went wrong. Please try again.',
 };
 
@@ -30,12 +33,19 @@ export default function DraftAffirmationScreen() {
     const goalText = target.description.trim()
       ? `${target.title}: ${target.description}`
       : target.title;
-    const result = await requestAffirmationDraft(target.id, goalText);
-    if (result.ok) {
-      setDraftText(result.draftText);
-      setState('ready');
-    } else {
-      setErrorMessage(ERROR_MESSAGES[result.kind]);
+    try {
+      const result = await requestAffirmationDraft(target.id, goalText);
+      if (result.ok) {
+        setDraftText(result.draftText);
+        setState('ready');
+      } else {
+        setErrorMessage(ERROR_MESSAGES[result.kind]);
+        setState('error');
+      }
+    } catch {
+      // requestAffirmationDraft shouldn't throw, but FR-503 requires this screen
+      // never gets stuck (e.g. an infinite spinner) no matter what goes wrong.
+      setErrorMessage(ERROR_MESSAGES.unknown);
       setState('error');
     }
   }, []);

@@ -93,7 +93,9 @@ describe('DraftAffirmationScreen', () => {
     const { getByText, getByDisplayValue } = await render(<DraftAffirmationScreen />);
 
     await waitFor(() =>
-      expect(getByText("You've reached today's limit for AI drafts. Please try again later.")).toBeTruthy(),
+      expect(
+        getByText("You've reached the limit for AI drafts for now — try again in a little while."),
+      ).toBeTruthy(),
     );
 
     await fireEvent.press(getByText('Try again'));
@@ -110,9 +112,19 @@ describe('DraftAffirmationScreen', () => {
 
     await waitFor(() =>
       expect(
-        getByText('The AI drafting service is unavailable right now. Please try again shortly.'),
+        getByText("Drafting isn't working right now. Please try again shortly."),
       ).toBeTruthy(),
     );
+  });
+
+  it('FR-503: an unexpected throw from requestAffirmationDraft still lands on the error state, not a stuck spinner', async () => {
+    mockGetLocalGoal.mockResolvedValue(baseGoal);
+    mockRequestAffirmationDraft.mockRejectedValue(new Error('unexpected'));
+
+    const { getByText, queryByText } = await render(<DraftAffirmationScreen />);
+
+    await waitFor(() => expect(getByText('Something went wrong. Please try again.')).toBeTruthy());
+    expect(queryByText('Drafting your affirmation…')).toBeNull();
   });
 
   it('shows a not-found message when the goal does not exist, with no Try again button', async () => {
