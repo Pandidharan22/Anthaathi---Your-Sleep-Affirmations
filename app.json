@@ -11,6 +11,7 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.pandidharan.anthaathi",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -24,6 +25,7 @@
     },
     "plugins": [
       "expo-router",
+      "expo-dev-client",
       "expo-sqlite",
       [
         "expo-audio",
