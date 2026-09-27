@@ -72,7 +72,7 @@ Goal: goal-to-affirmation text drafting (FR-501–FR-504, [ADR-0003](adr/0003-ai
 
 **Text drafting**
 - [x] **3.1** Supabase Edge Function scaffold + provider secret stored server-side only. Verify: key is absent from the client bundle (grep the built artifact).
-- [ ] **3.2** `generate-affirmation` function: goal → draft text, per-user rate limiting. Implements FR-501, FR-504.
+- [x] **3.2** `generate-affirmation` function: goal → draft text, per-user rate limiting. Implements FR-501, FR-504.
 - [ ] **3.3** Client integration: request draft → user edits/accepts → normal record flow. Implements FR-502 (never auto-narrated).
 - [ ] **3.4** Error/degradation handling for provider downtime or rate limits. Implements FR-503. Verify: simulate a 429/502 and confirm the app shows a clear error, not a crash.
 
