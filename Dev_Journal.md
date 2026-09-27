@@ -4,6 +4,22 @@ One entry per committed step, newest first. Each entry: what was done, why, how 
 
 ---
 
+## 2026-09-27 — Edge Function scaffold + server-side secret plumbing (Execution Plan step 3.1, opens Phase 3)
+
+**What**: Scaffolded [supabase/functions/generate-affirmation/index.ts](supabase/functions/generate-affirmation/index.ts) via `supabase functions new`, per [ADR-0003](docs/adr/0003-ai-provider-strategy.md)'s decision to call a free-tier hosted LLM only from a server-side Edge Function. This step is deliberately scaffold-only — the real goal-to-draft-text call (FR-501, FR-504) is step 3.2's scope — but it's a real, working artifact, not a placeholder: the handler uses `@supabase/server`'s `withSupabase({ auth: 'user' })`, matching [SYSTEM_DESIGN.md §5](docs/SYSTEM_DESIGN.md#5-api-design)'s stated contract (the caller's signed-in Supabase JWT, not an API key), and exposes `ctx.userClaims.id` that step 3.2's per-user rate limiting will need. It reports only whether the provider secret is configured (`{ ready: boolean }`), never the secret itself.
+
+Caught and fixed a real misconfiguration in the CLI's own generated scaffold: `supabase/config.toml` defaulted the new function's `verify_jwt` to `false`, which per `@supabase/server`'s own docs is only correct for its `publishable`/`secret`/`none` auth modes — this function uses `'user'`, so leaving platform-level JWT verification off would have dropped a layer of defense-in-depth for no reason. Fixed to `verify_jwt = true` and re-verified after the fix, not just before.
+
+**Why**: Execution Plan step 3.1, the first step of Phase 3 and the project's first server-side secret. User chose Groq over Gemini as the provider (ADR-0003 left this as an implementation-time call); no API key was available yet, so this step is scoped to just the plumbing — secret storage and a live Groq call land together in step 3.2 once the key exists.
+
+**Verification**: Docker Desktop wasn't running; started it and the local Supabase stack for this. Signed up a real local test user via the Auth API to get a genuine JWT (not a hand-built fake), then confirmed all three auth paths against the running function: no `Authorization` header → 401 (`MISSING_CREDENTIALS`); a garbage token → 401; a valid user JWT → 200 with the correct `userId` extracted from the token. Wrote a placeholder value to the git-ignored `supabase/functions/.env`, restarted the stack, and confirmed `ready` flips from `false` to `true` — proving the secret-reading plumbing works — then deleted the placeholder. Ran the Execution Plan's own stated acceptance check: `npx expo export --platform web`, then grepped the entire exported client bundle for the secret's name and value — zero matches, confirming it's provably absent from anything shipped to the client. Local stack stopped afterward; nothing touched `.env` or got committed as a secret.
+
+**Known gap**: live deployment (`supabase secrets set` + `supabase functions deploy`) is blocked on the user obtaining a real Groq API key — deferred to step 3.2, which needs the key anyway to implement the actual LLM call.
+
+**Commit**: `cc17462` — Scaffold generate-affirmation Edge Function (step 3.1)
+
+---
+
 ## 2026-09-24 — Full real-device regression pass over Phases 0-2; two bugs found and fixed
 
 **What**: Before starting Phase 3, ran a full manual regression pass on the user's own Android phone (via Expo Go, against the live Supabase project) covering every feature built in Phases 0–2 — auth, recording, trim, folders, player, streak, goals, journal, reminders, light/dark mode, account deletion. Two real bugs surfaced, both invisible to the web-preview sandbox and the mocked unit-test suite:
