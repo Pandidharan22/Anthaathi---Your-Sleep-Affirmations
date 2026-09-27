@@ -39,8 +39,10 @@ jest.mock('expo-file-system', () => ({
   File: jest.fn().mockImplementation(() => ({ delete: mockFileDelete })),
 }));
 
+let mockSearchParams: { scriptText?: string; suggestedTitle?: string } = {};
 jest.mock('expo-router', () => ({
   router: { back: (...args: unknown[]) => mockRouterBack(...args) },
+  useLocalSearchParams: () => mockSearchParams,
 }));
 
 jest.mock('@/hooks/useAuth', () => ({
@@ -58,6 +60,7 @@ jest.mock('@/lib/folders.local', () => ({
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockSearchParams = {};
   mockRecorderObj.uri = null;
   mockRecorderState = { isRecording: false, durationMillis: 0, canRecord: true, url: null };
   mockPlayerStatus = { playing: false, currentTime: 0, duration: 0 };
@@ -149,6 +152,39 @@ describe('RecordScreen', () => {
 
     await waitFor(() => expect(getByText('Give this recording a title before saving.')).toBeTruthy());
     expect(mockCreateLocalAffirmation).not.toHaveBeenCalled();
+  });
+
+  it('pre-fills the title and shows the script when arriving from an AI draft, and saves the script text', async () => {
+    mockGetRecordingPermissionsAsync.mockResolvedValue({ granted: true, canAskAgain: true });
+    mockSearchParams = { scriptText: 'I am strong and capable.', suggestedTitle: 'Run a marathon' };
+
+    const { getByText, getByDisplayValue, rerender } = await render(<RecordScreen />);
+    await waitFor(() => expect(getByText('Tap to record')).toBeTruthy());
+
+    expect(getByText('I am strong and capable.')).toBeTruthy();
+
+    await fireEvent.press(getByText('Tap to record'));
+    await waitFor(() => expect(getByText('Stop')).toBeTruthy());
+    expect(getByText('I am strong and capable.')).toBeTruthy();
+
+    mockRecorderObj.uri = 'file:///doc/rec.m4a';
+    mockRecorderState = { ...mockRecorderState, durationMillis: 4200 };
+    await rerender(<RecordScreen />);
+    await fireEvent.press(getByText('Stop'));
+    await waitFor(() => expect(getByText('Save')).toBeTruthy());
+
+    // The suggested title survived the stop -> reviewing transition unstomped.
+    expect(getByDisplayValue('Run a marathon')).toBeTruthy();
+    await fireEvent.press(getByText('Save'));
+
+    await waitFor(() =>
+      expect(mockCreateLocalAffirmation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Run a marathon',
+          scriptText: 'I am strong and capable.',
+        }),
+      ),
+    );
   });
 
   it('Discard deletes the file and returns to the ready state', async () => {

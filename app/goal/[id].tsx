@@ -192,6 +192,14 @@ export default function GoalDetailScreen() {
       )}
 
       <Pressable
+        onPress={() => router.push({ pathname: '/goal/draft', params: { goalId: goal.id } })}
+        accessibilityRole="button"
+        style={[styles.primaryButton, { backgroundColor: colors.primary }]}
+      >
+        <Text style={[styles.primaryButtonLabel, { color: colors.background }]}>Draft affirmation</Text>
+      </Pressable>
+
+      <Pressable
         onPress={handleToggleAchieved}
         accessibilityRole="button"
         style={[styles.secondaryButton, { borderColor: colors.success }]}
@@ -259,5 +267,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  primaryButton: {
+    borderRadius: radii.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 44,
+  },
+  primaryButtonLabel: {
+    fontSize: typography.body.fontSize,
+    fontWeight: '600',
   },
 });

@@ -13,10 +13,14 @@ const mockLaunchImageLibraryAsync = jest.fn();
 const mockFileDelete = jest.fn();
 const mockFileCopy = jest.fn();
 const mockRouterBack = jest.fn();
+const mockRouterPush = jest.fn();
 
 jest.mock('expo-router', () => ({
   useLocalSearchParams: () => ({ id: 'goal-1' }),
-  router: { back: (...args: unknown[]) => mockRouterBack(...args) },
+  router: {
+    back: (...args: unknown[]) => mockRouterBack(...args),
+    push: (...args: unknown[]) => mockRouterPush(...args),
+  },
 }));
 
 jest.mock('expo-image-picker', () => ({
@@ -109,6 +113,17 @@ describe('GoalDetailScreen', () => {
 
     await waitFor(() => expect(getByDisplayValue('Run a marathon')).toBeTruthy());
     expect(mockUpdateLocalGoalText).not.toHaveBeenCalled();
+  });
+
+  it('navigates to the draft-affirmation screen with this goal', async () => {
+    mockGetLocalGoal.mockResolvedValue(baseGoal);
+
+    const { getByText } = await render(<GoalDetailScreen />);
+    await waitFor(() => expect(getByText('Draft affirmation')).toBeTruthy());
+
+    await fireEvent.press(getByText('Draft affirmation'));
+
+    expect(mockRouterPush).toHaveBeenCalledWith({ pathname: '/goal/draft', params: { goalId: 'goal-1' } });
   });
 
   it('marks the goal achieved, then back to active', async () => {

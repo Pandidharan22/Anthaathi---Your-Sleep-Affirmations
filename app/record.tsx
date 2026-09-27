@@ -7,7 +7,7 @@ import {
   useAudioRecorderState,
 } from 'expo-audio';
 import { File } from 'expo-file-system';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -34,12 +34,16 @@ const RECORDING_OPTIONS = { ...RecordingPresets.HIGH_QUALITY, directory: 'docume
 export default function RecordScreen() {
   const colors = useThemeColors();
   const { user } = useAuth();
+  const { scriptText, suggestedTitle } = useLocalSearchParams<{
+    scriptText?: string;
+    suggestedTitle?: string;
+  }>();
 
   const [state, setState] = useState<ScreenState>('checking');
   const [recordedUri, setRecordedUri] = useState<string | null>(null);
   const [recordedDurationMs, setRecordedDurationMs] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [title, setTitle] = useState('');
+  const [title, setTitle] = useState(suggestedTitle ?? '');
   const [folders, setFolders] = useState<LocalFolder[]>([]);
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
 
@@ -81,7 +85,7 @@ export default function RecordScreen() {
       if (!uri) throw new Error('Recording finished with no file');
       setRecordedUri(uri);
       setRecordedDurationMs(durationMs);
-      setTitle(`Recording — ${new Date().toLocaleString()}`);
+      setTitle((current) => current || `Recording — ${new Date().toLocaleString()}`);
       setState('reviewing');
     } catch {
       setError('Recording failed. Please try again.');
@@ -128,6 +132,7 @@ export default function RecordScreen() {
         folderId: selectedFolderId,
         trimStartMs,
         trimEndMs,
+        scriptText: scriptText || null,
       });
       router.back();
     } catch {
@@ -230,6 +235,11 @@ export default function RecordScreen() {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <Text style={[styles.title, { color: colors.textPrimary }]}>Recording…</Text>
+        {scriptText ? (
+          <View style={[styles.scriptBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.scriptText, { color: colors.textPrimary }]}>{scriptText}</Text>
+          </View>
+        ) : null}
         <Text style={[styles.duration, { color: colors.textPrimary }]}>
           {formatDuration(recorderState.durationMillis)}
         </Text>
@@ -247,6 +257,11 @@ export default function RecordScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Text style={[styles.title, { color: colors.textPrimary }]}>Ready to record</Text>
+      {scriptText ? (
+        <View style={[styles.scriptBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[styles.scriptText, { color: colors.textPrimary }]}>{scriptText}</Text>
+        </View>
+      ) : null}
       {error ? <Text style={[styles.error, { color: colors.error }]}>{error}</Text> : null}
       <Pressable
         onPress={handleStartRecording}
@@ -283,6 +298,17 @@ const styles = StyleSheet.create({
     lineHeight: typography.display.lineHeight,
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
+  },
+  scriptBox: {
+    width: '100%',
+    borderWidth: 1,
+    borderRadius: radii.md,
+    padding: spacing.md,
+  },
+  scriptText: {
+    fontSize: typography.body.fontSize,
+    lineHeight: typography.body.lineHeight,
+    textAlign: 'center',
   },
   error: {
     fontSize: typography.caption.fontSize,

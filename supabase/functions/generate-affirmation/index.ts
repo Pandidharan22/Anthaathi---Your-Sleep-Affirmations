@@ -46,13 +46,13 @@ export default {
     ).toISOString();
 
     const { count, error: countError } = await ctx.supabaseAdmin
-      .from("ai_draft_requests")
+      .from("ai_generation_log")
       .select("id", { count: "exact", head: true })
       .eq("user_id", userId)
       .gte("created_at", windowStart);
 
     if (countError) {
-      console.error("ai_draft_requests count failed:", countError.message);
+      console.error("ai_generation_log count failed:", countError.message);
       return Response.json({ error: "provider_unavailable" }, { status: 502 });
     }
     if ((count ?? 0) >= RATE_LIMIT_MAX_REQUESTS) {
@@ -64,6 +64,8 @@ export default {
       console.error("GROQ_API_KEY is not configured");
       return Response.json({ error: "provider_unavailable" }, { status: 502 });
     }
+
+    const userPrompt = `Goal: ${goalText}`;
 
     let draftText: string;
     try {
@@ -79,7 +81,7 @@ export default {
             model: GROQ_MODEL,
             messages: [
               { role: "system", content: SYSTEM_PROMPT },
-              { role: "user", content: `Goal: ${goalText}` },
+              { role: "user", content: userPrompt },
             ],
             temperature: 0.8,
             max_tokens: 300,
@@ -106,14 +108,22 @@ export default {
     }
 
     // Log the request only on success -- a provider hiccup shouldn't cost the
-    // user part of their daily quota. A logging failure here is a bookkeeping
-    // problem, not a reason to withhold a draft the user already paid a Groq
-    // call for, so it's reported but doesn't change the response.
+    // user part of their daily quota. This doubles as SYSTEM_DESIGN.md §4's
+    // documented ai_generation_log (the user's own history/debugging), so the
+    // full prompt and result are kept, not just a bare counter. A logging
+    // failure here is a bookkeeping problem, not a reason to withhold a draft
+    // the user already paid a Groq call for, so it's reported but doesn't
+    // change the response.
     const { error: insertError } = await ctx.supabaseAdmin
-      .from("ai_draft_requests")
-      .insert({ user_id: userId, goal_id: goalId });
+      .from("ai_generation_log")
+      .insert({
+        user_id: userId,
+        goal_id: goalId,
+        prompt_used: `${SYSTEM_PROMPT}\n\n${userPrompt}`,
+        result_text: draftText,
+      });
     if (insertError) {
-      console.error("ai_draft_requests insert failed:", insertError.message);
+      console.error("ai_generation_log insert failed:", insertError.message);
     }
 
     return Response.json({ draftText });
