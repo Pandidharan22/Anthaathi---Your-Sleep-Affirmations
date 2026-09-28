@@ -4,6 +4,25 @@ One entry per committed step, newest first. Each entry: what was done, why, how 
 
 ---
 
+## 2026-09-28 — First EAS dev-client build, verified on the user's real device (Execution Plan step 3.5, closing out)
+
+**What**: Closes out step 3.5, picking up once the user confirmed they'd run `eas login` themselves (verified via `eas whoami` rather than taken on faith). `eas init --account pandidharan22 --non-interactive` created and linked `@pandidharan22/anthaathi`, writing `extra.eas.projectId` and `owner` into `app.json` — it also surfaced `expo-audio`'s background-playback permissions (`FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MEDIA_PLAYBACK`, `MODIFY_AUDIO_SETTINGS`, from step 1.7's `enableBackgroundPlayback: true`) explicitly into the static config, which had previously only been injected at prebuild time — benign, left as-is. Then `eas build --profile development --platform android --non-interactive`: EAS generated a signing keystore in the cloud (no local `keytool`, and none needed — that's the point of remote credentials), uploaded, and built successfully in ~18 minutes.
+
+**Why**: Execution Plan step 3.5, the ADR-0007 prerequisite. This step's actual deliverable is a working, installable dev-client build — not just the config from the earlier WIP commit — so it wasn't done until this existed and ran on a real device.
+
+**Verification**: Ran for real, end to end, on the user's own Android phone — the only kind of verification that actually proves this pivot works:
+- Sent the build's install link/QR code; the user installed the APK (allowing "install from unknown sources," expected for a non-Play-Store build)
+- Started `npx expo start --dev-client`; Metro's QR/banner output was getting suppressed running through this session's piped background shell, so generated a real scannable QR (`npx qrcode`) encoding the LAN `exp://` URL instead, sent as an image
+- Watched the dev server log via a `Monitor` filter (not polling) for the connect/bundle/error signals; saw `Android Bundled ... (1661 modules)` — the phone had connected and Metro served the full JS bundle
+- User confirmed directly: the app loaded to the sign-in screen, they signed in with a real account from earlier testing, and every tab was correctly empty (they'd deleted that test data in a previous session) — proof this is hitting the real live Supabase project through an actual dev-client build, not a fluke
+- Full test suite (214/214), typecheck, lint all still clean; only `app.json` changed this half of the step (the `eas init` linking metadata)
+
+**Phase 3's dev-client pivot (ADR-0007) is now unblocked**: steps 3.6+ (the native Android TTS module) can finally be built and tested — nothing past this point can go through Expo Go or the web-preview workflow anymore.
+
+**Commit**: `68ef0c6` — Link EAS project, first dev-client build verified on device (step 3.5)
+
+---
+
 ## 2026-09-28 — expo-dev-client + EAS build profile setup, in progress (Execution Plan step 3.5)
 
 **What**: Groundwork for the ADR-0007 pivot — everything that doesn't require the user's own EAS account. Checked this machine first rather than assuming: no Android Studio, SDK, or JDK installed, so a local build (`expo run:android`) isn't viable without a large toolchain install; `eas-cli` works via `npx` but isn't logged into any account. Given that, EAS cloud build is the practical path, not a local one. Confirmed with the user: **Android only** for now — matches their existing real-device testing (their own Android phone via Expo Go throughout Phases 0–2), and iOS would need an Apple Developer Program membership ($99/yr) just to install a dev build on a device, which conflicts with NFR-601's $0 budget and has no device to test on here anyway.
