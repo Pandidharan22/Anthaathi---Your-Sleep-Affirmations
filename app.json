@@ -18,7 +18,12 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -43,6 +48,13 @@
         }
       ],
       "expo-notifications"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "20b578c6-c1fd-4778-8c09-e01f16312b08"
+      }
+    },
+    "owner": "pandidharan22"
   }
 }
