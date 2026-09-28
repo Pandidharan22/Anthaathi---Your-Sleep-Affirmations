@@ -4,6 +4,18 @@ One entry per committed step, newest first. Each entry: what was done, why, how 
 
 ---
 
+## 2026-09-28 — Step 3.7 (iOS native module) formally deferred, no new code
+
+**What**: Updated [docs/EXECUTION_PLAN.md](docs/EXECUTION_PLAN.md) to explicitly mark step 3.7 (the iOS `AVSpeechSynthesizer` native module) as deferred, with the reasoning recorded inline rather than just leaving the checkbox unstarted and ambiguous. Also updated step 3.8's scope note: the unified JS interface should stay platform-agnostic in shape (so iOS slots in later without a redesign) but only needs an Android implementation behind it for now.
+
+**Why**: Confirmed with the user rather than assumed. Restates the same reasoning already journaled for step 3.5's Android-only call: no Mac/iOS device available on this Windows dev setup, and installing a dev build on a physical iOS device needs an Apple Developer Program membership ($99/yr) that conflicts with NFR-601's $0 budget. Recording this as a deliberate, revisitable decision (funded by monetization, or if a Mac/iOS device becomes available) rather than a silent gap — matches the same "check off with a note, don't pad scope" precedent as step 2.2.
+
+**Verification**: N/A — planning-document change only, no code touched.
+
+**Commit**: `26f7fc7` — Formally defer step 3.7 (iOS native module)
+
+---
+
 ## 2026-09-28 — Android TTS-to-file native module, first native code (Execution Plan step 3.6)
 
 **What**: `modules/anthaathi-tts/` — this project's first native code, a local Expo Module (Kotlin) wrapping Android's `TextToSpeech.synthesizeToFile()` per ADR-0007. Scaffolded with `create-expo-module --local` (fixed a CLI quirk that nested it as `modules/modules/anthaathi-tts` — the `--local` flag already prepends `modules/`, so passing a path that also started with `modules/` double-nested it). `AnthaathiTtsModule.kt` exposes one function, `synthesizeToFile(text, outputPath) -> Promise<string>`: lazily initializes the `TextToSpeech` engine, bridges its callback-based `UtteranceProgressListener` (`onDone`/`onError`) to the Promise, and deletes the output file on failure so no partial file is ever left behind. Every Kotlin API shape used (`Module`, the `AsyncFunction` 2-arg-plus-Promise overload, `Promise.resolve`/`reject`, `CodedException`, `OnDestroy`, `appContext.reactContext`) was verified by reading the actual `expo-modules-core` source in `node_modules` first, not assumed — consistent with this project's established discipline for new/native-adjacent APIs, and especially warranted here since this machine has no Android SDK to compile against locally, so a real EAS build is the *only* way to catch a Kotlin mistake.
