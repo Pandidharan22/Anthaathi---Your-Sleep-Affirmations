@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 
@@ -148,6 +149,16 @@ export default function SettingsScreen() {
           </ScrollView>
         ) : null}
       </View>
+
+      {__DEV__ ? (
+        <Pressable
+          onPress={() => router.push('/dev-tts-test')}
+          accessibilityRole="button"
+          style={[styles.button, { borderColor: colors.border }]}
+        >
+          <Text style={{ color: colors.textPrimary }}>Dev: on-device TTS test</Text>
+        </Pressable>
+      ) : null}
 
       <Pressable
         onPress={() => signOut()}

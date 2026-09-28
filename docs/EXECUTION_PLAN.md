@@ -78,7 +78,7 @@ Goal: goal-to-affirmation text drafting (FR-501–FR-504, [ADR-0003](adr/0003-ai
 
 **AI Guided voice sessions (native, on-device — ADR-0007)**
 - [x] **3.5** Set up `expo-dev-client` and an EAS development build profile — prerequisite; nothing below this can be tested via Expo Go or the web-preview workflow.
-- [ ] **3.6** Android native module (Kotlin): wrap `TextToSpeech.synthesizeToFile()`. Verify: synthesizes a known string to a playable WAV file on a real device/emulator.
+- [x] **3.6** Android native module (Kotlin): wrap `TextToSpeech.synthesizeToFile()`. Verify: synthesizes a known string to a playable WAV file on a real device/emulator.
 - [ ] **3.7** iOS native module (Swift): wrap `AVSpeechSynthesizer`'s buffer-writing API, assemble to a playable file. Verify: same check as 3.6, on a real device/simulator.
 - [ ] **3.8** Unify both behind one Expo Module JS interface: voice listing, `synthesize(text, voiceId) → local file path`. Implements FR-512, FR-513.
 - [ ] **3.9** Extend `affirmations` schema with `source`, `voice_id`, `script_text` (see [SYSTEM_DESIGN.md §4](SYSTEM_DESIGN.md#4-data-model)); wire caching/re-synthesis logic. Implements FR-514.

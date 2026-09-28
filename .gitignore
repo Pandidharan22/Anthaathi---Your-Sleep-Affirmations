@@ -20,10 +20,13 @@ dist/
 web-build/
 expo-env.d.ts
 
-# Native build output (regenerated via `expo prebuild` / EAS — not hand-edited)
-ios/
-android/
-.kotlin/
+# Native build output (regenerated via `expo prebuild` / EAS — not hand-edited).
+# Anchored to the repo root (leading slash) -- an unanchored `android/`/`ios/`
+# would also match modules/<name>/android/, silently excluding real native
+# module source from git and (since EAS Build respects .gitignore) from builds.
+/ios/
+/android/
+/.kotlin/
 *.orig.*
 
 # Metro
