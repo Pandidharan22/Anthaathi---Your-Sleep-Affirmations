@@ -19,8 +19,12 @@ jest.mock('expo-audio', () => ({
   createAudioPlayer: (uri: string) => mockCreateAudioPlayer(uri),
 }));
 
+const mockFileDelete = jest.fn();
 jest.mock('expo-file-system', () => ({
-  File: jest.fn().mockImplementation(() => ({ uri: 'file:///doc/ai-affirmation-fixed-uuid.wav' })),
+  File: jest.fn().mockImplementation(() => ({
+    uri: 'file:///doc/ai-affirmation-fixed-uuid.wav',
+    delete: mockFileDelete,
+  })),
   Paths: { document: 'file:///doc' },
 }));
 
@@ -73,7 +77,7 @@ describe('synthesizeAffirmationAudio', () => {
     });
   });
 
-  it('rejects and cleans up if the player never finishes loading', async () => {
+  it('rejects, cleans up the player, and deletes the orphaned file if the player never finishes loading', async () => {
     jest.useFakeTimers();
     mockSynthesizeToFile.mockResolvedValue('file:///doc/ai-affirmation-fixed-uuid.wav');
 
@@ -84,6 +88,9 @@ describe('synthesizeAffirmationAudio', () => {
 
     expect(mockSubscriptionRemove).toHaveBeenCalled();
     expect(mockPlayerRemove).toHaveBeenCalled();
+    // FR-516: synthesis itself succeeded and wrote a real file -- since duration measurement
+    // failed, the caller never gets a usable result, so the orphaned file must not be left behind.
+    expect(mockFileDelete).toHaveBeenCalled();
     jest.useRealTimers();
   });
 });

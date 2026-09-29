@@ -68,6 +68,18 @@ export async function synthesizeAffirmationAudio(
 ): Promise<{ localUri: string; durationMs: number }> {
   const outputFile = new File(Paths.document, `ai-affirmation-${Crypto.randomUUID()}.wav`);
   const localUri = await AnthaathiTts.synthesizeToFile(scriptText, outputFile.uri, voiceId);
-  const durationMs = await measureDurationMs(localUri);
-  return { localUri, durationMs };
+  try {
+    const durationMs = await measureDurationMs(localUri);
+    return { localUri, durationMs };
+  } catch (err) {
+    // Synthesis itself succeeded and wrote a real file -- if we can't confirm its duration,
+    // the caller never gets a usable result, so don't leave an orphaned file behind for
+    // FR-514's caching logic (or account deletion) to have to reason about later.
+    try {
+      outputFile.delete();
+    } catch {
+      // Best-effort cleanup; a stray file isn't a correctness issue on its own.
+    }
+    throw err;
+  }
 }
