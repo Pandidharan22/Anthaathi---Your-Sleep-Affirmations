@@ -7,6 +7,7 @@ const mockGetLocalAffirmation = jest.fn();
 const mockUpdateLocalAffirmationTrim = jest.fn();
 const mockUpdateLocalAffirmationFolder = jest.fn();
 const mockUpdateLocalAffirmationTitle = jest.fn();
+const mockUpdateAiGuidedAffirmationScript = jest.fn();
 const mockDeleteLocalAffirmation = jest.fn();
 const mockListLocalFolders = jest.fn();
 const mockRouterBack = jest.fn();
@@ -25,7 +26,15 @@ jest.mock('@/lib/affirmations.local', () => ({
   updateLocalAffirmationTrim: (...args: unknown[]) => mockUpdateLocalAffirmationTrim(...args),
   updateLocalAffirmationFolder: (...args: unknown[]) => mockUpdateLocalAffirmationFolder(...args),
   updateLocalAffirmationTitle: (...args: unknown[]) => mockUpdateLocalAffirmationTitle(...args),
+  updateAiGuidedAffirmationScript: (...args: unknown[]) => mockUpdateAiGuidedAffirmationScript(...args),
   deleteLocalAffirmation: (...args: unknown[]) => mockDeleteLocalAffirmation(...args),
+}));
+
+jest.mock('@/lib/aiVoice', () => ({
+  VOICE_OPTIONS: [
+    { id: 'en-gb-x-gbd-local', gender: 'male', label: 'Male' },
+    { id: 'en-us-x-tpc-local', gender: 'female', label: 'Female' },
+  ],
 }));
 
 jest.mock('@/lib/folders.local', () => ({
@@ -54,6 +63,18 @@ const baseAffirmation = {
   folder_id: null,
   trim_start_ms: null,
   trim_end_ms: null,
+  source: 'recorded',
+  voice_id: null,
+  script_text: null,
+};
+
+const aiGuidedAffirmation = {
+  ...baseAffirmation,
+  id: 'aff-2',
+  title: 'AI Guided affirmation',
+  source: 'ai_generated',
+  voice_id: 'en-gb-x-gbd-local',
+  script_text: 'I am calm and capable.',
 };
 
 beforeEach(() => {
@@ -152,5 +173,52 @@ describe('AffirmationTrimScreen', () => {
 
     await waitFor(() => expect(mockDeleteLocalAffirmation).toHaveBeenCalledWith('aff-1'));
     await waitFor(() => expect(mockRouterBack).toHaveBeenCalled());
+  });
+
+  it('does not show the AI Guided script/voice section for a self-recorded affirmation', async () => {
+    mockGetLocalAffirmation.mockResolvedValue(baseAffirmation);
+
+    const { getByDisplayValue, queryByText } = await render(<AffirmationTrimScreen />);
+    await waitFor(() => expect(getByDisplayValue('Bedtime affirmation')).toBeTruthy());
+
+    expect(queryByText('Regenerate')).toBeNull();
+  });
+
+  it('shows the script/voice editor and regenerates for an AI Guided affirmation', async () => {
+    mockGetLocalAffirmation.mockResolvedValue(aiGuidedAffirmation);
+    mockUpdateAiGuidedAffirmationScript.mockResolvedValue({
+      ...aiGuidedAffirmation,
+      script_text: 'I am calm, capable, and strong.',
+      voice_id: 'en-us-x-tpc-local',
+    });
+
+    const { getByDisplayValue, getByText } = await render(<AffirmationTrimScreen />);
+    const scriptInput = await waitFor(() => getByDisplayValue('I am calm and capable.'));
+
+    await fireEvent.changeText(scriptInput, 'I am calm, capable, and strong.');
+    await fireEvent.press(getByText('Female'));
+    await fireEvent.press(getByText('Regenerate'));
+
+    await waitFor(() =>
+      expect(mockUpdateAiGuidedAffirmationScript).toHaveBeenCalledWith('aff-2', {
+        scriptText: 'I am calm, capable, and strong.',
+        voiceId: 'en-us-x-tpc-local',
+      }),
+    );
+  });
+
+  it('blocks regenerating with an empty script', async () => {
+    mockGetLocalAffirmation.mockResolvedValue(aiGuidedAffirmation);
+
+    const { getByDisplayValue, getByText } = await render(<AffirmationTrimScreen />);
+    const scriptInput = await waitFor(() => getByDisplayValue('I am calm and capable.'));
+
+    await fireEvent.changeText(scriptInput, '   ');
+    await fireEvent.press(getByText('Regenerate'));
+
+    await waitFor(() =>
+      expect(getByText('Enter the affirmation text before regenerating.')).toBeTruthy(),
+    );
+    expect(mockUpdateAiGuidedAffirmationScript).not.toHaveBeenCalled();
   });
 });

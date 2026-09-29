@@ -41,6 +41,12 @@ export default function LibraryScreen() {
             <Text style={{ color: colors.primary }}>Folders</Text>
           </Pressable>
           <Pressable
+            onPress={() => router.push('/record-ai-guided')}
+            accessibilityRole="button"
+          >
+            <Text style={{ color: colors.primary }}>AI Guided</Text>
+          </Pressable>
+          <Pressable
             onPress={() => router.push('/record')}
             accessibilityRole="button"
             style={[styles.recordButton, { backgroundColor: colors.primary }]}

@@ -55,7 +55,7 @@ describe('DraftAffirmationScreen', () => {
     await waitFor(() => expect(getByDisplayValue('I run with strength.')).toBeTruthy());
   });
 
-  it('lets the user edit the draft, then accept navigates to record with the edited text', async () => {
+  it('lets the user edit the draft, then "Record in my voice" navigates to /record with the edited text', async () => {
     mockGetLocalGoal.mockResolvedValue(baseGoal);
     mockRequestAffirmationDraft.mockResolvedValue({ ok: true, draftText: 'I run with strength.' });
 
@@ -63,10 +63,26 @@ describe('DraftAffirmationScreen', () => {
     const input = await waitFor(() => getByDisplayValue('I run with strength.'));
 
     await fireEvent.changeText(input, 'I run with joy and strength.');
-    await fireEvent.press(getByText('Record this'));
+    await fireEvent.press(getByText('Record in my voice'));
 
     expect(mockRouterReplace).toHaveBeenCalledWith({
       pathname: '/record',
+      params: { scriptText: 'I run with joy and strength.', suggestedTitle: 'Run a marathon' },
+    });
+  });
+
+  it('"AI Guided voice" navigates to /record-ai-guided with the edited text', async () => {
+    mockGetLocalGoal.mockResolvedValue(baseGoal);
+    mockRequestAffirmationDraft.mockResolvedValue({ ok: true, draftText: 'I run with strength.' });
+
+    const { getByDisplayValue, getByText } = await render(<DraftAffirmationScreen />);
+    const input = await waitFor(() => getByDisplayValue('I run with strength.'));
+
+    await fireEvent.changeText(input, 'I run with joy and strength.');
+    await fireEvent.press(getByText('AI Guided voice'));
+
+    expect(mockRouterReplace).toHaveBeenCalledWith({
+      pathname: '/record-ai-guided',
       params: { scriptText: 'I run with joy and strength.', suggestedTitle: 'Run a marathon' },
     });
   });

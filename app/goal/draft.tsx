@@ -63,9 +63,9 @@ export default function DraftAffirmationScreen() {
     });
   }, [goalId, requestDraft]);
 
-  function handleAccept() {
+  function handleAccept(pathname: '/record' | '/record-ai-guided') {
     router.replace({
-      pathname: '/record',
+      pathname,
       params: { scriptText: draftText.trim(), suggestedTitle: goal?.title ?? '' },
     });
   }
@@ -112,7 +112,7 @@ export default function DraftAffirmationScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Text style={[styles.title, { color: colors.textPrimary }]}>Your draft affirmation</Text>
       <Text style={[styles.body, { color: colors.textSecondary }]}>
-        Edit it until it feels right, then record it in your own voice.
+        Edit it until it feels right, then choose how to bring it to life.
       </Text>
 
       <TextInput
@@ -127,21 +127,26 @@ export default function DraftAffirmationScreen() {
 
       <View style={styles.row}>
         <Pressable
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          style={[styles.secondaryButton, { borderColor: colors.error }]}
-        >
-          <Text style={{ color: colors.error }}>Discard</Text>
-        </Pressable>
-        <Pressable
-          onPress={handleAccept}
+          onPress={() => handleAccept('/record')}
           disabled={!draftText.trim()}
           accessibilityRole="button"
           style={[styles.primaryButton, { backgroundColor: colors.primary }]}
         >
-          <Text style={[styles.primaryButtonLabel, { color: colors.background }]}>Record this</Text>
+          <Text style={[styles.primaryButtonLabel, { color: colors.background }]}>Record in my voice</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => handleAccept('/record-ai-guided')}
+          disabled={!draftText.trim()}
+          accessibilityRole="button"
+          style={[styles.primaryButton, { backgroundColor: colors.primary }]}
+        >
+          <Text style={[styles.primaryButtonLabel, { color: colors.background }]}>AI Guided voice</Text>
         </Pressable>
       </View>
+
+      <Pressable onPress={() => router.back()} accessibilityRole="button" hitSlop={8}>
+        <Text style={{ color: colors.error }}>Discard</Text>
+      </Pressable>
     </View>
   );
 }

@@ -21,6 +21,7 @@ export function AffirmationRow({ affirmation, folderName, onPress }: Affirmation
         {folderName ? `${folderName} · ` : ''}
         {formatDuration(getEffectiveDurationMs(affirmation))}
         {affirmation.trim_start_ms !== null ? ' · trimmed' : ''}
+        {affirmation.source === 'ai_generated' ? ' · AI Guided' : ''}
       </Text>
     </Pressable>
   );

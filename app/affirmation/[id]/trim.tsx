@@ -10,11 +10,13 @@ import { useThemeColors } from '@/hooks/useThemeColors';
 import {
   deleteLocalAffirmation,
   getLocalAffirmation,
+  updateAiGuidedAffirmationScript,
   updateLocalAffirmationFolder,
   updateLocalAffirmationTitle,
   updateLocalAffirmationTrim,
   type LocalAffirmation,
 } from '@/lib/affirmations.local';
+import { VOICE_OPTIONS } from '@/lib/aiVoice';
 import { listLocalFolders, type LocalFolder } from '@/lib/folders.local';
 
 const ERROR_MESSAGE = 'Something went wrong. Please try again.';
@@ -27,12 +29,19 @@ export default function AffirmationTrimScreen() {
   const [folders, setFolders] = useState<LocalFolder[]>([]);
   const [title, setTitle] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [scriptText, setScriptText] = useState('');
+  const [voiceId, setVoiceId] = useState('');
+  const [regenerating, setRegenerating] = useState(false);
 
   const loadAffirmation = useCallback(() => {
     if (!id) return;
     getLocalAffirmation(id).then((result) => {
       setAffirmation(result);
-      if (result) setTitle(result.title);
+      if (result) {
+        setTitle(result.title);
+        setScriptText(result.script_text ?? '');
+        setVoiceId(result.voice_id ?? VOICE_OPTIONS[0]?.id ?? '');
+      }
     });
   }, [id]);
 
@@ -61,6 +70,29 @@ export default function AffirmationTrimScreen() {
     } catch {
       setError(ERROR_MESSAGE);
       setTitle(affirmation.title);
+    }
+  }
+
+  async function handleRegenerate() {
+    if (!affirmation) return;
+    const trimmedScript = scriptText.trim();
+    if (!trimmedScript) {
+      setError('Enter the affirmation text before regenerating.');
+      return;
+    }
+    setRegenerating(true);
+    setError(null);
+    try {
+      const updated = await updateAiGuidedAffirmationScript(affirmation.id, {
+        scriptText: trimmedScript,
+        voiceId,
+      });
+      setAffirmation(updated);
+      setScriptText(updated.script_text ?? '');
+    } catch {
+      setError('Could not regenerate the affirmation. Please try again.');
+    } finally {
+      setRegenerating(false);
     }
   }
 
@@ -118,6 +150,58 @@ export default function AffirmationTrimScreen() {
         onSelect={handleFolderSelect}
       />
 
+      {affirmation.source === 'ai_generated' ? (
+        <View style={styles.aiGuidedSection}>
+          <TextInput
+            value={scriptText}
+            onChangeText={setScriptText}
+            placeholder="What should this affirmation say?"
+            placeholderTextColor={colors.textSecondary}
+            multiline
+            style={[
+              styles.scriptInput,
+              { color: colors.textPrimary, borderColor: colors.border, backgroundColor: colors.surface },
+            ]}
+          />
+          <View style={styles.row}>
+            {VOICE_OPTIONS.map((voice) => {
+              const selected = voice.id === voiceId;
+              return (
+                <Pressable
+                  key={voice.id}
+                  onPress={() => setVoiceId(voice.id)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  style={[
+                    styles.chip,
+                    {
+                      borderColor: selected ? colors.primary : colors.border,
+                      backgroundColor: selected ? colors.primary : 'transparent',
+                    },
+                  ]}
+                >
+                  <Text style={{ color: selected ? colors.background : colors.textPrimary }}>
+                    {voice.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <Pressable
+            onPress={handleRegenerate}
+            disabled={regenerating}
+            accessibilityRole="button"
+            style={[styles.regenerateButton, { borderColor: colors.primary, opacity: regenerating ? 0.5 : 1 }]}
+          >
+            {regenerating ? (
+              <ActivityIndicator color={colors.primary} />
+            ) : (
+              <Text style={{ color: colors.primary }}>Regenerate</Text>
+            )}
+          </Pressable>
+        </View>
+      ) : null}
+
       <TrimEditor
         uri={affirmation.local_uri}
         durationMs={affirmation.duration_ms}
@@ -172,5 +256,38 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  aiGuidedSection: {
+    width: '100%',
+    gap: spacing.sm,
+  },
+  scriptInput: {
+    width: '100%',
+    minHeight: 80,
+    borderWidth: 1,
+    borderRadius: radii.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    fontSize: typography.body.fontSize,
+    textAlignVertical: 'top',
+  },
+  row: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  chip: {
+    borderWidth: 1,
+    borderRadius: radii.full,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.md,
+  },
+  regenerateButton: {
+    borderWidth: 1,
+    borderRadius: radii.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'flex-start',
   },
 });
