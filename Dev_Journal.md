@@ -4,6 +4,24 @@ One entry per committed step, newest first. Each entry: what was done, why, how 
 
 ---
 
+## 2026-09-29 — Error/degradation handling for AI Guided synthesis failure (Execution Plan step 3.11)
+
+**What**: Read through every existing error path first, per the step 2.2/3.9 precedent of checking what's already true before adding more, rather than assuming FR-516 needed net-new machinery. Most of it was already correct: `AnthaathiTtsModule.kt` already deletes the output file on a synthesis error and rejects on an unrecognized `voiceId` *before* ever touching disk (confirmed by reading the Kotlin, not assumed); `createAiGuidedAffirmation`/`updateAiGuidedAffirmationScript` already never write or mutate a DB row unless synthesis succeeds; both UI screens (`app/record-ai-guided.tsx`, `app/affirmation/[id]/trim.tsx`) already catch synthesis errors, show a clear message, and reset their loading state cleanly.
+
+The one real gap: `lib/aiVoice.ts`'s `synthesizeAffirmationAudio` called the native module (which writes a real file), then `measureDurationMs` on the result — but if *that* step failed (timeout, unreadable file), the function rejected while the just-written file sat orphaned on disk with nothing referencing it. Synthesis had genuinely succeeded; the caller just never found out its duration. Fixed by wrapping the measurement in a try/catch that deletes the file before rethrowing, mirroring the same best-effort-delete pattern `affirmations.local.ts` already uses elsewhere.
+
+Deliberately did *not* add differentiated error messages per failure cause (e.g. a distinct "this voice isn't available on your device" message vs. a generic one) — FR-516's actual requirement is a clear error and no crash, not cause-specific messaging, and building that now would be scope beyond what was asked.
+
+**Why**: Execution Plan step 3.11, FR-516 — closes out Phase 3.
+
+**Verification**: Extended the existing timeout-cleanup test in `lib/aiVoice.test.ts` (rather than adding a parallel one) to also assert the file gets deleted — it already proved the player/listener were cleaned up but never checked the file itself. 234/234 tests passing (count unchanged), typecheck/lint clean. Then verified for real on-device, not just mocked: temporarily corrupted the male `VOICE_OPTIONS` id, hot-reloaded (no rebuild needed), and used the real AI Guided screen to trigger a genuine synthesis failure. Confirmed directly by the user: a clear "Could not generate the affirmation. Please try again." message, the screen stayed usable (not stuck on the Generating spinner), and the Library tab stayed clean — no phantom entry from the failed attempt. Reverted the id and confirmed normal generation still works and appears in Library as expected.
+
+**Phase 3 (AI layer) is now fully complete.** Exit criteria met: text drafting works end-to-end and fails gracefully (verified live in 3.3–3.4, including real 429/502 responses); AI Guided voice sessions generate, cache, and play through the standard Player exactly like a recording (3.6–3.10); core app is provably unaffected whether the LLM provider is unavailable (3.4) or on-device synthesis fails (3.11). iOS (3.7) remains formally deferred per its own recorded reasoning, not blocking this.
+
+**Commit**: `dce18e7` — Error/degradation handling for AI Guided synthesis failure (step 3.11)
+
+---
+
 ## 2026-09-29 — AI Guided client integration: creation, regeneration, goal flow (Execution Plan step 3.10)
 
 **What**: The real UI on top of steps 3.6–3.9's already-working pipeline. New `app/record-ai-guided.tsx`: title + script text + a two-chip voice picker (`VOICE_OPTIONS` from step 3.8) + folder picker, calling `createAiGuidedAffirmation` on Generate. Reachable from three places: a new "AI Guided" button next to "Record" on the Library tab; a second button on `app/goal/draft.tsx` ("AI Guided voice" alongside the existing "Record in my voice," both accepting the same `scriptText`/`suggestedTitle` params `app/record.tsx` already did); and — closing the loop FR-514's caching logic needed a real caller for — a new script/voice-editing section on `app/affirmation/[id]/trim.tsx`, shown only when `source === 'ai_generated'`, calling `updateAiGuidedAffirmationScript`. `components/AffirmationRow.tsx` gained a small "· AI Guided" indicator so the two kinds are distinguishable at a glance in the list, without any separate list or playback path (FR-515) — same `AffirmationRow`, same `FlatList`, same Player.
