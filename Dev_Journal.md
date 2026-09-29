@@ -4,6 +4,20 @@ One entry per committed step, newest first. Each entry: what was done, why, how 
 
 ---
 
+## 2026-09-29 — AI Guided client integration: creation, regeneration, goal flow (Execution Plan step 3.10)
+
+**What**: The real UI on top of steps 3.6–3.9's already-working pipeline. New `app/record-ai-guided.tsx`: title + script text + a two-chip voice picker (`VOICE_OPTIONS` from step 3.8) + folder picker, calling `createAiGuidedAffirmation` on Generate. Reachable from three places: a new "AI Guided" button next to "Record" on the Library tab; a second button on `app/goal/draft.tsx` ("AI Guided voice" alongside the existing "Record in my voice," both accepting the same `scriptText`/`suggestedTitle` params `app/record.tsx` already did); and — closing the loop FR-514's caching logic needed a real caller for — a new script/voice-editing section on `app/affirmation/[id]/trim.tsx`, shown only when `source === 'ai_generated'`, calling `updateAiGuidedAffirmationScript`. `components/AffirmationRow.tsx` gained a small "· AI Guided" indicator so the two kinds are distinguishable at a glance in the list, without any separate list or playback path (FR-515) — same `AffirmationRow`, same `FlatList`, same Player.
+
+**Why**: Execution Plan step 3.10, FR-511/FR-515. The regeneration section on the detail screen wasn't explicitly named in the plan's own wording, but shipping 3.10 without it would have left step 3.9's `updateAiGuidedAffirmationScript` — the actual FR-514 deliverable — completely unreachable from any UI, which would have meant that work was never really finished, just written.
+
+**Verification**: `npm run typecheck`/`lint` clean throughout. Real device, JS-only changes hot-reloaded through the existing Metro connection (no new EAS build needed) — the user ran the full loop for real: Library → AI Guided → generate → new entry shows the "· AI Guided" tag → opened it → regeneration section present (and confirmed absent on an ordinary self-recorded entry) → goal draft screen shows both "Record in my voice" and "AI Guided voice." 234/234 tests (13 new across `record-ai-guided.test.tsx`, `affirmation-trim.test.tsx`'s new AI Guided cases, and `goal-draft.test.tsx`'s second button), typecheck, lint clean.
+
+**User feedback, deferred as agreed rather than chased now**: the synthesized voice reads flatly ("blunt reading"), too fast, missing the calm/therapeutic quality this app is actually for. Worth recording concretely rather than just "voices need work": Android's `TextToSpeech.setSpeechRate()` is a real, unused lever — the module currently leaves the engine's default rate untouched, and that default is apparently faster than wanted, so slowing it down is a genuinely tractable next step. Tone/warmth/"deepness," by contrast, is inherent to the voice model itself and isn't something the API can adjust — that's a real platform ceiling (already the reason ADR-0007 accepted this as a known limitation), not a bug to fix. Deliberately kept `app/dev-tts-test.tsx` around rather than deleting it as originally planned once real UI existed — it's exactly the tool this follow-up voice-quality work will need (re-listening across candidates, testing rate changes) — noted here so a future session understands why it's still present.
+
+**Commit**: `53eef59` — Client integration for AI Guided affirmations (step 3.10)
+
+---
+
 ## 2026-09-29 — AI Guided affirmation creation + FR-514 caching/re-synthesis logic (Execution Plan step 3.9)
 
 **What**: Checked first, per the note left at the end of step 3.8: `affirmations`' schema (`source`, `voice_id`, `script_text`, plus the check constraint requiring the latter two when `source = 'ai_generated'`) was already fully built in step 1.1, all the way through the local SQLite mirror and sync payload. So this step's real scope was purely the caching/re-synthesis logic FR-514 actually asks for, split across two files:
