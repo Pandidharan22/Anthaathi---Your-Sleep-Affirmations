@@ -4,6 +4,9 @@ import { registerWebModule, NativeModule } from 'expo';
 // synthesis. Throwing here, rather than a silent no-op, so an accidental call on web
 // fails loudly instead of pretending to succeed.
 class AnthaathiTtsModule extends NativeModule<{}> {
+  listVoices(): Promise<never> {
+    throw new Error('AnthaathiTts.listVoices is not supported on web.');
+  }
   synthesizeToFile(): Promise<string> {
     throw new Error('AnthaathiTts.synthesizeToFile is not supported on web.');
   }

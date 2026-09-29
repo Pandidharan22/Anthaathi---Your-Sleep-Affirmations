@@ -24,6 +24,9 @@ private class TtsSynthesisFailedException :
 private class TtsBusyException :
   CodedException(message = "A synthesis request is already in progress")
 
+private class TtsVoiceNotFoundException(voiceId: String) :
+  CodedException(message = "No voice found with identifier '$voiceId'")
+
 class AnthaathiTtsModule : Module() {
   private var tts: TextToSpeech? = null
   private var initFailed = false
@@ -42,7 +45,17 @@ class AnthaathiTtsModule : Module() {
       tts = null
     }
 
-    AsyncFunction("synthesizeToFile") { text: String, outputPath: String, promise: Promise ->
+    AsyncFunction("listVoices") { promise: Promise ->
+      initIfNeeded { success ->
+        if (!success) {
+          promise.reject(TtsInitFailedException())
+        } else {
+          listVoices(promise)
+        }
+      }
+    }
+
+    AsyncFunction("synthesizeToFile") { text: String, outputPath: String, voiceId: String, promise: Promise ->
       if (pendingUtteranceId != null) {
         promise.reject(TtsBusyException())
         return@AsyncFunction
@@ -51,7 +64,7 @@ class AnthaathiTtsModule : Module() {
         if (!success) {
           promise.reject(TtsInitFailedException())
         } else {
-          synthesize(text, outputPath, promise)
+          synthesize(text, outputPath, voiceId, promise)
         }
       }
     }
@@ -86,12 +99,41 @@ class AnthaathiTtsModule : Module() {
     return File(path)
   }
 
-  private fun synthesize(text: String, outputPath: String, promise: Promise) {
+  // Android's Voice class has no gender field -- this returns every field the platform
+  // actually provides and leaves any male/female curation to the JS layer, which needs real
+  // per-device voice data (names, locales) to do that sensibly rather than guessing here.
+  private fun listVoices(promise: Promise) {
     val engine = tts
     if (engine == null) {
       promise.reject(TtsInitFailedException())
       return
     }
+    val voices = (engine.voices ?: emptySet()).map { voice ->
+      mapOf(
+        "identifier" to voice.name,
+        "locale" to voice.locale.toLanguageTag(),
+        "quality" to voice.quality,
+        "latency" to voice.latency,
+        "isNetworkConnectionRequired" to voice.isNetworkConnectionRequired,
+        "features" to voice.features.toList(),
+      )
+    }
+    promise.resolve(voices)
+  }
+
+  private fun synthesize(text: String, outputPath: String, voiceId: String, promise: Promise) {
+    val engine = tts
+    if (engine == null) {
+      promise.reject(TtsInitFailedException())
+      return
+    }
+
+    val voice = engine.voices?.find { it.name == voiceId }
+    if (voice == null) {
+      promise.reject(TtsVoiceNotFoundException(voiceId))
+      return
+    }
+    engine.voice = voice
 
     val outFile = resolveOutputFile(outputPath)
     outFile.parentFile?.mkdirs()
