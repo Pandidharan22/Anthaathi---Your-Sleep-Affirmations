@@ -1,6 +1,7 @@
 import * as Crypto from 'expo-crypto';
 import { File } from 'expo-file-system';
 
+import { synthesizeAffirmationAudio } from '@/lib/aiVoice';
 import { getDatabase } from '@/lib/db';
 import { enqueue } from '@/lib/syncQueue';
 
@@ -195,4 +196,89 @@ export async function deleteLocalAffirmation(id: string): Promise<void> {
       // Best-effort cleanup; a stray file isn't a correctness issue.
     }
   }
+}
+
+export type CreateAiGuidedAffirmationInput = {
+  userId: string;
+  title: string;
+  folderId?: string | null;
+  scriptText: string;
+  voiceId: string;
+};
+
+/** FR-511/FR-513: synthesizes `scriptText` to a new on-device file and saves it as an AI Guided affirmation. */
+export async function createAiGuidedAffirmation(
+  input: CreateAiGuidedAffirmationInput,
+): Promise<LocalAffirmation> {
+  const { localUri, durationMs } = await synthesizeAffirmationAudio(input.scriptText, input.voiceId);
+  return createLocalAffirmation({
+    userId: input.userId,
+    title: input.title,
+    folderId: input.folderId,
+    localUri,
+    durationMs,
+    source: 'ai_generated',
+    voiceId: input.voiceId,
+    scriptText: input.scriptText,
+  });
+}
+
+/**
+ * FR-514: reuses the existing audio file unless the script or voice actually changed --
+ * re-synthesizing on every edit (e.g. just renaming the affirmation, which has its own
+ * updateLocalAffirmationTitle) would be wasteful, since the cached file would already be
+ * correct. Any existing trim is reset to null: it was set relative to the old audio's timing,
+ * which has no relationship to the newly-synthesized file's -- keeping it could even violate
+ * the trim-range check constraint if the new file is shorter than the old trim_end_ms.
+ */
+export async function updateAiGuidedAffirmationScript(
+  id: string,
+  { scriptText, voiceId }: { scriptText: string; voiceId: string },
+): Promise<LocalAffirmation> {
+  const existing = await getLocalAffirmation(id);
+  if (!existing) {
+    throw new Error(`Affirmation ${id} not found`);
+  }
+  if (existing.script_text === scriptText && existing.voice_id === voiceId) {
+    return existing;
+  }
+
+  const { localUri, durationMs } = await synthesizeAffirmationAudio(scriptText, voiceId);
+  const previousUri = existing.local_uri;
+  const now = new Date().toISOString();
+
+  const database = await getDatabase();
+  await database.runAsync(
+    `UPDATE affirmations
+     SET local_uri = ?, duration_ms = ?, voice_id = ?, script_text = ?,
+         trim_start_ms = NULL, trim_end_ms = NULL, updated_at = ?
+     WHERE id = ?`,
+    [localUri, durationMs, voiceId, scriptText, now, id],
+  );
+  await enqueue('affirmations', 'update', id, {
+    local_uri: localUri,
+    duration_ms: durationMs,
+    voice_id: voiceId,
+    script_text: scriptText,
+    trim_start_ms: null,
+    trim_end_ms: null,
+  });
+
+  // Only removed after the new file is safely recorded, not before.
+  try {
+    new File(previousUri).delete();
+  } catch {
+    // Best-effort cleanup; a stray file isn't a correctness issue.
+  }
+
+  return {
+    ...existing,
+    local_uri: localUri,
+    duration_ms: durationMs,
+    voice_id: voiceId,
+    script_text: scriptText,
+    trim_start_ms: null,
+    trim_end_ms: null,
+    updated_at: now,
+  };
 }

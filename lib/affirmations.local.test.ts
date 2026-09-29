@@ -1,18 +1,24 @@
 import {
+  createAiGuidedAffirmation,
   createLocalAffirmation,
   deleteLocalAffirmation,
   getLocalAffirmation,
   listLocalAffirmations,
+  updateAiGuidedAffirmationScript,
   updateLocalAffirmationFolder,
   updateLocalAffirmationTitle,
   updateLocalAffirmationTrim,
 } from './affirmations.local';
 
 const mockFileDelete = jest.fn();
+const mockSynthesizeAffirmationAudio = jest.fn();
 
 jest.mock('expo-crypto', () => ({ randomUUID: jest.fn(() => 'fixed-uuid') }));
 jest.mock('@/lib/db', () => ({ getDatabase: jest.fn() }));
 jest.mock('@/lib/syncQueue', () => ({ enqueue: jest.fn().mockResolvedValue(undefined) }));
+jest.mock('@/lib/aiVoice', () => ({
+  synthesizeAffirmationAudio: (...args: unknown[]) => mockSynthesizeAffirmationAudio(...args),
+}));
 jest.mock('expo-file-system', () => ({
   File: jest.fn().mockImplementation(() => ({ delete: mockFileDelete })),
 }));
@@ -230,5 +236,132 @@ describe('affirmations.local', () => {
 
     expect(enqueue).toHaveBeenCalledWith('affirmations', 'delete', 'missing', undefined);
     expect(mockFileDelete).not.toHaveBeenCalled();
+  });
+
+  it('createAiGuidedAffirmation synthesizes audio and saves it as source: ai_generated', async () => {
+    const db = makeFakeDatabase();
+    getDatabase.mockResolvedValue(db);
+    mockSynthesizeAffirmationAudio.mockResolvedValue({
+      localUri: 'file:///doc/ai-affirmation-fixed-uuid.wav',
+      durationMs: 4200,
+    });
+
+    const affirmation = await createAiGuidedAffirmation({
+      userId: 'user-1',
+      title: 'Morning calm',
+      scriptText: 'I am calm and capable.',
+      voiceId: 'en-gb-x-gbd-local',
+    });
+
+    expect(mockSynthesizeAffirmationAudio).toHaveBeenCalledWith(
+      'I am calm and capable.',
+      'en-gb-x-gbd-local',
+    );
+    expect(affirmation).toMatchObject({
+      source: 'ai_generated',
+      local_uri: 'file:///doc/ai-affirmation-fixed-uuid.wav',
+      duration_ms: 4200,
+      voice_id: 'en-gb-x-gbd-local',
+      script_text: 'I am calm and capable.',
+    });
+  });
+
+  it('updateAiGuidedAffirmationScript re-synthesizes and resets trim when the script changed', async () => {
+    const db = makeFakeDatabase([
+      {
+        id: 'aff-1',
+        local_uri: 'file:///doc/old.wav',
+        script_text: 'Old script.',
+        voice_id: 'en-gb-x-gbd-local',
+        trim_start_ms: 500,
+        trim_end_ms: 3000,
+      },
+    ]);
+    getDatabase.mockResolvedValue(db);
+    mockSynthesizeAffirmationAudio.mockResolvedValue({
+      localUri: 'file:///doc/ai-affirmation-fixed-uuid.wav',
+      durationMs: 5000,
+    });
+
+    const result = await updateAiGuidedAffirmationScript('aff-1', {
+      scriptText: 'New script.',
+      voiceId: 'en-gb-x-gbd-local',
+    });
+
+    expect(mockSynthesizeAffirmationAudio).toHaveBeenCalledWith('New script.', 'en-gb-x-gbd-local');
+    expect(db.runAsync).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE affirmations'),
+      [
+        'file:///doc/ai-affirmation-fixed-uuid.wav',
+        5000,
+        'en-gb-x-gbd-local',
+        'New script.',
+        expect.any(String),
+        'aff-1',
+      ],
+    );
+    expect(enqueue).toHaveBeenCalledWith('affirmations', 'update', 'aff-1', {
+      local_uri: 'file:///doc/ai-affirmation-fixed-uuid.wav',
+      duration_ms: 5000,
+      voice_id: 'en-gb-x-gbd-local',
+      script_text: 'New script.',
+      trim_start_ms: null,
+      trim_end_ms: null,
+    });
+    // The old file is only removed after the new one is safely recorded.
+    expect(mockFileDelete).toHaveBeenCalled();
+    expect(result).toMatchObject({
+      local_uri: 'file:///doc/ai-affirmation-fixed-uuid.wav',
+      duration_ms: 5000,
+      trim_start_ms: null,
+      trim_end_ms: null,
+    });
+  });
+
+  it('updateAiGuidedAffirmationScript re-synthesizes when only the voice changed, script unchanged', async () => {
+    const db = makeFakeDatabase([
+      { id: 'aff-1', local_uri: 'file:///doc/old.wav', script_text: 'Same script.', voice_id: 'voice-a' },
+    ]);
+    getDatabase.mockResolvedValue(db);
+    mockSynthesizeAffirmationAudio.mockResolvedValue({
+      localUri: 'file:///doc/ai-affirmation-fixed-uuid.wav',
+      durationMs: 3000,
+    });
+
+    await updateAiGuidedAffirmationScript('aff-1', { scriptText: 'Same script.', voiceId: 'voice-b' });
+
+    expect(mockSynthesizeAffirmationAudio).toHaveBeenCalledWith('Same script.', 'voice-b');
+  });
+
+  it('updateAiGuidedAffirmationScript is a no-op (FR-514 cache reuse) when neither script nor voice changed', async () => {
+    const existing = {
+      id: 'aff-1',
+      local_uri: 'file:///doc/old.wav',
+      script_text: 'Same script.',
+      voice_id: 'voice-a',
+    };
+    const db = makeFakeDatabase([existing]);
+    getDatabase.mockResolvedValue(db);
+
+    const result = await updateAiGuidedAffirmationScript('aff-1', {
+      scriptText: 'Same script.',
+      voiceId: 'voice-a',
+    });
+
+    expect(mockSynthesizeAffirmationAudio).not.toHaveBeenCalled();
+    expect(db.runAsync).not.toHaveBeenCalled();
+    expect(enqueue).not.toHaveBeenCalled();
+    expect(mockFileDelete).not.toHaveBeenCalled();
+    expect(result).toBe(existing);
+  });
+
+  it('updateAiGuidedAffirmationScript throws for a missing affirmation, without calling synthesis', async () => {
+    const db = makeFakeDatabase([]);
+    getDatabase.mockResolvedValue(db);
+
+    await expect(
+      updateAiGuidedAffirmationScript('missing', { scriptText: 'x', voiceId: 'voice-a' }),
+    ).rejects.toThrow('missing');
+    expect(mockSynthesizeAffirmationAudio).not.toHaveBeenCalled();
   });
 });

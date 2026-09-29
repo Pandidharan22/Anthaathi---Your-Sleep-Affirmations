@@ -4,7 +4,9 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { radii, spacing, typography } from '@/constants/theme';
+import { useAuth } from '@/hooks/useAuth';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { createAiGuidedAffirmation } from '@/lib/affirmations.local';
 import AnthaathiTts, { type AnthaathiVoice } from '@/modules/anthaathi-tts';
 
 /**
@@ -41,6 +43,7 @@ function makeOutputFile(): File {
 
 export default function DevTtsTestScreen() {
   const colors = useThemeColors();
+  const { user } = useAuth();
   const [voices, setVoices] = useState<AnthaathiVoice[] | null>(null);
   const [voicesError, setVoicesError] = useState<string | null>(null);
   const [activeVoiceId, setActiveVoiceId] = useState<string | null>(null);
@@ -48,6 +51,34 @@ export default function DevTtsTestScreen() {
   const [resultPath, setResultPath] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const player = useAudioPlayer(resultPath);
+
+  // Step 3.9 real-device check: createAiGuidedAffirmation's measureDurationMs has never
+  // touched a real audio file before this (only mocked in lib/aiVoice.test.ts) -- this proves
+  // the whole pipeline (native synthesize -> real duration measurement -> local save -> sync)
+  // for real, and the result should show up in the Library tab like any other recording.
+  const [pipelineStatus, setPipelineStatus] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
+  const [pipelineResult, setPipelineResult] = useState('');
+
+  async function handleCreateAiGuidedAffirmation() {
+    if (!user) return;
+    setPipelineStatus('running');
+    setPipelineResult('');
+    try {
+      const affirmation = await createAiGuidedAffirmation({
+        userId: user.id,
+        title: 'Dev: AI Guided test',
+        scriptText: TEST_STRING,
+        voiceId: 'en-gb-x-gbd-local',
+      });
+      setPipelineResult(
+        `Created ${affirmation.id}, duration_ms=${affirmation.duration_ms}. Check the Library tab.`,
+      );
+      setPipelineStatus('done');
+    } catch (err) {
+      setPipelineResult(err instanceof Error ? err.message : 'Pipeline failed.');
+      setPipelineStatus('error');
+    }
+  }
 
   useEffect(() => {
     AnthaathiTts.listVoices()
@@ -78,6 +109,29 @@ export default function DevTtsTestScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Text style={[styles.title, { color: colors.textPrimary }]}>Dev: on-device TTS test</Text>
       <Text style={[styles.body, { color: colors.textSecondary }]}>&quot;{TEST_STRING}&quot;</Text>
+
+      <Pressable
+        onPress={handleCreateAiGuidedAffirmation}
+        disabled={pipelineStatus === 'running' || !user}
+        accessibilityRole="button"
+        style={[styles.playButton, { borderColor: colors.primary, alignSelf: 'center' }]}
+      >
+        {pipelineStatus === 'running' ? (
+          <ActivityIndicator color={colors.primary} />
+        ) : (
+          <Text style={{ color: colors.primary }}>Create AI Guided affirmation (real pipeline)</Text>
+        )}
+      </Pressable>
+      {pipelineResult ? (
+        <Text
+          style={[
+            styles.body,
+            { color: pipelineStatus === 'error' ? colors.error : colors.success },
+          ]}
+        >
+          {pipelineResult}
+        </Text>
+      ) : null}
 
       {voicesError ? <Text style={[styles.body, { color: colors.error }]}>{voicesError}</Text> : null}
       {!voices && !voicesError ? <ActivityIndicator color={colors.primary} /> : null}
