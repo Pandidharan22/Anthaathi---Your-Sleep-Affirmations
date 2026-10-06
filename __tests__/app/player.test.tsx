@@ -47,6 +47,18 @@ jest.mock('@/lib/affirmations.local', () => ({
   listLocalAffirmations: (...args: unknown[]) => mockListLocalAffirmations(...args),
 }));
 
+const mockBedPause = jest.fn();
+const mockBedResume = jest.fn();
+const mockBedStop = jest.fn();
+const mockStartBedLoop = jest.fn();
+const mockGetBedPreference = jest.fn();
+jest.mock('@/lib/bedLoop', () => ({
+  startBedLoop: (...args: unknown[]) => mockStartBedLoop(...args),
+}));
+jest.mock('@/lib/bedPrefs', () => ({
+  getBedPreference: (...args: unknown[]) => mockGetBedPreference(...args),
+}));
+
 const mockLogLocalPlaybackSession = jest.fn().mockResolvedValue(undefined);
 jest.mock('@/lib/playbackSessions.local', () => ({
   logLocalPlaybackSession: (...args: unknown[]) => mockLogLocalPlaybackSession(...args),
@@ -75,6 +87,8 @@ beforeEach(() => {
   mockPlayerStatus = { playing: false, currentTime: 0 };
   statusListener = null;
   mockListLocalAffirmations.mockResolvedValue([track1, track2]);
+  mockGetBedPreference.mockResolvedValue({ bedId: null, balance: 0.35 });
+  mockStartBedLoop.mockReturnValue({ pause: mockBedPause, resume: mockBedResume, stop: mockBedStop });
 });
 
 describe('PlayerScreen', () => {
@@ -211,8 +225,80 @@ describe('PlayerScreen', () => {
     expect(mockLogLocalPlaybackSession).not.toHaveBeenCalled();
   });
 
+  describe('ambience bed (FR-304)', () => {
+    async function startWithTrack(label = 'Calm', count = 1) {
+      const utils = await render(<PlayerScreen />);
+      await waitFor(() => expect(utils.getByText('Calm')).toBeTruthy());
+      await fireEvent.press(utils.getByText(label));
+      await fireEvent.press(utils.getByText(`Play (${count})`));
+      await waitFor(() => expect(utils.getByText('Stop')).toBeTruthy());
+      return utils;
+    }
+
+    it('does not start a bed when none is chosen', async () => {
+      await startWithTrack();
+      expect(mockStartBedLoop).not.toHaveBeenCalled();
+    });
+
+    it('starts the saved bed at the saved balance alongside the affirmation', async () => {
+      mockGetBedPreference.mockResolvedValue({ bedId: 'rain', balance: 0.5 });
+      await startWithTrack();
+      expect(mockStartBedLoop).toHaveBeenCalledTimes(1);
+      expect(mockStartBedLoop.mock.calls[0][0]).toMatchObject({ id: 'rain' });
+      expect(mockStartBedLoop.mock.calls[0][1]).toBe(0.5);
+    });
+
+    it('ignores a saved bed id that no longer exists', async () => {
+      mockGetBedPreference.mockResolvedValue({ bedId: 'gone', balance: 0.5 });
+      await startWithTrack();
+      expect(mockStartBedLoop).not.toHaveBeenCalled();
+    });
+
+    it('pauses the bed together with the affirmation', async () => {
+      mockGetBedPreference.mockResolvedValue({ bedId: 'rain', balance: 0.5 });
+      mockPlayerStatus = { playing: true, currentTime: 0 };
+      const { getByText } = await startWithTrack();
+
+      await fireEvent.press(getByText('Pause'));
+
+      expect(mockPause).toHaveBeenCalled();
+      expect(mockBedPause).toHaveBeenCalledTimes(1);
+      expect(mockBedResume).not.toHaveBeenCalled();
+    });
+
+    it('resumes the bed together with the affirmation', async () => {
+      mockGetBedPreference.mockResolvedValue({ bedId: 'rain', balance: 0.5 });
+      mockPlayerStatus = { playing: false, currentTime: 0 };
+      const { getByText } = await startWithTrack();
+
+      await fireEvent.press(getByText('Resume'));
+
+      expect(mockBedResume).toHaveBeenCalledTimes(1);
+      expect(mockBedPause).not.toHaveBeenCalled();
+    });
+
+    it('stops the bed on manual Stop', async () => {
+      mockGetBedPreference.mockResolvedValue({ bedId: 'rain', balance: 0.5 });
+      const { getByText } = await startWithTrack();
+      await fireEvent.press(getByText('Stop'));
+      expect(mockBedStop).toHaveBeenCalledTimes(1);
+    });
+
+    it('leaves the bed running when the queue advances or a single track repeats', async () => {
+      mockGetBedPreference.mockResolvedValue({ bedId: 'rain', balance: 0.5 });
+      await startWithTrack();
+
+      statusListener?.({ currentTime: 9.1 });
+      await waitFor(() => expect(mockSeekTo).toHaveBeenCalledTimes(2));
+
+      expect(mockStartBedLoop).toHaveBeenCalledTimes(1);
+      expect(mockBedStop).not.toHaveBeenCalled();
+    });
+  });
+
   it('stops playback automatically when the sleep timer elapses, and logs a session', async () => {
     jest.useFakeTimers();
+    mockGetBedPreference.mockResolvedValue({ bedId: 'rain', balance: 0.5 });
     const { getByText } = await render(<PlayerScreen />);
     await waitFor(() => expect(getByText('Calm')).toBeTruthy());
 
@@ -227,6 +313,8 @@ describe('PlayerScreen', () => {
 
     await waitFor(() => expect(mockPause).toHaveBeenCalled());
     await waitFor(() => expect(mockLogLocalPlaybackSession).toHaveBeenCalledTimes(1));
+    // The ambience bed stops with the affirmation (FR-304).
+    expect(mockBedStop).toHaveBeenCalledTimes(1);
     jest.useRealTimers();
   });
 });

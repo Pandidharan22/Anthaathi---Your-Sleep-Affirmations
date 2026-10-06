@@ -7,6 +7,9 @@ import { radii, spacing, typography } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { listLocalAffirmations, type LocalAffirmation } from '@/lib/affirmations.local';
+import { startBedLoop, type BedLoop } from '@/lib/bedLoop';
+import { getBedPreference } from '@/lib/bedPrefs';
+import { getBed } from '@/lib/beds';
 import { formatDuration } from '@/lib/format';
 import { logLocalPlaybackSession } from '@/lib/playbackSessions.local';
 
@@ -26,6 +29,11 @@ export default function PlayerScreen() {
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
   const timerEndRef = useRef<number | null>(null);
   const sessionStartRef = useRef<number | null>(null);
+  // The ambience bed (FR-304) lives for the whole session: queue advances and single-track
+  // repeats never touch it, only start/pause/resume/stop do.
+  const bedRef = useRef<BedLoop | null>(null);
+
+  useEffect(() => () => bedRef.current?.stop(), []);
 
   useFocusEffect(
     useCallback(() => {
@@ -80,6 +88,8 @@ export default function PlayerScreen() {
   // stale closure pausing whichever track was playing when the timer started.
   const handleStop = useCallback(() => {
     player.pause();
+    bedRef.current?.stop();
+    bedRef.current = null;
     // Logs the session however it ends (manual Stop or sleep-timer expiry) —
     // FR-601 counts a session as "completed" once playback stops, not just
     // on a specific ending path. played_at is the session's *start* time so
@@ -128,6 +138,11 @@ export default function PlayerScreen() {
       interruptionMode: 'doNotMix',
     });
 
+    const { bedId, balance } = await getBedPreference();
+    const bed = getBed(bedId);
+    bedRef.current?.stop();
+    bedRef.current = bed ? startBedLoop(bed, balance) : null;
+
     sessionStartRef.current = Date.now();
     timerEndRef.current = sleepTimerMinutes ? Date.now() + sleepTimerMinutes * 60_000 : null;
     setRemainingSeconds(sleepTimerMinutes ? sleepTimerMinutes * 60 : null);
@@ -159,7 +174,15 @@ export default function PlayerScreen() {
         ) : null}
 
         <Pressable
-          onPress={() => (status.playing ? player.pause() : player.play())}
+          onPress={() => {
+            if (status.playing) {
+              player.pause();
+              bedRef.current?.pause();
+            } else {
+              player.play();
+              bedRef.current?.resume();
+            }
+          }}
           accessibilityRole="button"
           style={[styles.primaryButton, { backgroundColor: colors.primary }]}
         >
