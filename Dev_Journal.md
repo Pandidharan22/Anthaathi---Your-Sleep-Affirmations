@@ -4,6 +4,22 @@ One entry per committed step, newest first. Each entry: what was done, why, how 
 
 ---
 
+## 2026-10-06 — Ambience bed library (Execution Plan step 4.1)
+
+**What**: Sourced and processed four CC0 ambience beds for FR-304's audio-studio layering: rain, ocean, night crickets, and a soft ambient pad. Raw recordings live in `assets/beds/source/` (git-ignored, 10-77 MB each); `scripts/make-beds.py` turns them into seamless, loudness-matched 96 kbps MP3 loops in `assets/beds/` (~3.2 MB total, well inside NFR-103's 60 MB app-size budget). `assets/beds/README.md` records title, author, source URL and CC0 status per bed. Candidates were proposed with licence/duration/size from each source page and downloaded manually by the user (Freesound requires a login, and downloads need explicit approval).
+
+**Why**: Bundling beds keeps layering fully offline and $0 (no Storage bucket, no network dependency at 3am). Loops are crossfaded at the file level (equal-power, 3-8 s, `clip[X:L-X] + xfade(tail->head)`) and RMS-matched so one volume slider means the same thing for every bed. The tooling is a script, not a manual edit, so a bed can be re-cut reproducibly.
+
+**Course corrections** (all caught by the user's listening, which I can't do): a first forest-at-night bed had audible traffic/voice and was dropped in favour of the idomusics rain recording; that recording has a faint vehicle from ~46 s, so only the first 45 s are used. I also rejected licence-wrong candidates up front (qubodup's rain loop is CC-BY; rivernile7's is CC-BY).
+
+**Verification**: Seams checked numerically on the decoded MP3s (wrap-around jump vs. typical sample-to-sample delta, edge RMS vs. overall RMS) — all within normal variation. All four beds listened to and approved by the user. Licence status was read from each source page, not assumed. No app code touched, so no test run applies.
+
+**Carry-over for 4.2**: the user found that looping a bed *without* an in-app crossfade is clearly audible, so file-level crossfade alone is not enough, presumably because looping a single `AudioPlayer` introduces a gap/click at the restart. Step 4.2 must handle the loop boundary in playback (e.g. two alternating players with overlapping fades) rather than relying on `player.loop`, and this needs a real-device check.
+
+**Commit**: `09cc2b5` — Add bundled ambience bed library (step 4.1)
+
+---
+
 ## 2026-09-29 — Error/degradation handling for AI Guided synthesis failure (Execution Plan step 3.11)
 
 **What**: Read through every existing error path first, per the step 2.2/3.9 precedent of checking what's already true before adding more, rather than assuming FR-516 needed net-new machinery. Most of it was already correct: `AnthaathiTtsModule.kt` already deletes the output file on a synthesis error and rejects on an unrecognized `voiceId` *before* ever touching disk (confirmed by reading the Kotlin, not assumed); `createAiGuidedAffirmation`/`updateAiGuidedAffirmationScript` already never write or mutate a DB row unless synthesis succeeds; both UI screens (`app/record-ai-guided.tsx`, `app/affirmation/[id]/trim.tsx`) already catch synthesis errors, show a clear message, and reset their loading state cleanly.

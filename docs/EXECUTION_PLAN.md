@@ -93,7 +93,7 @@ Goal: goal-to-affirmation text drafting (FR-501–FR-504, [ADR-0003](adr/0003-ai
 
 Goal: the in-app audio studio experience (ambience/music-bed layering) that the reference app is known for. Extends FR-304.
 
-- [ ] **4.1** Source/curate a small CC0 ambience + music-bed library (freesound.org CC0 filter or equivalent).
+- [x] **4.1** Source/curate a small CC0 ambience + music-bed library (freesound.org CC0 filter or equivalent). — 4 beds in `assets/beds/` (rain, ocean, crickets, pad); see `assets/beds/README.md`.
 - [ ] **4.2** Layering/mixing implementation (affirmation track + ambience bed).
 - [ ] **4.3** Audio studio UI (volume balance, bed selection).
 - [ ] **4.4** Design + accessibility pass on the studio UI.
