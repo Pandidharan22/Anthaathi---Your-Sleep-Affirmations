@@ -65,3 +65,7 @@ coverage/
 
 # Local design exports (design lives on claude.ai, not in this repo — see Dev_Journal.md)
 Anthaathi UI Design.html
+
+# Raw bed source recordings (large; processed loops in assets/beds/ are committed)
+/assets/beds/source/*
+!/assets/beds/source/README.md
