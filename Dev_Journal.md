@@ -4,6 +4,20 @@ One entry per committed step, newest first. Each entry: what was done, why, how 
 
 ---
 
+## 2026-10-06 — Bed layering engine (Execution Plan step 4.2)
+
+**What**: FR-304 playback-time layering. `lib/bedLoop.ts` plays a bed as an endless loop by alternating two `expo-audio` players: when the active one reaches `duration - 4s` the other starts from 0 and the two cross over on equal-power (sin/cos) curves; 3 s fade-in on start, 2 s fade-out on stop. One 100 ms tick on a pause-aware virtual clock drives all ramps and the handover trigger. `lib/beds.ts` is the manifest (bundled assets + hardcoded durations, so scheduling never waits on a player load); `lib/bedPrefs.ts` stores bed id + balance (0..1, default 0.35) in AsyncStorage as a device-local preference, like the reminder, with no migration. The Player starts the saved bed on Play, pauses/resumes it with the affirmation, stops it on Stop or sleep-timer expiry, and leaves it running across queue advances and single-track repeats. A temporary `__DEV__`-only `app/dev-bed-test.tsx` (linked from Settings) picks a bed/balance and previews a bed alone; step 4.3 replaces it with the real picker.
+
+**Why**: `player.loop` restarts a single player, and MP3 start/end padding makes that restart an audible gap, which the user confirmed is obvious in a quiet bed even with a crossfade baked into the file. Overlapping two players removes the restart. Read expo-audio's Android source first: audio focus is app-wide (one `focusAcquired` flag; each player is built with `handleAudioFocus = false`), so a second player does not pause the first. Playback-time layering (not a rendered mix) was the user's choice.
+
+**Verification**: 12 engine tests (fade math, handover timing, ~4 cycles of continuity with no summed-gain dip, pause/resume incl. mid-crossfade, stop incl. mid-crossfade and while paused, double stop) and 8 Player tests; mutation-checked both (removing the Player's bed stop, and the mid-crossfade resume, each fail a test). Typecheck, lint and 253 tests clean. **On the user's own Android device (dev build)**: bed loops and crossfades inaudibly across cycles, layering with affirmations works, fade-out works, lock screen works. One test-harness oddity: an existing fake-timer Player test leaves state that made later Player tests fail when run after it, so the new tests are ordered before it; root cause not chased.
+
+**Findings that opened the next work** (user feedback from the same device pass): the AI Guided voice is too fast, flat and robotic against the beds, and there is no pause between affirmations. Measured against the user's reference recording (a commercial app, human narrator): ~1 word/s delivery and a fixed ~2.4 s silence between affirmations. Addressed as "Step A" (rate/pitch params, per-sentence pauses, a gap between Player tracks); a neural on-device voice (ADR-0007 revision) is the fallback if that is not enough.
+
+**Commit**: `a710539` — Add ambience bed layering engine (step 4.2)
+
+---
+
 ## 2026-10-06 — Ambience bed library (Execution Plan step 4.1)
 
 **What**: Sourced and processed four CC0 ambience beds for FR-304's audio-studio layering: rain, ocean, night crickets, and a soft ambient pad. Raw recordings live in `assets/beds/source/` (git-ignored, 10-77 MB each); `scripts/make-beds.py` turns them into seamless, loudness-matched 96 kbps MP3 loops in `assets/beds/` (~3.2 MB total, well inside NFR-103's 60 MB app-size budget). `assets/beds/README.md` records title, author, source URL and CC0 status per bed. Candidates were proposed with licence/duration/size from each source page and downloaded manually by the user (Freesound requires a login, and downloads need explicit approval).
