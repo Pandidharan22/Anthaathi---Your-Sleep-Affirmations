@@ -84,6 +84,8 @@ Goal: goal-to-affirmation text drafting (FR-501–FR-504, [ADR-0003](adr/0003-ai
 - [x] **3.9** Extend `affirmations` schema with `source`, `voice_id`, `script_text` (see [SYSTEM_DESIGN.md §4](SYSTEM_DESIGN.md#4-data-model)); wire caching/re-synthesis logic. Implements FR-514.
 - [x] **3.10** Client integration: mode toggle (Self-Recorded / AI Guided) + voice picker, feeding into the same Library/Player as recordings. Implements FR-511, FR-515.
 - [x] **3.11** Error/degradation handling for synthesis failure. Implements FR-516. Verify: simulate a synthesis failure and confirm a clear error, no crash, no partial file saved.
+- [x] **3.12** Voice pacing: slower per-voice rate/pitch, per-sentence pauses, and a gap between affirmations in the Player (user feedback after step 4.2: too fast, no pauses). Per-voice values tuned by ear on-device (male 0.8/1/1.8s, female 0.6/1/1.8s).
+- [ ] **3.13** Spike a free, offline neural voice (e.g. Piper / Sherpa-ONNX) as a calmer alternative to Android's TTS, since the paced engine voices are better but still not soothing. Would revise ADR-0007; model size vs NFR-103 (download on demand?) to be decided from the spike. Verify: user listens to it under a bed on-device and judges it against the reference.
 
 **Phase 3 exit criteria**: AI-assisted text drafting works end-to-end and fails gracefully; AI Guided voice sessions generate, cache, and play through the standard Player exactly like a recording; core app is provably unaffected if either the LLM provider or on-device synthesis is unavailable.
 
