@@ -59,6 +59,15 @@ jest.mock('@/lib/bedPrefs', () => ({
   getBedPreference: (...args: unknown[]) => mockGetBedPreference(...args),
 }));
 
+// The gap between affirmations is real silence in the app; tests default it to 0 so queue
+// advances stay immediate, and set it per test where the gap itself is under test.
+let mockGapMs = 0;
+jest.mock('@/lib/voiceStyle', () => ({
+  get AFFIRMATION_GAP_MS() {
+    return mockGapMs;
+  },
+}));
+
 const mockLogLocalPlaybackSession = jest.fn().mockResolvedValue(undefined);
 jest.mock('@/lib/playbackSessions.local', () => ({
   logLocalPlaybackSession: (...args: unknown[]) => mockLogLocalPlaybackSession(...args),
@@ -87,6 +96,7 @@ beforeEach(() => {
   mockPlayerStatus = { playing: false, currentTime: 0 };
   statusListener = null;
   mockListLocalAffirmations.mockResolvedValue([track1, track2]);
+  mockGapMs = 0;
   mockGetBedPreference.mockResolvedValue({ bedId: null, balance: 0.35 });
   mockStartBedLoop.mockReturnValue({ pause: mockBedPause, resume: mockBedResume, stop: mockBedStop });
 });
@@ -223,6 +233,69 @@ describe('PlayerScreen', () => {
     await waitFor(() => expect(getByText('Calm')).toBeTruthy());
 
     expect(mockLogLocalPlaybackSession).not.toHaveBeenCalled();
+  });
+
+  describe('gap between affirmations', () => {
+    async function startTwoTracks() {
+      const utils = await render(<PlayerScreen />);
+      await waitFor(() => expect(utils.getByText('Calm')).toBeTruthy());
+      await fireEvent.press(utils.getByText('Calm'));
+      await fireEvent.press(utils.getByText('Focus'));
+      await fireEvent.press(utils.getByText('Play (2)'));
+      await waitFor(() => expect(utils.getByText('Track 1 of 2')).toBeTruthy());
+      return utils;
+    }
+
+    it('pauses the affirmation and waits out the gap before advancing', async () => {
+      mockGapMs = 300;
+      const { getByText } = await startTwoTracks();
+      mockPause.mockClear();
+
+      statusListener?.({ currentTime: 9.1 });
+
+      expect(mockPause).toHaveBeenCalled();
+      expect(getByText('Track 1 of 2')).toBeTruthy(); // still in the gap
+      await waitFor(() => expect(getByText('Track 2 of 2')).toBeTruthy());
+    });
+
+    it('keeps the ambience bed playing through the gap', async () => {
+      mockGapMs = 300;
+      mockGetBedPreference.mockResolvedValue({ bedId: 'rain', balance: 0.5 });
+      await startTwoTracks();
+      statusListener?.({ currentTime: 9.1 });
+      expect(mockBedPause).not.toHaveBeenCalled();
+      expect(mockBedStop).not.toHaveBeenCalled();
+    });
+
+    it('Pause during the gap holds the queue; Resume then advances immediately', async () => {
+      mockGapMs = 60_000;
+      const { getByText } = await startTwoTracks();
+      statusListener?.({ currentTime: 9.1 });
+
+      // The finished track reports not-playing, but the button must still offer Pause.
+      await waitFor(() => expect(getByText('Pause')).toBeTruthy());
+      await fireEvent.press(getByText('Pause'));
+      expect(mockBedPause).not.toHaveBeenCalled(); // no bed in this test
+      await waitFor(() => expect(getByText('Resume')).toBeTruthy());
+      expect(getByText('Track 1 of 2')).toBeTruthy();
+
+      await fireEvent.press(getByText('Resume'));
+      await waitFor(() => expect(getByText('Track 2 of 2')).toBeTruthy());
+    });
+
+    it('Stop during the gap cancels the pending advance, even if playback restarts straight away', async () => {
+      mockGapMs = 300;
+      const { getByText } = await startTwoTracks();
+      statusListener?.({ currentTime: 9.1 });
+      await fireEvent.press(getByText('Stop'));
+      await waitFor(() => expect(getByText('Player')).toBeTruthy());
+
+      // Restart before the old gap would have elapsed: a leaked timer would skip track 1.
+      await fireEvent.press(getByText('Play (2)'));
+      await waitFor(() => expect(getByText('Track 1 of 2')).toBeTruthy());
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      expect(getByText('Track 1 of 2')).toBeTruthy();
+    });
   });
 
   describe('ambience bed (FR-304)', () => {

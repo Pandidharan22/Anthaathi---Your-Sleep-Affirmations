@@ -55,7 +55,7 @@ class AnthaathiTtsModule : Module() {
       }
     }
 
-    AsyncFunction("synthesizeToFile") { text: String, outputPath: String, voiceId: String, promise: Promise ->
+    AsyncFunction("synthesizeToFile") { text: String, outputPath: String, voiceId: String, rate: Double, pitch: Double, promise: Promise ->
       if (pendingUtteranceId != null) {
         promise.reject(TtsBusyException())
         return@AsyncFunction
@@ -64,7 +64,7 @@ class AnthaathiTtsModule : Module() {
         if (!success) {
           promise.reject(TtsInitFailedException())
         } else {
-          synthesize(text, outputPath, voiceId, promise)
+          synthesize(text, outputPath, voiceId, rate.toFloat(), pitch.toFloat(), promise)
         }
       }
     }
@@ -121,7 +121,14 @@ class AnthaathiTtsModule : Module() {
     promise.resolve(voices)
   }
 
-  private fun synthesize(text: String, outputPath: String, voiceId: String, promise: Promise) {
+  private fun synthesize(
+    text: String,
+    outputPath: String,
+    voiceId: String,
+    rate: Float,
+    pitch: Float,
+    promise: Promise,
+  ) {
     val engine = tts
     if (engine == null) {
       promise.reject(TtsInitFailedException())
@@ -134,6 +141,9 @@ class AnthaathiTtsModule : Module() {
       return
     }
     engine.voice = voice
+    // Both persist on the engine instance, so they are set on every request rather than assumed.
+    engine.setSpeechRate(rate)
+    engine.setPitch(pitch)
 
     val outFile = resolveOutputFile(outputPath)
     outFile.parentFile?.mkdirs()

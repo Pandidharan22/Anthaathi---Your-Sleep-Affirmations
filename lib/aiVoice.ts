@@ -2,6 +2,8 @@ import * as Crypto from 'expo-crypto';
 import { createAudioPlayer } from 'expo-audio';
 import { File, Paths } from 'expo-file-system';
 
+import { DEFAULT_VOICE_STYLE, splitIntoSentences, type VoiceStyle } from '@/lib/voiceStyle';
+import { joinWavWithSilence } from '@/lib/wav';
 import AnthaathiTts from '@/modules/anthaathi-tts';
 
 export type VoiceGender = 'male' | 'female';
@@ -11,6 +13,8 @@ export type VoiceOption = {
   id: string;
   gender: VoiceGender;
   label: string;
+  /** Pace/pitch/pause tuned by ear for this voice (they differ: the male voice reads faster). */
+  style: VoiceStyle;
 };
 
 // FR-512: at least one male and one female voice for AI Guided sessions. Android's Voice API
@@ -25,9 +29,23 @@ export type VoiceOption = {
 // version/TTS engine isn't guaranteed to have them installed. Step 3.11 (FR-516) is where a
 // missing/failed voice gets handled gracefully -- not this step's scope.
 export const VOICE_OPTIONS: VoiceOption[] = [
-  { id: 'en-gb-x-gbd-local', gender: 'male', label: 'Male' },
-  { id: 'en-us-x-tpc-local', gender: 'female', label: 'Female' },
+  {
+    id: 'en-gb-x-gbd-local',
+    gender: 'male',
+    label: 'Male',
+    style: { rate: 0.8, pitch: 1, sentencePauseMs: 1800 },
+  },
+  {
+    id: 'en-us-x-tpc-local',
+    gender: 'female',
+    label: 'Female',
+    style: { rate: 0.6, pitch: 1, sentencePauseMs: 1800 },
+  },
 ];
+
+export function getVoiceStyle(voiceId: string): VoiceStyle {
+  return VOICE_OPTIONS.find((v) => v.id === voiceId)?.style ?? DEFAULT_VOICE_STYLE;
+}
 
 const MEASURE_DURATION_TIMEOUT_MS = 10000;
 
@@ -57,29 +75,71 @@ function measureDurationMs(uri: string): Promise<number> {
   });
 }
 
+function deleteQuietly(file: File) {
+  try {
+    file.delete();
+  } catch {
+    // Best-effort cleanup; a stray file isn't a correctness issue on its own.
+  }
+}
+
 /**
  * Synthesizes `scriptText` with `voiceId` to a new on-device file and measures its duration.
- * Pure synthesis -- doesn't touch the affirmations table; see affirmations.local.ts's
- * createAiGuidedAffirmation/updateAiGuidedAffirmationScript for that (FR-514).
+ * Each sentence is synthesized on its own (the engine can't pause between sentences) and the
+ * pieces are joined with `style.sentencePauseMs` of silence, so a multi-sentence script is
+ * paced like separate affirmations instead of one run-on take. Pure synthesis -- doesn't touch
+ * the affirmations table; see affirmations.local.ts's createAiGuidedAffirmation/
+ * updateAiGuidedAffirmationScript for that (FR-514).
  */
 export async function synthesizeAffirmationAudio(
   scriptText: string,
   voiceId: string,
+  style: VoiceStyle = getVoiceStyle(voiceId),
 ): Promise<{ localUri: string; durationMs: number }> {
-  const outputFile = new File(Paths.document, `ai-affirmation-${Crypto.randomUUID()}.wav`);
-  const localUri = await AnthaathiTts.synthesizeToFile(scriptText, outputFile.uri, voiceId);
+  const sentences = splitIntoSentences(scriptText);
+  if (sentences.length === 0) throw new Error('The script has no text to synthesize.');
+
+  const baseName = `ai-affirmation-${Crypto.randomUUID()}`;
+  const outputFile = new File(Paths.document, `${baseName}.wav`);
+  const pieceFiles = sentences.map((_, i) => new File(Paths.document, `${baseName}-${i}.wav`));
+  // The native module handles one request at a time, so pieces are synthesized in order.
+  const cleanupPieces = () => pieceFiles.forEach(deleteQuietly);
+
   try {
-    const durationMs = await measureDurationMs(localUri);
-    return { localUri, durationMs };
-  } catch (err) {
-    // Synthesis itself succeeded and wrote a real file -- if we can't confirm its duration,
-    // the caller never gets a usable result, so don't leave an orphaned file behind for
-    // FR-514's caching logic (or account deletion) to have to reason about later.
-    try {
-      outputFile.delete();
-    } catch {
-      // Best-effort cleanup; a stray file isn't a correctness issue on its own.
+    if (sentences.length === 1) {
+      await AnthaathiTts.synthesizeToFile(
+        sentences[0],
+        outputFile.uri,
+        voiceId,
+        style.rate,
+        style.pitch,
+      );
+    } else {
+      for (let i = 0; i < sentences.length; i++) {
+        await AnthaathiTts.synthesizeToFile(
+          sentences[i],
+          pieceFiles[i].uri,
+          voiceId,
+          style.rate,
+          style.pitch,
+        );
+      }
+      const joined = joinWavWithSilence(
+        await Promise.all(pieceFiles.map((f) => f.bytes())),
+        style.sentencePauseMs,
+      );
+      outputFile.create({ overwrite: true });
+      outputFile.write(joined);
     }
+    cleanupPieces();
+    const durationMs = await measureDurationMs(outputFile.uri);
+    return { localUri: outputFile.uri, durationMs };
+  } catch (err) {
+    // Whatever stage failed, the caller gets no usable result -- don't leave orphaned pieces
+    // or a half-built/unmeasured file behind for FR-514's caching logic (or account deletion)
+    // to have to reason about later.
+    cleanupPieces();
+    deleteQuietly(outputFile);
     throw err;
   }
 }

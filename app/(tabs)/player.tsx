@@ -12,6 +12,7 @@ import { getBedPreference } from '@/lib/bedPrefs';
 import { getBed } from '@/lib/beds';
 import { formatDuration } from '@/lib/format';
 import { logLocalPlaybackSession } from '@/lib/playbackSessions.local';
+import { AFFIRMATION_GAP_MS } from '@/lib/voiceStyle';
 
 const SLEEP_TIMER_OPTIONS = [15, 30, 45, 60] as const;
 
@@ -32,8 +33,24 @@ export default function PlayerScreen() {
   // The ambience bed (FR-304) lives for the whole session: queue advances and single-track
   // repeats never touch it, only start/pause/resume/stop do.
   const bedRef = useRef<BedLoop | null>(null);
+  // Silence between affirmations: after a track ends the affirmation player waits here (the bed
+  // keeps playing) before the queue advances. 'paused' means the user paused during the gap,
+  // so Resume should advance straight away rather than replay the finished track.
+  const gapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [gapState, setGapState] = useState<'none' | 'waiting' | 'paused'>('none');
 
-  useEffect(() => () => bedRef.current?.stop(), []);
+  const clearGapTimer = useCallback(() => {
+    if (gapTimerRef.current !== null) clearTimeout(gapTimerRef.current);
+    gapTimerRef.current = null;
+  }, []);
+
+  useEffect(
+    () => () => {
+      bedRef.current?.stop();
+      clearGapTimer();
+    },
+    [clearGapTimer],
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -77,7 +94,13 @@ export default function PlayerScreen() {
     const subscription = player.addListener('playbackStatusUpdate', (s) => {
       if (!advanced && (s.didJustFinish || s.currentTime * 1000 >= trimEndMs - 50)) {
         advanced = true;
-        setPlayCount((count) => count + 1);
+        player.pause();
+        setGapState('waiting');
+        gapTimerRef.current = setTimeout(() => {
+          gapTimerRef.current = null;
+          setGapState('none');
+          setPlayCount((count) => count + 1);
+        }, AFFIRMATION_GAP_MS);
       }
     });
     return () => subscription.remove();
@@ -90,6 +113,8 @@ export default function PlayerScreen() {
     player.pause();
     bedRef.current?.stop();
     bedRef.current = null;
+    clearGapTimer();
+    setGapState('none');
     // Logs the session however it ends (manual Stop or sleep-timer expiry) —
     // FR-601 counts a session as "completed" once playback stops, not just
     // on a specific ending path. played_at is the session's *start* time so
@@ -103,7 +128,7 @@ export default function PlayerScreen() {
     setRemainingSeconds(null);
     timerEndRef.current = null;
     sessionStartRef.current = null;
-  }, [player, user]);
+  }, [player, user, clearGapTimer]);
 
   // Sleep timer countdown.
   useEffect(() => {
@@ -175,19 +200,28 @@ export default function PlayerScreen() {
 
         <Pressable
           onPress={() => {
-            if (status.playing) {
+            if (status.playing || gapState === 'waiting') {
               player.pause();
               bedRef.current?.pause();
+              if (gapState === 'waiting') {
+                clearGapTimer();
+                setGapState('paused');
+              }
             } else {
-              player.play();
               bedRef.current?.resume();
+              if (gapState === 'paused') {
+                setGapState('none');
+                setPlayCount((count) => count + 1);
+              } else {
+                player.play();
+              }
             }
           }}
           accessibilityRole="button"
           style={[styles.primaryButton, { backgroundColor: colors.primary }]}
         >
           <Text style={[styles.primaryButtonLabel, { color: colors.background }]}>
-            {status.playing ? 'Pause' : 'Resume'}
+            {status.playing || gapState === 'waiting' ? 'Pause' : 'Resume'}
           </Text>
         </Pressable>
 

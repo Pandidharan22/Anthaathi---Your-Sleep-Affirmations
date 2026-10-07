@@ -1,5 +1,4 @@
 import { useAudioPlayer } from 'expo-audio';
-import { File, Paths } from 'expo-file-system';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -7,6 +6,8 @@ import { radii, spacing, typography } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { createAiGuidedAffirmation } from '@/lib/affirmations.local';
+import { synthesizeAffirmationAudio, VOICE_OPTIONS } from '@/lib/aiVoice';
+import { DEFAULT_VOICE_STYLE, type VoiceStyle } from '@/lib/voiceStyle';
 import AnthaathiTts, { type AnthaathiVoice } from '@/modules/anthaathi-tts';
 
 /**
@@ -16,29 +17,61 @@ import AnthaathiTts, { type AnthaathiVoice } from '@/modules/anthaathi-tts';
  * locales, and which ones actually sound male/female by ear) gets collected before step 3.8's
  * male/female curation can be written. Remove once step 3.10 builds the real voice picker.
  */
-const TEST_STRING = 'This is a test of on-device speech synthesis for Anthaathi.';
+// Several short affirmations, so the pause between sentences can be judged as well as the pace.
+const TEST_STRING =
+  'I am deserving of unconditional love. My strength is permanent. I am calm, safe and at peace.';
+
+// Step A (voice pacing): rate/pitch/pause are passed per request from JS, so these can be tuned
+// by ear here without a rebuild; the winning values live in VOICE_OPTIONS (lib/aiVoice.ts).
+const RATE_OPTIONS = [0.35, 0.45, 0.5, 0.6, 0.8, 1] as const;
+const PITCH_OPTIONS = [0.7, 0.8, 0.9, 1] as const;
+const PAUSE_OPTIONS = [1200, 1800, 2400, 3000] as const;
 
 type SynthesisStatus = 'idle' | 'synthesizing' | 'ready' | 'error';
 
-// Round 2 of voice curation: narrowed from a first pass over this device's full ~473-voice
-// list (every installed language, not just English) down to the 8 English voices that sounded
-// good by ear -- gender and quality notes are the user's own, since Android's Voice API has no
-// such fields. Final pick is 2 male + 2 female from these, made by re-listening on-device.
-const CANDIDATE_VOICES: { identifier: string; gender: 'male' | 'female'; note?: string }[] = [
-  { identifier: 'en-gb-x-gba-local', gender: 'female' },
-  { identifier: 'en-gb-x-gbb-network', gender: 'male' },
-  { identifier: 'en-AU-language', gender: 'female' },
-  { identifier: 'en-us-x-tpf-local', gender: 'female', note: 'clear, liked' },
-  { identifier: 'en-gb-x-rjs-local', gender: 'male', note: 'liked' },
-  { identifier: 'en-gb-x-gbd-local', gender: 'male', note: 'liked' },
-  { identifier: 'en-us-x-tpc-network', gender: 'female', note: 'liked' },
-  { identifier: 'en-us-x-tpc-local', gender: 'female', note: 'liked' },
-];
-
-// Top-level (not nested inside the component/FlatList renderItem closures) so the
-// react-hooks purity lint rule doesn't flag Date.now() as possibly reachable during render.
-function makeOutputFile(): File {
-  return new File(Paths.document, `tts-test-${Date.now()}.wav`);
+function StyleChips<T extends number>({
+  label,
+  options,
+  value,
+  format,
+  onChange,
+}: {
+  label: string;
+  options: readonly T[];
+  value: number;
+  format: (v: T) => string;
+  onChange: (v: T) => void;
+}) {
+  const colors = useThemeColors();
+  return (
+    <View style={{ gap: spacing.xs }}>
+      <Text style={[styles.caption, { color: colors.textSecondary }]}>{label}</Text>
+      <View style={styles.chipRow}>
+        {options.map((option) => {
+          const selected = option === value;
+          return (
+            <Pressable
+              key={option}
+              onPress={() => onChange(option)}
+              accessibilityRole="button"
+              accessibilityState={{ selected }}
+              style={[
+                styles.chip,
+                {
+                  borderColor: selected ? colors.primary : colors.border,
+                  backgroundColor: selected ? colors.primary : 'transparent',
+                },
+              ]}
+            >
+              <Text style={{ color: selected ? colors.background : colors.textPrimary }}>
+                {format(option)}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
 }
 
 export default function DevTtsTestScreen() {
@@ -50,6 +83,7 @@ export default function DevTtsTestScreen() {
   const [status, setStatus] = useState<SynthesisStatus>('idle');
   const [resultPath, setResultPath] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [style, setStyle] = useState<VoiceStyle>(DEFAULT_VOICE_STYLE);
   const player = useAudioPlayer(resultPath);
 
   // Step 3.9 real-device check: createAiGuidedAffirmation's measureDurationMs has never
@@ -83,8 +117,8 @@ export default function DevTtsTestScreen() {
   useEffect(() => {
     AnthaathiTts.listVoices()
       .then((result) => {
-        const candidateIds = new Set(CANDIDATE_VOICES.map((c) => c.identifier));
-        setVoices(result.filter((voice) => candidateIds.has(voice.identifier)));
+        const finalIds = new Set(VOICE_OPTIONS.map((v) => v.id));
+        setVoices(result.filter((voice) => finalIds.has(voice.identifier)));
       })
       .catch((err) => setVoicesError(err instanceof Error ? err.message : 'Could not list voices.'));
   }, []);
@@ -95,9 +129,8 @@ export default function DevTtsTestScreen() {
     setError(null);
     setResultPath(null);
     try {
-      const outputFile = makeOutputFile();
-      const path = await AnthaathiTts.synthesizeToFile(TEST_STRING, outputFile.uri, voiceId);
-      setResultPath(path);
+      const { localUri } = await synthesizeAffirmationAudio(TEST_STRING, voiceId, style);
+      setResultPath(localUri);
       setStatus('ready');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Synthesis failed.');
@@ -133,13 +166,39 @@ export default function DevTtsTestScreen() {
         </Text>
       ) : null}
 
+      <StyleChips
+        label="Speech rate"
+        options={RATE_OPTIONS}
+        value={style.rate}
+        format={(v) => `${v}`}
+        onChange={(rate) => setStyle((prev) => ({ ...prev, rate }))}
+      />
+      <StyleChips
+        label="Pitch"
+        options={PITCH_OPTIONS}
+        value={style.pitch}
+        format={(v) => `${v}`}
+        onChange={(pitch) => setStyle((prev) => ({ ...prev, pitch }))}
+      />
+      <StyleChips
+        label="Pause between sentences"
+        options={PAUSE_OPTIONS}
+        value={style.sentencePauseMs}
+        format={(v) => `${v / 1000}s`}
+        onChange={(sentencePauseMs) => setStyle((prev) => ({ ...prev, sentencePauseMs }))}
+      />
+      <Text style={[styles.caption, { color: colors.textSecondary }]}>
+        Tap a voice below to synthesize with these settings, then Play. The Library test button
+        above uses each voice&apos;s saved style (VOICE_OPTIONS in lib/aiVoice.ts).
+      </Text>
+
       {voicesError ? <Text style={[styles.body, { color: colors.error }]}>{voicesError}</Text> : null}
       {!voices && !voicesError ? <ActivityIndicator color={colors.primary} /> : null}
 
       {voices ? (
         <>
           <Text style={[styles.body, { color: colors.textSecondary }]}>
-            {voices.length} of {CANDIDATE_VOICES.length} candidates found on this device
+            {voices.length} of {VOICE_OPTIONS.length} finalized voices found on this device
           </Text>
           <FlatList
             style={styles.list}
@@ -147,7 +206,7 @@ export default function DevTtsTestScreen() {
             keyExtractor={(voice) => voice.identifier}
             renderItem={({ item }) => {
               const isActive = activeVoiceId === item.identifier;
-              const candidate = CANDIDATE_VOICES.find((c) => c.identifier === item.identifier);
+              const option = VOICE_OPTIONS.find((v) => v.id === item.identifier);
               return (
                 <Pressable
                   onPress={() => handleTest(item.identifier)}
@@ -157,9 +216,8 @@ export default function DevTtsTestScreen() {
                 >
                   <Text style={{ color: colors.textPrimary }}>{item.identifier}</Text>
                   <Text style={[styles.caption, { color: colors.textSecondary }]}>
-                    {candidate?.gender} · {item.locale} · quality {item.quality} ·{' '}
+                    {option?.label} · {item.locale} · quality {item.quality} ·{' '}
                     {item.isNetworkConnectionRequired ? 'network' : 'offline'}
-                    {candidate?.note ? ` · ${candidate.note}` : ''}
                   </Text>
                   {isActive && status === 'synthesizing' ? <ActivityIndicator color={colors.primary} /> : null}
                   {isActive && status === 'ready' && resultPath ? (
@@ -207,6 +265,17 @@ const styles = StyleSheet.create({
   },
   list: {
     flex: 1,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  chip: {
+    borderWidth: 1,
+    borderRadius: radii.full,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.md,
   },
   voiceRow: {
     borderWidth: 1,

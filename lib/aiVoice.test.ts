@@ -20,17 +20,30 @@ jest.mock('expo-audio', () => ({
 }));
 
 const mockFileDelete = jest.fn();
+const mockFileCreate = jest.fn();
+const mockFileWrite = jest.fn();
+const mockFileBytes = jest.fn();
 jest.mock('expo-file-system', () => ({
-  File: jest.fn().mockImplementation(() => ({
-    uri: 'file:///doc/ai-affirmation-fixed-uuid.wav',
-    delete: mockFileDelete,
+  File: jest.fn().mockImplementation((_dir: string, name: string) => ({
+    uri: `file:///doc/${name}`,
+    delete: () => mockFileDelete(name),
+    create: (...args: unknown[]) => mockFileCreate(name, ...args),
+    write: (...args: unknown[]) => mockFileWrite(name, ...args),
+    bytes: () => mockFileBytes(name),
   })),
   Paths: { document: 'file:///doc' },
 }));
 
+const mockJoinWav = jest.fn();
+jest.mock('@/lib/wav', () => ({
+  joinWavWithSilence: (...args: unknown[]) => mockJoinWav(...args),
+}));
+
 jest.mock('expo-crypto', () => ({ randomUUID: jest.fn(() => 'fixed-uuid') }));
 
-import { synthesizeAffirmationAudio, VOICE_OPTIONS } from './aiVoice';
+import { DEFAULT_VOICE_STYLE } from '@/lib/voiceStyle';
+
+import { getVoiceStyle, synthesizeAffirmationAudio, VOICE_OPTIONS } from './aiVoice';
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -55,7 +68,11 @@ describe('synthesizeAffirmationAudio', () => {
       'I am calm.',
       'file:///doc/ai-affirmation-fixed-uuid.wav',
       'voice-1',
+      DEFAULT_VOICE_STYLE.rate,
+      DEFAULT_VOICE_STYLE.pitch,
     );
+    // One sentence: no pieces to join.
+    expect(mockJoinWav).not.toHaveBeenCalled();
     expect(mockSubscriptionRemove).toHaveBeenCalled();
     expect(mockPlayerRemove).toHaveBeenCalled();
   });
@@ -90,12 +107,106 @@ describe('synthesizeAffirmationAudio', () => {
     expect(mockPlayerRemove).toHaveBeenCalled();
     // FR-516: synthesis itself succeeded and wrote a real file -- since duration measurement
     // failed, the caller never gets a usable result, so the orphaned file must not be left behind.
-    expect(mockFileDelete).toHaveBeenCalled();
+    expect(mockFileDelete).toHaveBeenCalledWith('ai-affirmation-fixed-uuid.wav');
     jest.useRealTimers();
+  });
+
+  it("uses the voice's own tuned style by default, not the fallback", async () => {
+    const male = VOICE_OPTIONS.find((v) => v.gender === 'male')!;
+    mockSynthesizeToFile.mockResolvedValue('ok');
+    const resultPromise = synthesizeAffirmationAudio('I am calm.', male.id);
+    while (!statusListener) await Promise.resolve();
+    statusListener({ isLoaded: true, duration: 1 });
+    await resultPromise;
+    expect(mockSynthesizeToFile.mock.calls[0].slice(3)).toEqual([male.style.rate, male.style.pitch]);
+    expect(getVoiceStyle(male.id)).toBe(male.style);
+    expect(getVoiceStyle('unknown-voice')).toBe(DEFAULT_VOICE_STYLE);
+  });
+
+  it('passes a custom style through to the native module', async () => {
+    mockSynthesizeToFile.mockResolvedValue('ok');
+    const resultPromise = synthesizeAffirmationAudio('I am calm.', 'voice-1', {
+      rate: 0.4,
+      pitch: 0.8,
+      sentencePauseMs: 1000,
+    });
+    while (!statusListener) await Promise.resolve();
+    statusListener({ isLoaded: true, duration: 1 });
+    await resultPromise;
+    expect(mockSynthesizeToFile.mock.calls[0].slice(3)).toEqual([0.4, 0.8]);
+  });
+
+  describe('multi-sentence scripts', () => {
+    const joinedBytes = new Uint8Array([1, 2, 3]);
+
+    beforeEach(() => {
+      mockSynthesizeToFile.mockResolvedValue('ok');
+      mockFileBytes.mockImplementation(async (name: string) => new Uint8Array([name.length]));
+      mockJoinWav.mockReturnValue(joinedBytes);
+    });
+
+    it('synthesizes each sentence separately, joins them with the sentence pause, and removes the pieces', async () => {
+      const resultPromise = synthesizeAffirmationAudio('I am calm. I am safe.', 'voice-1', {
+        rate: 0.5,
+        pitch: 0.9,
+        sentencePauseMs: 2400,
+      });
+      while (!statusListener) await Promise.resolve();
+      statusListener({ isLoaded: true, duration: 9 });
+
+      await expect(resultPromise).resolves.toEqual({
+        localUri: 'file:///doc/ai-affirmation-fixed-uuid.wav',
+        durationMs: 9000,
+      });
+
+      expect(mockSynthesizeToFile.mock.calls.map((c) => [c[0], c[1]])).toEqual([
+        ['I am calm.', 'file:///doc/ai-affirmation-fixed-uuid-0.wav'],
+        ['I am safe.', 'file:///doc/ai-affirmation-fixed-uuid-1.wav'],
+      ]);
+      expect(mockJoinWav).toHaveBeenCalledTimes(1);
+      expect(mockJoinWav.mock.calls[0][0]).toHaveLength(2);
+      expect(mockJoinWav.mock.calls[0][1]).toBe(2400);
+      expect(mockFileWrite).toHaveBeenCalledWith('ai-affirmation-fixed-uuid.wav', joinedBytes);
+      expect(mockFileDelete).toHaveBeenCalledWith('ai-affirmation-fixed-uuid-0.wav');
+      expect(mockFileDelete).toHaveBeenCalledWith('ai-affirmation-fixed-uuid-1.wav');
+      // The final file is kept.
+      expect(mockFileDelete).not.toHaveBeenCalledWith('ai-affirmation-fixed-uuid.wav');
+    });
+
+    it('cleans up every piece and the output, and rejects, if a later sentence fails', async () => {
+      mockSynthesizeToFile.mockResolvedValueOnce('ok').mockRejectedValueOnce(new Error('boom'));
+
+      await expect(synthesizeAffirmationAudio('One. Two. Three.', 'voice-1')).rejects.toThrow('boom');
+
+      expect(mockSynthesizeToFile).toHaveBeenCalledTimes(2); // stops at the failure
+      expect(mockJoinWav).not.toHaveBeenCalled();
+      for (const name of [
+        'ai-affirmation-fixed-uuid-0.wav',
+        'ai-affirmation-fixed-uuid-1.wav',
+        'ai-affirmation-fixed-uuid-2.wav',
+        'ai-affirmation-fixed-uuid.wav',
+      ]) {
+        expect(mockFileDelete).toHaveBeenCalledWith(name);
+      }
+    });
+
+    it('rejects an empty script without calling the native module', async () => {
+      await expect(synthesizeAffirmationAudio('   ', 'voice-1')).rejects.toThrow(/no text/i);
+      expect(mockSynthesizeToFile).not.toHaveBeenCalled();
+    });
   });
 });
 
 describe('VOICE_OPTIONS', () => {
+  it('every voice has a sane style (slow enough for sleep, audible pause)', () => {
+    for (const voice of VOICE_OPTIONS) {
+      expect(voice.style.rate).toBeGreaterThan(0);
+      expect(voice.style.rate).toBeLessThanOrEqual(1);
+      expect(voice.style.pitch).toBeGreaterThan(0);
+      expect(voice.style.sentencePauseMs).toBeGreaterThanOrEqual(500);
+    }
+  });
+
   it('FR-512: offers at least one male and one female voice', () => {
     expect(VOICE_OPTIONS.some((v) => v.gender === 'male')).toBe(true);
     expect(VOICE_OPTIONS.some((v) => v.gender === 'female')).toBe(true);
