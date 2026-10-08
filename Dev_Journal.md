@@ -4,6 +4,20 @@ One entry per committed step, newest first. Each entry: what was done, why, how 
 
 ---
 
+## 2026-10-09 — Kokoro integration sub-step 1 + GPL-3.0 licence decision (Execution Plan step 3.13b)
+
+**What**: Started 3.13b (real Kokoro integration) on `feature/neural-voice`. Sub-step 1 hardens the native side ahead of a single rebuild: a native `sha256(path)` lets `installModel` verify the ~350 MB archive against a pinned digest (the one GitHub itself publishes for that release asset) before extracting, and only the arm64-v8a library is now taken from the sherpa-onnx AAR (16 MB less; Play requires 64-bit, and a 32-bit-only phone can't hold this model anyway). `load()` now catches `Throwable` so a missing native library (an `UnsatisfiedLinkError`, which is an Error, not an Exception) becomes a normal rejection instead of a crash. Separately, the project is now licensed **GPL-3.0-or-later** (LICENSE, `package.json`, README licence section with a third-party table); Expo's scaffolded MIT LICENSE in `modules/anthaathi-tts` was removed because it named Expo as copyright holder of our code.
+
+**Why GPL**: sherpa-onnx's Android library statically includes espeak-ng (GPL-3.0-or-later). Reading sherpa-onnx's source showed there is no build switch to drop it, and that for Kokoro v1.0 it is used only for words missing from the 178k-word `lexicon-us-en.txt`. To see what an espeak-free build would sound like, the desktop engine was run on affirmation-style sentences with dictionary-missing words removed, which is exactly what such a build does ("Skip OOV"): "I attract positive energy and opportunities." became "I attract positive energy and." Plurals ("opportunities"), other inflections ("empowered", "overthinking"), contractions ("what's"), names ("Priya", "Anthaathi") and numbers ("1,000", "2027") all went silent. The fixes (a patched native build, number normalization, a morphology-derived extra lexicon, and editor warnings for names) would still leave names weak. The user chose quality with no compromise: keep espeak-ng and release the app under the GPL. The repo was already public, and the GPL still allows selling the app.
+
+**Decisions recorded for the rest of 3.13b**: model hosting stays on sherpa-onnx's release, pinned by checksum (mirroring to our own release is deferred); default natural voices are Nicole (female) and Michael (male); AI drafts will carry `/` pause marks (live Edge Function redeploy approved).
+
+**Verification**: 289 tests, typecheck and lint clean. 4 new install-path tests (checksum match → extract, mismatch → never extracts, partial download removed, already installed → no-op); mutation-checked by disabling the comparison, which the mismatch test catches. The pinned digest was computed from the real downloaded archive and matched GitHub's published one. The Kotlin changes compile only in the EAS build that follows this commit.
+
+**Commits**: `0386a16` — Verify the Kokoro model download; ship arm64 only (step 3.13b-1); `dbd19a1` — License the project under GPL-3.0-or-later
+
+---
+
 ## 2026-10-08 — Neural voice spike: Kokoro on-device (Execution Plan step 3.13a)
 
 **What**: A spike, on branch `feature/neural-voice`, to see whether a free offline neural voice can give the calm, soothing delivery the tuned Android system voices could not. The user auditioned Kokoro-82M voices and picked Bella, Nicole, Echo and Michael. Built: `modules/anthaathi-neural-tts`, a thin Expo module (Kotlin) around sherpa-onnx's official Android AAR, which extracts the model archive, loads Kokoro from disk and synthesizes text to WAV with timings; `lib/neuralVoice.ts` (in-app model download and install, the four voices, phrase-by-phrase synthesis); phrase pacing in `lib/voiceStyle.ts` (`splitIntoPhrases`) and `lib/wav.ts` (`joinWavSegments`, with per-gap lengths and edge-silence trimming); and a temporary `__DEV__` screen `app/dev-neural-tts.tsx`. Not wired into the real AI Guided flow yet; that is 3.13b.
