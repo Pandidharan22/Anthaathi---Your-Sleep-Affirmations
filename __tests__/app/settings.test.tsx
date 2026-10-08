@@ -31,6 +31,11 @@ jest.mock('@/lib/reminders', () => ({
   },
 }));
 
+// The natural-voices section has its own tests (components/NaturalVoicesSection.test.tsx).
+jest.mock('@/components/NaturalVoicesSection', () => ({
+  NaturalVoicesSection: () => null,
+}));
+
 const mockAlert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
 
 beforeEach(() => {
@@ -85,7 +90,9 @@ describe('SettingsScreen', () => {
     await fireEvent.press(getByText('Delete account'));
 
     await waitFor(() =>
-      expect(getByText('Could not delete your account. Please check your connection and try again.')).toBeTruthy(),
+      expect(
+        getByText('Could not delete your account. Please check your connection and try again.'),
+      ).toBeTruthy(),
     );
     expect(getByText('Delete account').parent?.props.accessibilityState?.disabled).toBe(false);
   });
@@ -117,7 +124,9 @@ describe('SettingsScreen', () => {
 
     await fireEvent(getByRole('switch'), 'valueChange', true);
 
-    await waitFor(() => expect(getByText('Notification permission is needed for reminders.')).toBeTruthy());
+    await waitFor(() =>
+      expect(getByText('Notification permission is needed for reminders.')).toBeTruthy(),
+    );
     expect(queryByText('9:00 PM')).toBeNull();
   });
 
@@ -142,10 +151,14 @@ describe('SettingsScreen', () => {
 
     await waitFor(() =>
       expect(
-        getByText("Reminders aren't available in Expo Go on Android — they'll work in the full app build."),
+        getByText(
+          "Reminders aren't available in Expo Go on Android — they'll work in the full app build.",
+        ),
       ).toBeTruthy(),
     );
-    expect(getByRole('switch').props.accessibilityState?.disabled ?? getByRole('switch').props.disabled).toBe(true);
+    expect(
+      getByRole('switch').props.accessibilityState?.disabled ?? getByRole('switch').props.disabled,
+    ).toBe(true);
     expect(queryByText('10:00 PM')).toBeNull();
     expect(mockEnableReminder).not.toHaveBeenCalled();
   });

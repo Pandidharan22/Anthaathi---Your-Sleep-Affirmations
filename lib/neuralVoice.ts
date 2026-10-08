@@ -65,6 +65,9 @@ export class NeuralModelMissingError extends Error {
   }
 }
 
+/** An install failure whose message is already written for the user. */
+class InstallError extends Error {}
+
 function modelsRoot(): Directory {
   return new Directory(Paths.document, 'neural-voice');
 }
@@ -111,12 +114,13 @@ export async function checkInstall(): Promise<InstallCheck> {
   return { ok: true, network };
 }
 
-function describeBlocker(check: Exclude<InstallCheck, { ok: true }>): string {
+/** User-facing explanation of why an install can't start (shared by installModel and Settings). */
+export function describeInstallBlocker(check: Exclude<InstallCheck, { ok: true }>): string {
   if (check.reason === 'offline') {
-    return "You're offline. Connect to the internet to download the natural voices.";
+    return "You're offline. Connect to the internet to download the voices.";
   }
   const mb = (bytes: number) => Math.round(bytes / 1_000_000);
-  return `Not enough free space. The natural voices need about ${mb(check.requiredBytes)} MB while installing; ${mb(check.availableBytes)} MB is free.`;
+  return `Not enough free space. The voices need about ${mb(check.requiredBytes)} MB while installing, and you have ${mb(check.availableBytes)} MB. Free up some space and try again.`;
 }
 
 export type InstallProgress =
@@ -132,7 +136,7 @@ export type InstallProgress =
 export async function installModel(onProgress: (p: InstallProgress) => void): Promise<void> {
   if (isModelInstalled()) return;
   const check = await checkInstall();
-  if (!check.ok) throw new Error(describeBlocker(check));
+  if (!check.ok) throw new InstallError(describeInstallBlocker(check));
   const root = modelsRoot();
   if (!root.exists) root.create({ intermediates: true });
   const archive = new File(root, ARCHIVE_NAME);
@@ -144,17 +148,18 @@ export async function installModel(onProgress: (p: InstallProgress) => void): Pr
         onProgress({ stage: 'downloading', bytesWritten, totalBytes }),
     });
     const downloaded = await task.downloadAsync();
-    if (!downloaded) throw new Error('The model download was cancelled.');
+    if (!downloaded)
+      throw new InstallError('The download stopped before it finished. Please try again.');
     onProgress({ stage: 'verifying' });
     const actual = await AnthaathiNeuralTts.sha256(archive.uri);
     if (actual !== MODEL_SHA256) {
-      throw new Error('The downloaded voice model is damaged or unexpected. Please try again.');
+      throw new InstallError('The download was damaged or incomplete. Please try again.');
     }
     onProgress({ stage: 'extracting' });
     extractionStarted = true;
     await AnthaathiNeuralTts.extractTarBz2(archive.uri, root.uri);
     if (!isModelInstalled())
-      throw new Error('The model archive did not contain the expected files.');
+      throw new InstallError('The download was damaged or incomplete. Please try again.');
   } catch (err) {
     if (extractionStarted) {
       const partial = modelDir();
@@ -168,9 +173,73 @@ export async function installModel(onProgress: (p: InstallProgress) => void): Pr
 
 /** Unloads the model from memory, then removes it from disk. */
 export async function deleteModel(): Promise<void> {
+  if (installing) throw new Error('The natural voices are still installing.');
   await unloadModel();
   const root = modelsRoot();
   if (root.exists) root.delete();
+  setStatus({ state: 'not_installed' });
+}
+
+/** Disk space the installed model uses, or null if unknown. */
+export function getInstalledSizeBytes(): number | null {
+  const dir = modelDir();
+  return dir.exists ? dir.size : null;
+}
+
+// App-wide install status. The install outlives whichever screen started it (leaving Settings
+// mid-download must not lose its progress or allow a second, conflicting download), so it
+// lives here as a tiny store that screens subscribe to (hooks/useNeuralVoiceStatus.ts).
+export type NeuralVoiceStatus =
+  | { state: 'not_installed' }
+  | { state: 'installing'; progress: InstallProgress | null }
+  | { state: 'installed' }
+  | { state: 'failed'; message: string };
+
+let status: NeuralVoiceStatus | null = null; // computed lazily from disk on first read
+const listeners = new Set<() => void>();
+let installing: Promise<void> | null = null;
+
+function setStatus(next: NeuralVoiceStatus) {
+  status = next;
+  listeners.forEach((listener) => listener());
+}
+
+export function getNeuralVoiceStatus(): NeuralVoiceStatus {
+  const current = status ?? { state: isModelInstalled() ? 'installed' : 'not_installed' };
+  status = current; // same object on every call, as useSyncExternalStore requires
+  return current;
+}
+
+export function subscribeNeuralVoiceStatus(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+/**
+ * Starts installing (or joins the install already in flight) and tracks it in the status
+ * store. Failures end in a `failed` status with a user-facing message rather than rejecting,
+ * since whichever screen started the install may be gone by then.
+ */
+export function startInstall(): Promise<void> {
+  if (installing) return installing;
+  setStatus({ state: 'installing', progress: null });
+  installing = installModel((progress) => setStatus({ state: 'installing', progress }))
+    .then(() => setStatus({ state: 'installed' }))
+    .catch((err: unknown) =>
+      setStatus({
+        state: 'failed',
+        // Our own failures carry a written-for-the-user message; anything else (a network
+        // drop, a full disk mid-extract) gets a generic one instead of a raw technical error.
+        message:
+          err instanceof InstallError
+            ? err.message
+            : "The natural voices couldn't be installed. Check your connection and try again.",
+      }),
+    )
+    .finally(() => {
+      installing = null;
+    });
+  return installing;
 }
 
 // In-memory model lifecycle. `loading` is shared, so concurrent callers trigger one load.

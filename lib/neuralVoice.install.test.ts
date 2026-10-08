@@ -67,7 +67,15 @@ jest.mock('expo-file-system', () => {
 
 jest.mock('expo-crypto', () => ({ randomUUID: () => 'uuid' }));
 
-import { checkInstall, installModel, MODEL_SHA256 } from '@/lib/neuralVoice';
+import {
+  checkInstall,
+  deleteModel,
+  getNeuralVoiceStatus,
+  installModel,
+  MODEL_SHA256,
+  startInstall,
+  subscribeNeuralVoiceStatus,
+} from '@/lib/neuralVoice';
 
 const ROOT = 'doc/neural-voice';
 const ARCHIVE = `${ROOT}/kokoro-multi-lang-v1_0.tar.bz2`;
@@ -114,7 +122,7 @@ describe('installModel', () => {
   it('rejects a download whose checksum does not match, without extracting it', async () => {
     mockSha256.mockResolvedValue('0'.repeat(64));
 
-    await expect(installModel(() => {})).rejects.toThrow(/damaged or unexpected/);
+    await expect(installModel(() => {})).rejects.toThrow(/damaged or incomplete/);
 
     expect(mockExtract).not.toHaveBeenCalled();
     expect(mockDeleted).toContain(ARCHIVE);
@@ -148,7 +156,7 @@ describe('install preconditions', () => {
 
   it('refuses to start without ~800 MB free, saying how much is needed and free', async () => {
     mockFreeBytes = 500_000_000;
-    await expect(installModel(() => {})).rejects.toThrow(/about 800 MB.*500 MB is free/);
+    await expect(installModel(() => {})).rejects.toThrow(/about 800 MB while installing, and you have 500 MB/);
     expect(mockDownload).not.toHaveBeenCalled();
   });
 
@@ -170,5 +178,63 @@ describe('install preconditions', () => {
 
     expect(mockDeleted).toContain(MODEL);
     expect(mockDeleted).toContain(ARCHIVE);
+  });
+});
+
+describe('install status store', () => {
+  it('moves through installing (with progress) to installed, notifying subscribers', async () => {
+    mockSha256.mockResolvedValue(MODEL_SHA256);
+    const seen: string[] = [];
+    const unsubscribe = subscribeNeuralVoiceStatus(() => {
+      const st = getNeuralVoiceStatus();
+      seen.push(
+        st.state === 'installing' ? `installing:${st.progress?.stage ?? 'start'}` : st.state,
+      );
+    });
+
+    await startInstall();
+    unsubscribe();
+
+    expect(seen).toEqual([
+      'installing:start',
+      'installing:verifying',
+      'installing:extracting',
+      'installed',
+    ]);
+  });
+
+  it('joins an install already in flight instead of starting a second download', async () => {
+    mockSha256.mockResolvedValue(MODEL_SHA256);
+    const a = startInstall();
+    const b = startInstall();
+    expect(b).toBe(a);
+    await a;
+    expect(mockDownload).toHaveBeenCalledTimes(1);
+  });
+
+  it('ends in a failed status with our own message for a known failure', async () => {
+    mockSha256.mockResolvedValue('0'.repeat(64));
+    await startInstall();
+    expect(getNeuralVoiceStatus()).toEqual({
+      state: 'failed',
+      message: 'The download was damaged or incomplete. Please try again.',
+    });
+  });
+
+  it('shows a friendly generic message instead of a raw technical error', async () => {
+    mockDownload.mockRejectedValue(new Error('java.net.SocketTimeoutException: timeout'));
+    await startInstall();
+    const st = getNeuralVoiceStatus();
+    expect(st.state).toBe('failed');
+    expect(st.state === 'failed' && st.message).toMatch(/couldn't be installed/);
+    expect(st.state === 'failed' && st.message).not.toMatch(/java/);
+  });
+
+  it('deleting the model sets the status back to not installed', async () => {
+    markExtracted();
+    mockExisting.add(ROOT);
+    await deleteModel();
+    expect(getNeuralVoiceStatus()).toEqual({ state: 'not_installed' });
+    expect(mockDeleted).toContain(ROOT);
   });
 });
