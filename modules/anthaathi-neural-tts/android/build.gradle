@@ -9,8 +9,10 @@ version = '0.1.0'
 // Step 3.13 (neural voice spike): sherpa-onnx's official Android AAR, the variant with
 // onnxruntime statically linked (one .so per ABI). It is ~39 MB, so it is fetched from the
 // sherpa-onnx GitHub release at build time and verified against a pinned SHA-256 instead of
-// being committed. Only classes.jar and the two ARM ABIs are taken: a local .aar can't be a
-// direct dependency of a library module, and x86 is emulator-only.
+// being committed. Only classes.jar and arm64-v8a are taken: a local .aar can't be a direct
+// dependency of a library module; x86 is emulator-only; and 32-bit ARM (16 MB) is dropped
+// because Play requires 64-bit and a 32-bit-only phone can't realistically hold this model
+// in memory. On other ABIs the module still loads; only `load` fails, with a clear error.
 def sherpaVersion = '1.13.8'
 def sherpaAarName = "sherpa-onnx-static-link-onnxruntime-${sherpaVersion}.aar"
 def sherpaAarSha256 = 'b22c3fc1b6a45666d28892bb2f7694beeb77a8362d7ebd77c1a5431ec9435471'
@@ -35,7 +37,6 @@ if (!sherpaJar.exists()) {
     from(project.zipTree(aar)) {
       include 'classes.jar'
       include 'jni/arm64-v8a/**'
-      include 'jni/armeabi-v7a/**'
     }
     into sherpaDir
   }

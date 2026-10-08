@@ -5,6 +5,9 @@ class AnthaathiNeuralTtsModule extends NativeModule<{}> {
   extractTarBz2(): Promise<number> {
     throw new Error('AnthaathiNeuralTts is not supported on web.');
   }
+  sha256(): Promise<string> {
+    throw new Error('AnthaathiNeuralTts is not supported on web.');
+  }
   load(): Promise<never> {
     throw new Error('AnthaathiNeuralTts is not supported on web.');
   }

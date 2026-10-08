@@ -12,6 +12,7 @@ import expo.modules.kotlin.modules.ModuleDefinition
 import java.io.BufferedInputStream
 import java.io.File
 import java.io.FileInputStream
+import java.security.MessageDigest
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
 
@@ -58,6 +59,20 @@ class AnthaathiNeuralTtsModule : Module() {
       }
     }
 
+    // Hashing ~350 MB in JS would take minutes; streamed here it takes seconds.
+    AsyncFunction("sha256") { path: String ->
+      val digest = MessageDigest.getInstance("SHA-256")
+      FileInputStream(toFile(path)).use { input ->
+        val buffer = ByteArray(1 shl 20)
+        while (true) {
+          val read = input.read(buffer)
+          if (read < 0) break
+          digest.update(buffer, 0, read)
+        }
+      }
+      digest.digest().joinToString("") { "%02x".format(it) }
+    }
+
     AsyncFunction("load") { modelDir: String, numThreads: Int ->
       synchronized(lock) {
         val dir = toFile(modelDir)
@@ -79,7 +94,10 @@ class AnthaathiNeuralTtsModule : Module() {
         tts = null
         val engine = try {
           OfflineTts(config = config)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
+          // Throwable, not Exception: on a device without the native library (32-bit ARM,
+          // x86) System.loadLibrary throws UnsatisfiedLinkError, an Error. It must surface as
+          // a normal rejection the UI can explain, never crash the app.
           throw ModelLoadFailedException(e.message)
         }
         tts = engine

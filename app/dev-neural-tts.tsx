@@ -176,9 +176,11 @@ export default function DevNeuralTtsScreen() {
             {busy}
             {progress?.stage === 'downloading'
               ? ` — ${formatMb(progress.bytesWritten)} / ${formatMb(progress.totalBytes)}`
-              : progress?.stage === 'extracting'
-                ? ' — extracting (can take a few minutes)'
-                : ''}
+              : progress?.stage === 'verifying'
+                ? ' — verifying download'
+                : progress?.stage === 'extracting'
+                  ? ' — extracting (can take a few minutes)'
+                  : ''}
           </Text>
         </View>
       ) : null}

@@ -13,6 +13,9 @@ import AnthaathiNeuralTts from '@/modules/anthaathi-neural-tts';
 // int8 risks quality loss, and an F16 conversion crashed ONNX Runtime's optimizer (see journal).
 export const MODEL_URL =
   'https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-multi-lang-v1_0.tar.bz2';
+// Pinned so a changed or corrupted file is rejected before extraction. Matches the digest
+// GitHub itself publishes for this release asset.
+export const MODEL_SHA256 = 'c5f7e2d2caf082bc1d20fb70334a61d99d20b484500aad32e7cf84c128ea3298';
 const ARCHIVE_NAME = 'kokoro-multi-lang-v1_0.tar.bz2';
 const MODEL_FOLDER = 'kokoro-multi-lang-v1_0';
 const REQUIRED_FILES = ['model.onnx', 'voices.bin', 'tokens.txt', 'lexicon-us-en.txt'];
@@ -58,7 +61,9 @@ export function isModelInstalled(): boolean {
 }
 
 export type InstallProgress =
-  { stage: 'downloading'; bytesWritten: number; totalBytes: number } | { stage: 'extracting' };
+  | { stage: 'downloading'; bytesWritten: number; totalBytes: number }
+  | { stage: 'verifying' }
+  | { stage: 'extracting' };
 
 /** Downloads (~350 MB) and extracts the model, then deletes the archive. Idempotent. */
 export async function installModel(onProgress: (p: InstallProgress) => void): Promise<void> {
@@ -74,6 +79,11 @@ export async function installModel(onProgress: (p: InstallProgress) => void): Pr
     });
     const downloaded = await task.downloadAsync();
     if (!downloaded) throw new Error('The model download was cancelled.');
+    onProgress({ stage: 'verifying' });
+    const actual = await AnthaathiNeuralTts.sha256(archive.uri);
+    if (actual !== MODEL_SHA256) {
+      throw new Error('The downloaded voice model is damaged or unexpected. Please try again.');
+    }
     onProgress({ stage: 'extracting' });
     await AnthaathiNeuralTts.extractTarBz2(archive.uri, root.uri);
     if (!isModelInstalled())
