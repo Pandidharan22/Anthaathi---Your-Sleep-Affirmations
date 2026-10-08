@@ -170,6 +170,16 @@ export default function SettingsScreen() {
         </Pressable>
       ) : null}
 
+      {__DEV__ ? (
+        <Pressable
+          onPress={() => router.push('/dev-neural-tts')}
+          accessibilityRole="button"
+          style={[styles.button, { borderColor: colors.border }]}
+        >
+          <Text style={{ color: colors.textPrimary }}>Dev: neural voice (Kokoro) test</Text>
+        </Pressable>
+      ) : null}
+
       <Pressable
         onPress={() => signOut()}
         accessibilityRole="button"

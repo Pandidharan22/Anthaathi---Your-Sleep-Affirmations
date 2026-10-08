@@ -1,0 +1,65 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'com.pandidharan.anthaathi.neuraltts'
+version = '0.1.0'
+
+// Step 3.13 (neural voice spike): sherpa-onnx's official Android AAR, the variant with
+// onnxruntime statically linked (one .so per ABI). It is ~39 MB, so it is fetched from the
+// sherpa-onnx GitHub release at build time and verified against a pinned SHA-256 instead of
+// being committed. Only classes.jar and the two ARM ABIs are taken: a local .aar can't be a
+// direct dependency of a library module, and x86 is emulator-only.
+def sherpaVersion = '1.13.8'
+def sherpaAarName = "sherpa-onnx-static-link-onnxruntime-${sherpaVersion}.aar"
+def sherpaAarSha256 = 'b22c3fc1b6a45666d28892bb2f7694beeb77a8362d7ebd77c1a5431ec9435471'
+def sherpaDir = new File(project.buildDir, "sherpa-onnx-${sherpaVersion}")
+def sherpaJar = new File(sherpaDir, 'classes.jar')
+def sherpaJniDir = new File(sherpaDir, 'jni')
+
+if (!sherpaJar.exists()) {
+  sherpaDir.mkdirs()
+  def aar = new File(sherpaDir, sherpaAarName)
+  def url = "https://github.com/k2-fsa/sherpa-onnx/releases/download/v${sherpaVersion}/${sherpaAarName}"
+  println "[anthaathi-neural-tts] downloading ${url}"
+  new URL(url).withInputStream { input -> aar.withOutputStream { it << input } }
+  def digest = java.security.MessageDigest.getInstance('SHA-256')
+  aar.eachByte(1 << 16) { buf, n -> digest.update(buf, 0, n) }
+  def actual = digest.digest().encodeHex().toString()
+  if (actual != sherpaAarSha256) {
+    aar.delete()
+    throw new GradleException("sherpa-onnx AAR checksum mismatch: expected ${sherpaAarSha256}, got ${actual}")
+  }
+  project.copy {
+    from(project.zipTree(aar)) {
+      include 'classes.jar'
+      include 'jni/arm64-v8a/**'
+      include 'jni/armeabi-v7a/**'
+    }
+    into sherpaDir
+  }
+  aar.delete()
+}
+
+android {
+  namespace "com.pandidharan.anthaathi.neuraltts"
+  defaultConfig {
+    versionCode 1
+    versionName "0.1.0"
+  }
+  sourceSets {
+    main {
+      jniLibs.srcDirs += [sherpaJniDir]
+    }
+  }
+  lintOptions {
+    abortOnError false
+  }
+}
+
+dependencies {
+  implementation files(sherpaJar)
+  // tar.bz2 extraction of the downloaded model archive.
+  implementation 'org.apache.commons:commons-compress:1.27.1'
+}
