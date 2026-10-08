@@ -4,6 +4,20 @@ One entry per committed step, newest first. Each entry: what was done, why, how 
 
 ---
 
+## 2026-10-10 — Natural voices in the AI Guided picker (Execution Plan step 3.13b, sub-step 4)
+
+**What**: The Kokoro voices are now a real choice in the app. `lib/aiVoice.ts` tags each voice with its engine: natural voices (Nicole, Bella, Michael, Echo; ids `kokoro:<speaker>`, stored in the existing `voice_id` column, so no migration) and basic voices (the tuned Android ones, relabelled "Basic female"/"Basic male"). `synthesizeAffirmationAudio` routes by engine, so everything downstream (the affirmation row, sync, Library, Player, beds, the gap between tracks) is unchanged (FR-515). A shared `components/VoicePicker.tsx` replaces the two duplicated chip lists on the AI Guided and regenerate screens. Natural voices are enabled only once downloaded; otherwise they're greyed out with a link to Settings. Nicole is the default when installed.
+
+**Why**: routing at the single synthesis entry point kept the change small and left the Player untouched, which matters because it was verified on-device over several steps. A missing model is a normal, expected state (the voices were never downloaded, were removed, or this is a new device), so it gets a specific message (`NeuralModelMissingError`) rather than the generic failure, and the screens keep the affirmation's own voice selected instead of silently switching to a basic one.
+
+**Verification**: 10 new tests (natural routing that never touches Android TTS, FR-512 male+female in each engine, Nicole first and default, the picker's installed/not-installed/unavailable states, the missing-model message on both screens). 320 tests, typecheck and lint clean; the two screen edits were redone without Prettier so the diff carries no reformatting noise. Also confirmed on-device the one sub-step 1 path that had only been unit-tested: with a deliberately wrong pinned checksum (temporary, never committed), a real 350 MB download was rejected with "The download was damaged or incomplete" and nothing was extracted. On the user's phone: generate and regenerate with natural voices, playback mixed with a self-recording under a bed, looping, lock screen, and the not-installed fallback. A Metro "Host unreachable" during this step was a stale leftover Metro process, not the build; restarting it fixed it.
+
+**Noted for later**: choosing the bed in the Player is step 4.3 (studio UI), still to come; until then it's set from the dev bed screen.
+
+**Commit**: `c6ccc26` — Natural voices in the AI Guided voice picker (step 3.13b-4)
+
+---
+
 ## 2026-10-09 — Settings: Natural voices download (Execution Plan step 3.13b, sub-step 3)
 
 **What**: A "Natural voices" section in Settings (`components/NaturalVoicesSection.tsx`) lets a real user install the Kokoro voices: Download (with a confirmation before using ~350 MB of mobile data, and clear offline / not-enough-space messages), live progress through downloading, checking and installing, the installed size, "Remove voices" behind a confirmation that existing affirmations keep their audio, and "Try again" after a failure. The install status is app-wide (`startInstall` / `getNeuralVoiceStatus` / `subscribeNeuralVoiceStatus`, read via `useSyncExternalStore` in `hooks/useNeuralVoiceStatus.ts`). Settings now scrolls.
