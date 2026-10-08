@@ -4,6 +4,18 @@ One entry per committed step, newest first. Each entry: what was done, why, how 
 
 ---
 
+## 2026-10-09 — Settings: Natural voices download (Execution Plan step 3.13b, sub-step 3)
+
+**What**: A "Natural voices" section in Settings (`components/NaturalVoicesSection.tsx`) lets a real user install the Kokoro voices: Download (with a confirmation before using ~350 MB of mobile data, and clear offline / not-enough-space messages), live progress through downloading, checking and installing, the installed size, "Remove voices" behind a confirmation that existing affirmations keep their audio, and "Try again" after a failure. The install status is app-wide (`startInstall` / `getNeuralVoiceStatus` / `subscribeNeuralVoiceStatus`, read via `useSyncExternalStore` in `hooks/useNeuralVoiceStatus.ts`). Settings now scrolls.
+
+**Why**: an install takes minutes, so it must not be tied to the Settings screen. Leaving mid-download keeps the progress, and pressing Download again joins the running install instead of starting a second download into the same archive path. Failures are classified: our own `InstallError` messages are shown as written, and anything else (a network drop, a disk error) gets a friendly generic message, never a raw Java/OS error. The offline and space messages come from one function (`describeInstallBlocker`) shared with `installModel`, so they can't drift apart. The copy was reviewed with `design:ux-copy`: action-labelled dialog buttons ("Keep voices" / "Remove voices"), a space error that says how to fix it, and "stopped before it finished" instead of a blaming "cancelled".
+
+**Verification**: 12 new tests: the status store (transitions and subscribers, joining an in-flight install, known vs generic failure messages, delete resetting status) and each state of the section (Wi-Fi, mobile-data confirm, offline, no space, progress, installed/remove, failed/try again). One new act() warning in the section's tests was fixed; the Player tests' act() warnings already existed on committed code and are left as noted test debt. 310 tests, typecheck and lint clean. On the user's phone: removed the voices, re-downloaded while leaving and returning to Settings, and the install completed.
+
+**Commit**: `b9b2b22` — Settings: Natural voices download, progress and removal (step 3.13b-3)
+
+---
+
 ## 2026-10-09 — Kokoro model management (Execution Plan step 3.13b, sub-step 2)
 
 **What**: `lib/neuralVoice.ts` now manages the model's whole lifecycle, ready for the Settings UI and voice picker. `checkInstall()` blocks when offline or when less than ~800 MB is free, and the message says how much is needed against how much is free (the 350 MB archive and the ~370 MB extracted model briefly coexist). It reports a cellular connection so the UI can confirm before using mobile data. A failed extraction now also removes the half-extracted model. Loading is automatic and shared: `synthesizeNeural` loads on demand, back-to-back and concurrent generations reuse one load, and the model is unloaded after 60 s idle. A failed load is not cached. `deleteModel()` unloads first, and a missing model rejects with `NeuralModelMissingError` for the picker's fallback. The dev screen's "Load model" button is gone, since loading is automatic.
