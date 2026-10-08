@@ -9,6 +9,15 @@ jest.mock('@/modules/anthaathi-neural-tts', () => ({
   },
 }));
 
+const mockNetFetch = jest.fn();
+jest.mock('@react-native-community/netinfo', () => ({
+  __esModule: true,
+  default: { fetch: () => mockNetFetch() },
+  NetInfoStateType: { none: 'none', wifi: 'wifi', ethernet: 'ethernet', cellular: 'cellular' },
+}));
+
+let mockFreeBytes = 5_000_000_000;
+
 // A tiny in-memory filesystem: paths that "exist".
 const mockExisting = new Set<string>();
 const mockDeleted: string[] = [];
@@ -44,12 +53,21 @@ jest.mock('expo-file-system', () => {
       },
     });
   }
-  return { File, Directory: MockEntry, Paths: { document: 'doc' } };
+  return {
+    File,
+    Directory: MockEntry,
+    Paths: {
+      document: 'doc',
+      get availableDiskSpace() {
+        return mockFreeBytes;
+      },
+    },
+  };
 });
 
 jest.mock('expo-crypto', () => ({ randomUUID: () => 'uuid' }));
 
-import { installModel, MODEL_SHA256 } from '@/lib/neuralVoice';
+import { checkInstall, installModel, MODEL_SHA256 } from '@/lib/neuralVoice';
 
 const ROOT = 'doc/neural-voice';
 const ARCHIVE = `${ROOT}/kokoro-multi-lang-v1_0.tar.bz2`;
@@ -72,6 +90,8 @@ beforeEach(() => {
   mockExisting.clear();
   mockDeleted.length = 0;
   mockDownload.mockResolvedValue(undefined);
+  mockFreeBytes = 5_000_000_000;
+  mockNetFetch.mockResolvedValue({ isConnected: true, type: 'wifi' });
   mockExtract.mockImplementation(async () => {
     markExtracted();
     return 1;
@@ -116,5 +136,39 @@ describe('installModel', () => {
     markExtracted();
     await installModel(() => {});
     expect(mockDownload).not.toHaveBeenCalled();
+  });
+});
+
+describe('install preconditions', () => {
+  it('refuses to start when offline, with a clear message, without downloading', async () => {
+    mockNetFetch.mockResolvedValue({ isConnected: false, type: 'none' });
+    await expect(installModel(() => {})).rejects.toThrow(/offline/);
+    expect(mockDownload).not.toHaveBeenCalled();
+  });
+
+  it('refuses to start without ~800 MB free, saying how much is needed and free', async () => {
+    mockFreeBytes = 500_000_000;
+    await expect(installModel(() => {})).rejects.toThrow(/about 800 MB.*500 MB is free/);
+    expect(mockDownload).not.toHaveBeenCalled();
+  });
+
+  it('reports the network kind so the UI can confirm before using mobile data', async () => {
+    mockNetFetch.mockResolvedValue({ isConnected: true, type: 'cellular' });
+    expect(await checkInstall()).toEqual({ ok: true, network: 'cellular' });
+    mockNetFetch.mockResolvedValue({ isConnected: true, type: 'ethernet' });
+    expect(await checkInstall()).toEqual({ ok: true, network: 'wifi' });
+  });
+
+  it('removes a half-extracted model when extraction fails', async () => {
+    mockSha256.mockResolvedValue(MODEL_SHA256);
+    mockExtract.mockImplementation(async () => {
+      mockExisting.add(MODEL); // partly written before failing
+      throw new Error('disk full');
+    });
+
+    await expect(installModel(() => {})).rejects.toThrow('disk full');
+
+    expect(mockDeleted).toContain(MODEL);
+    expect(mockDeleted).toContain(ARCHIVE);
   });
 });

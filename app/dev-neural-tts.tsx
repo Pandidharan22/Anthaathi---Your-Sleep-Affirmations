@@ -11,7 +11,6 @@ import {
   deleteModel,
   installModel,
   isModelInstalled,
-  loadModel,
   NEURAL_VOICES,
   synthesizeNeural,
   type InstallProgress,
@@ -71,14 +70,6 @@ export default function DevNeuralTtsScreen() {
       await installModel(setProgress);
       setInstalled(isModelInstalled());
       setLoadInfo(`Installed in ${((Date.now() - start) / 1000).toFixed(0)} s`);
-    });
-
-  const handleLoad = () =>
-    run('Loading model', async () => {
-      const info = await loadModel();
-      setLoadInfo(
-        `Loaded in ${(info.loadMs / 1000).toFixed(1)} s · ${info.sampleRate} Hz · ${info.numSpeakers} speakers`,
-      );
     });
 
   const handleSynthesize = (voice: NeuralVoice) =>
@@ -144,11 +135,12 @@ export default function DevNeuralTtsScreen() {
       <Pressable
         onPress={
           installed
-            ? () => {
-                deleteModel();
-                setInstalled(false);
-                setLoadInfo(null);
-              }
+            ? () =>
+                run('Deleting model', async () => {
+                  await deleteModel();
+                  setInstalled(false);
+                  setLoadInfo(null);
+                })
             : handleInstall
         }
         disabled={busy !== null}
@@ -158,15 +150,6 @@ export default function DevNeuralTtsScreen() {
         <Text style={{ color: colors.primary }}>
           {installed ? 'Delete model' : 'Download + install model (Wi-Fi)'}
         </Text>
-      </Pressable>
-
-      <Pressable
-        onPress={handleLoad}
-        disabled={!installed || busy !== null}
-        accessibilityRole="button"
-        style={button(installed && busy === null)}
-      >
-        <Text style={{ color: colors.primary }}>Load model</Text>
       </Pressable>
 
       {busy ? (

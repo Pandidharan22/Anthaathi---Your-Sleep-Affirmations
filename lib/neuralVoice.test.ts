@@ -1,8 +1,23 @@
 const mockSynthesizeToFile = jest.fn();
+const mockLoad = jest.fn();
+const mockUnload = jest.fn();
 jest.mock('@/modules/anthaathi-neural-tts', () => ({
   __esModule: true,
-  default: { synthesizeToFile: (...args: unknown[]) => mockSynthesizeToFile(...args) },
+  default: {
+    synthesizeToFile: (...args: unknown[]) => mockSynthesizeToFile(...args),
+    load: (...args: unknown[]) => mockLoad(...args),
+    unload: (...args: unknown[]) => mockUnload(...args),
+  },
 }));
+
+jest.mock('@react-native-community/netinfo', () => ({
+  __esModule: true,
+  default: { fetch: jest.fn() },
+  NetInfoStateType: { none: 'none', wifi: 'wifi', ethernet: 'ethernet', cellular: 'cellular' },
+}));
+
+// Whether the model's files "exist" (isModelInstalled).
+let mockInstalled = true;
 
 const mockDelete = jest.fn();
 const mockWrite = jest.fn();
@@ -10,13 +25,19 @@ const mockBytes = jest.fn();
 jest.mock('expo-file-system', () => ({
   File: jest.fn().mockImplementation((_dir: unknown, name: string) => ({
     uri: `file:///doc/${name}`,
-    exists: true,
+    get exists() {
+      return mockInstalled;
+    },
     delete: () => mockDelete(name),
     create: jest.fn(),
     write: (bytes: Uint8Array) => mockWrite(name, bytes),
     bytes: () => mockBytes(name),
   })),
-  Directory: jest.fn(),
+  Directory: jest.fn().mockImplementation(() => ({
+    get exists() {
+      return mockInstalled;
+    },
+  })),
   Paths: { document: 'file:///doc' },
 }));
 
@@ -32,15 +53,31 @@ jest.mock('@/lib/wav', () => ({
   }),
 }));
 
-import { NEURAL_VOICES, synthesizeNeural } from '@/lib/neuralVoice';
+import {
+  IDLE_UNLOAD_MS,
+  NEURAL_VOICES,
+  NeuralModelMissingError,
+  synthesizeNeural,
+  unloadModel,
+} from '@/lib/neuralVoice';
 
 const bella = NEURAL_VOICES.find((v) => v.name === 'af_bella')!;
 const echo = NEURAL_VOICES.find((v) => v.name === 'am_echo')!;
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockInstalled = true;
   mockBytes.mockResolvedValue(new Uint8Array([1]));
   mockJoin.mockReturnValue(new Uint8Array([9]));
+  mockLoad.mockResolvedValue({ loadMs: 1800, sampleRate: 24000, numSpeakers: 54 });
+  mockUnload.mockResolvedValue(undefined);
+  mockSynthesizeToFile.mockResolvedValue({ outputPath: 'x', durationMs: 1, synthMs: 1 });
+});
+
+afterEach(async () => {
+  // The loaded-model state is module-level; reset it between tests.
+  await unloadModel();
+  jest.useRealTimers();
 });
 
 describe('synthesizeNeural', () => {
@@ -104,5 +141,54 @@ describe('NEURAL_VOICES', () => {
       ['am_echo', 12, 1],
       ['am_michael', 16, 1],
     ]);
+  });
+});
+
+describe('model lifecycle', () => {
+  it('loads once for several generations in a row, then unloads after the idle period', async () => {
+    jest.useFakeTimers();
+    await synthesizeNeural('I am calm.', bella);
+    await synthesizeNeural('I am safe.', bella);
+    expect(mockLoad).toHaveBeenCalledTimes(1);
+
+    jest.advanceTimersByTime(IDLE_UNLOAD_MS - 1);
+    expect(mockUnload).not.toHaveBeenCalled();
+    jest.advanceTimersByTime(1);
+    expect(mockUnload).toHaveBeenCalledTimes(1);
+  });
+
+  it('a new generation during the idle period keeps the model loaded', async () => {
+    jest.useFakeTimers();
+    await synthesizeNeural('I am calm.', bella);
+    jest.advanceTimersByTime(IDLE_UNLOAD_MS - 1000);
+    await synthesizeNeural('I am safe.', bella);
+    jest.advanceTimersByTime(IDLE_UNLOAD_MS - 1000);
+
+    expect(mockUnload).not.toHaveBeenCalled();
+    expect(mockLoad).toHaveBeenCalledTimes(1);
+  });
+
+  it('concurrent generations share a single load', async () => {
+    await Promise.all([
+      synthesizeNeural('I am calm.', bella),
+      synthesizeNeural('I am safe.', echo),
+    ]);
+    expect(mockLoad).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not cache a failed load; the next attempt retries', async () => {
+    mockLoad.mockRejectedValueOnce(new Error('out of memory'));
+    await expect(synthesizeNeural('I am calm.', bella)).rejects.toThrow('out of memory');
+    await synthesizeNeural('I am calm.', bella);
+    expect(mockLoad).toHaveBeenCalledTimes(2);
+  });
+
+  it('rejects with NeuralModelMissingError, without touching the engine, when not installed', async () => {
+    mockInstalled = false;
+    await expect(synthesizeNeural('I am calm.', bella)).rejects.toBeInstanceOf(
+      NeuralModelMissingError,
+    );
+    expect(mockLoad).not.toHaveBeenCalled();
+    expect(mockSynthesizeToFile).not.toHaveBeenCalled();
   });
 });
