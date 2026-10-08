@@ -4,6 +4,18 @@ One entry per committed step, newest first. Each entry: what was done, why, how 
 
 ---
 
+## 2026-10-09 — Kokoro model management (Execution Plan step 3.13b, sub-step 2)
+
+**What**: `lib/neuralVoice.ts` now manages the model's whole lifecycle, ready for the Settings UI and voice picker. `checkInstall()` blocks when offline or when less than ~800 MB is free, and the message says how much is needed against how much is free (the 350 MB archive and the ~370 MB extracted model briefly coexist). It reports a cellular connection so the UI can confirm before using mobile data. A failed extraction now also removes the half-extracted model. Loading is automatic and shared: `synthesizeNeural` loads on demand, back-to-back and concurrent generations reuse one load, and the model is unloaded after 60 s idle. A failed load is not cached. `deleteModel()` unloads first, and a missing model rejects with `NeuralModelMissingError` for the picker's fallback. The dev screen's "Load model" button is gone, since loading is automatic.
+
+**Why**: a full-precision Kokoro model occupies several hundred MB of RAM once loaded, which is too much to hold for the whole app session. A load costs ~2 s, though, so unloading after every affirmation would make creating several in a row needlessly slow; a 60 s idle window balances the two. Every failure path leaves nothing behind on disk, so a retry always starts from a clean state.
+
+**Verification**: 9 new tests (offline, free-space and cellular checks; half-extract cleanup; one load for several generations; exact idle-unload timing; idle cancelled by new use; concurrent callers share a load; failed load retried; missing model rejects without touching the engine). Mutation-checked: removing the idle-timer cancel fails the test for it. 298 tests, typecheck and lint clean. On the user's phone with build `16f09117` (which also confirmed sub-step 1's native code compiles): install showed the new "verifying" stage, back-to-back generations worked, and airplane mode produced the offline message.
+
+**Commit**: `536f68b` — Kokoro model management: install checks, cleanup, load lifecycle (step 3.13b-2)
+
+---
+
 ## 2026-10-09 — Kokoro integration sub-step 1 + GPL-3.0 licence decision (Execution Plan step 3.13b)
 
 **What**: Started 3.13b (real Kokoro integration) on `feature/neural-voice`. Sub-step 1 hardens the native side ahead of a single rebuild: a native `sha256(path)` lets `installModel` verify the ~350 MB archive against a pinned digest (the one GitHub itself publishes for that release asset) before extracting, and only the arm64-v8a library is now taken from the sherpa-onnx AAR (16 MB less; Play requires 64-bit, and a 32-bit-only phone can't hold this model anyway). `load()` now catches `Throwable` so a missing native library (an `UnsatisfiedLinkError`, which is an Error, not an Exception) becomes a normal rejection instead of a crash. Separately, the project is now licensed **GPL-3.0-or-later** (LICENSE, `package.json`, README licence section with a third-party table); Expo's scaffolded MIT LICENSE in `modules/anthaathi-tts` was removed because it named Expo as copyright holder of our code.
