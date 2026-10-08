@@ -31,11 +31,41 @@ jest.mock('@/lib/affirmations.local', () => ({
 }));
 
 jest.mock('@/lib/aiVoice', () => ({
-  VOICE_OPTIONS: [
-    { id: 'en-gb-x-gbd-local', gender: 'male', label: 'Male' },
-    { id: 'en-us-x-tpc-local', gender: 'female', label: 'Female' },
-  ],
+  getDefaultVoiceId: (naturalInstalled: boolean) =>
+    naturalInstalled ? 'kokoro:af_nicole' : 'en-gb-x-gbd-local',
 }));
+
+let mockNeuralState: 'installed' | 'not_installed' = 'not_installed';
+jest.mock('@/lib/neuralVoice', () => ({
+  getNeuralVoiceStatus: () => ({ state: mockNeuralState }),
+  NeuralModelMissingError: class NeuralModelMissingError extends Error {},
+}));
+
+// The real VoicePicker has its own tests; this stand-in keeps the same contract (value/onChange).
+jest.mock('@/components/VoicePicker', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { Pressable, Text, View } = require('react-native');
+  const voices = [
+    { id: 'kokoro:af_nicole', label: 'Nicole' },
+    { id: 'en-gb-x-gbd-local', label: 'Male' },
+    { id: 'en-us-x-tpc-local', label: 'Female' },
+  ];
+  return {
+    VoicePicker: ({ value, onChange }: { value: string; onChange: (id: string) => void }) => (
+      <View>
+        {voices.map((v) => (
+          <Pressable
+            key={v.id}
+            onPress={() => onChange(v.id)}
+            accessibilityState={{ selected: v.id === value }}
+          >
+            <Text>{v.label}</Text>
+          </Pressable>
+        ))}
+      </View>
+    ),
+  };
+});
 
 jest.mock('@/lib/folders.local', () => ({
   listLocalFolders: (...args: unknown[]) => mockListLocalFolders(...args),
@@ -79,6 +109,7 @@ const aiGuidedAffirmation = {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockNeuralState = 'not_installed';
   mockListLocalFolders.mockResolvedValue([
     { id: 'folder-1', user_id: 'user-1', name: 'Sleep', created_at: '', updated_at: '', synced_at: null },
   ]);
@@ -205,6 +236,26 @@ describe('AffirmationTrimScreen', () => {
         voiceId: 'en-us-x-tpc-local',
       }),
     );
+  });
+
+  it('explains when regenerating needs natural voices that are not installed', async () => {
+    mockGetLocalAffirmation.mockResolvedValue({ ...aiGuidedAffirmation, voice_id: 'kokoro:af_nicole' });
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { NeuralModelMissingError } = require('@/lib/neuralVoice');
+    mockUpdateAiGuidedAffirmationScript.mockRejectedValue(
+      new NeuralModelMissingError('The natural voices are not installed. Download them in Settings.'),
+    );
+
+    const { getByDisplayValue, getByText, findByText } = await render(<AffirmationTrimScreen />);
+    const scriptInput = await waitFor(() => getByDisplayValue('I am calm and capable.'));
+    await fireEvent.changeText(scriptInput, 'I am calm.');
+    await fireEvent.press(getByText('Regenerate'));
+
+    expect(
+      await findByText('The natural voices are not installed. Download them in Settings.'),
+    ).toBeTruthy();
+    // It kept the affirmation's own (natural) voice selected rather than silently switching.
+    expect(getByText('Nicole').parent?.props.accessibilityState).toEqual({ selected: true });
   });
 
   it('blocks regenerating with an empty script', async () => {

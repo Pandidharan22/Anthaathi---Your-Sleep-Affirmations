@@ -4,6 +4,7 @@ import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View 
 
 import { FolderPicker } from '@/components/FolderPicker';
 import { TrimEditor } from '@/components/TrimEditor';
+import { VoicePicker } from '@/components/VoicePicker';
 import { radii, spacing, typography } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { useThemeColors } from '@/hooks/useThemeColors';
@@ -16,8 +17,9 @@ import {
   updateLocalAffirmationTrim,
   type LocalAffirmation,
 } from '@/lib/affirmations.local';
-import { VOICE_OPTIONS } from '@/lib/aiVoice';
+import { getDefaultVoiceId } from '@/lib/aiVoice';
 import { listLocalFolders, type LocalFolder } from '@/lib/folders.local';
+import { getNeuralVoiceStatus, NeuralModelMissingError } from '@/lib/neuralVoice';
 
 const ERROR_MESSAGE = 'Something went wrong. Please try again.';
 
@@ -40,7 +42,7 @@ export default function AffirmationTrimScreen() {
       if (result) {
         setTitle(result.title);
         setScriptText(result.script_text ?? '');
-        setVoiceId(result.voice_id ?? VOICE_OPTIONS[0]?.id ?? '');
+        setVoiceId(result.voice_id ?? getDefaultVoiceId(getNeuralVoiceStatus().state === 'installed'));
       }
     });
   }, [id]);
@@ -89,8 +91,12 @@ export default function AffirmationTrimScreen() {
       });
       setAffirmation(updated);
       setScriptText(updated.script_text ?? '');
-    } catch {
-      setError('Could not regenerate the affirmation. Please try again.');
+    } catch (err) {
+      setError(
+        err instanceof NeuralModelMissingError
+          ? err.message
+          : 'Could not regenerate the affirmation. Please try again.',
+      );
     } finally {
       setRegenerating(false);
     }
@@ -163,30 +169,7 @@ export default function AffirmationTrimScreen() {
               { color: colors.textPrimary, borderColor: colors.border, backgroundColor: colors.surface },
             ]}
           />
-          <View style={styles.row}>
-            {VOICE_OPTIONS.map((voice) => {
-              const selected = voice.id === voiceId;
-              return (
-                <Pressable
-                  key={voice.id}
-                  onPress={() => setVoiceId(voice.id)}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected }}
-                  style={[
-                    styles.chip,
-                    {
-                      borderColor: selected ? colors.primary : colors.border,
-                      backgroundColor: selected ? colors.primary : 'transparent',
-                    },
-                  ]}
-                >
-                  <Text style={{ color: selected ? colors.background : colors.textPrimary }}>
-                    {voice.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
+          <VoicePicker value={voiceId} onChange={setVoiceId} />
           <Pressable
             onPress={handleRegenerate}
             disabled={regenerating}

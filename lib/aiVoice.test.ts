@@ -4,6 +4,18 @@ jest.mock('@/modules/anthaathi-tts', () => ({
   default: { synthesizeToFile: (...args: unknown[]) => mockSynthesizeToFile(...args) },
 }));
 
+// The natural-voice engine is tested in lib/neuralVoice.test.ts; here only the routing to it.
+const mockSynthesizeNeural = jest.fn();
+jest.mock('@/lib/neuralVoice', () => ({
+  NEURAL_VOICES: [
+    { name: 'af_bella', label: 'Bella', speakerId: 2, speed: 0.8 },
+    { name: 'af_nicole', label: 'Nicole', speakerId: 6, speed: 1 },
+    { name: 'am_echo', label: 'Echo', speakerId: 12, speed: 1 },
+    { name: 'am_michael', label: 'Michael', speakerId: 16, speed: 1 },
+  ],
+  synthesizeNeural: (...args: unknown[]) => mockSynthesizeNeural(...args),
+}));
+
 type StatusListener = (status: { isLoaded: boolean; duration: number }) => void;
 let statusListener: StatusListener | null = null;
 const mockSubscriptionRemove = jest.fn();
@@ -43,7 +55,14 @@ jest.mock('expo-crypto', () => ({ randomUUID: jest.fn(() => 'fixed-uuid') }));
 
 import { DEFAULT_VOICE_STYLE } from '@/lib/voiceStyle';
 
-import { getVoiceStyle, synthesizeAffirmationAudio, VOICE_OPTIONS } from './aiVoice';
+import {
+  getDefaultVoiceId,
+  getVoiceStyle,
+  NATURAL_VOICE_OPTIONS,
+  SYSTEM_VOICE_OPTIONS,
+  synthesizeAffirmationAudio,
+  VOICE_OPTIONS,
+} from './aiVoice';
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -112,7 +131,7 @@ describe('synthesizeAffirmationAudio', () => {
   });
 
   it("uses the voice's own tuned style by default, not the fallback", async () => {
-    const male = VOICE_OPTIONS.find((v) => v.gender === 'male')!;
+    const male = SYSTEM_VOICE_OPTIONS.find((v) => v.gender === 'male')!;
     mockSynthesizeToFile.mockResolvedValue('ok');
     const resultPromise = synthesizeAffirmationAudio('I am calm.', male.id);
     while (!statusListener) await Promise.resolve();
@@ -121,6 +140,28 @@ describe('synthesizeAffirmationAudio', () => {
     expect(mockSynthesizeToFile.mock.calls[0].slice(3)).toEqual([male.style.rate, male.style.pitch]);
     expect(getVoiceStyle(male.id)).toBe(male.style);
     expect(getVoiceStyle('unknown-voice')).toBe(DEFAULT_VOICE_STYLE);
+  });
+
+  it('routes a natural voice to the neural engine, never to Android TTS', async () => {
+    mockSynthesizeNeural.mockResolvedValue({ localUri: 'file:///n.wav', durationMs: 9000, synthMs: 5 });
+
+    await expect(synthesizeAffirmationAudio('I am calm.', 'kokoro:am_michael')).resolves.toEqual({
+      localUri: 'file:///n.wav',
+      durationMs: 9000,
+    });
+    expect(mockSynthesizeNeural).toHaveBeenCalledWith(
+      'I am calm.',
+      expect.objectContaining({ name: 'am_michael', speakerId: 16 }),
+    );
+    expect(mockSynthesizeToFile).not.toHaveBeenCalled();
+    expect(mockCreateAudioPlayer).not.toHaveBeenCalled(); // duration comes from the engine
+  });
+
+  it('passes a natural-voice failure (e.g. model missing) straight to the caller', async () => {
+    mockSynthesizeNeural.mockRejectedValue(new Error('not installed'));
+    await expect(synthesizeAffirmationAudio('I am calm.', 'kokoro:af_nicole')).rejects.toThrow(
+      'not installed',
+    );
   });
 
   it('passes a custom style through to the native module', async () => {
@@ -198,8 +239,8 @@ describe('synthesizeAffirmationAudio', () => {
 });
 
 describe('VOICE_OPTIONS', () => {
-  it('every voice has a sane style (slow enough for sleep, audible pause)', () => {
-    for (const voice of VOICE_OPTIONS) {
+  it('every basic voice has a sane style (slow enough for sleep, audible pause)', () => {
+    for (const voice of SYSTEM_VOICE_OPTIONS) {
       expect(voice.style.rate).toBeGreaterThan(0);
       expect(voice.style.rate).toBeLessThanOrEqual(1);
       expect(voice.style.pitch).toBeGreaterThan(0);
@@ -207,9 +248,25 @@ describe('VOICE_OPTIONS', () => {
     }
   });
 
-  it('FR-512: offers at least one male and one female voice', () => {
-    expect(VOICE_OPTIONS.some((v) => v.gender === 'male')).toBe(true);
-    expect(VOICE_OPTIONS.some((v) => v.gender === 'female')).toBe(true);
+  it('FR-512: each engine offers at least one male and one female voice', () => {
+    for (const options of [NATURAL_VOICE_OPTIONS, SYSTEM_VOICE_OPTIONS]) {
+      expect(options.some((v) => v.gender === 'male')).toBe(true);
+      expect(options.some((v) => v.gender === 'female')).toBe(true);
+    }
+  });
+
+  it("natural voices are the user's four picks, Nicole first, with stable stored ids", () => {
+    expect(NATURAL_VOICE_OPTIONS.map((v) => [v.id, v.label, v.gender])).toEqual([
+      ['kokoro:af_nicole', 'Nicole', 'female'],
+      ['kokoro:af_bella', 'Bella', 'female'],
+      ['kokoro:am_michael', 'Michael', 'male'],
+      ['kokoro:am_echo', 'Echo', 'male'],
+    ]);
+  });
+
+  it('defaults to Nicole when the natural voices are installed, else a basic voice', () => {
+    expect(getDefaultVoiceId(true)).toBe('kokoro:af_nicole');
+    expect(getDefaultVoiceId(false)).toBe(SYSTEM_VOICE_OPTIONS[0].id);
   });
 
   it('every option has a non-empty id and label', () => {
