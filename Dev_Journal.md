@@ -4,6 +4,18 @@ One entry per committed step, newest first. Each entry: what was done, why, how 
 
 ---
 
+## 2026-10-10 — Audio studio UI: ambience picker and balance slider (Execution Plan step 4.3)
+
+**What**: The Player now has the audio studio controls (FR-304) in a shared `components/BedPicker.tsx`, shown on both the setup and now-playing screens: ambience chips (None, Rain, Ocean, Night crickets, Soft pad) and one slider balancing the voice against the bed. Before Play, tapping a bed previews it for 8 s at the current balance; the preview ends on another tap, None, Play, or leaving the tab. While playing, moving the slider and switching beds apply live: the old bed fades out as the new one fades in, and a bed chosen while paused stays silent until Resume. The choice is saved per device. The temporary `app/dev-bed-test.tsx` and its Settings link are gone.
+
+**Why**: the user chose a single crossfader-style slider over a plain bed-volume control: moving left brings the bed up as the voice goes down, and the reverse. `mixGains()` (`lib/bedPrefs.ts`) maps it so the middle plays both at full and each side only fades the other track, so neither ever plays louder than its own full level and the ends give voice-only or bed-only. Step 4.2's saved `balance` (bed volume with the voice at full) converts to the same sound on the new slider (`mix = 1 - balance / 2`), so nothing changed for the user until they moved it; the default, mix 0.825, is that tuned voice-100% / bed-35%. With no bed the slider is disabled and the voice plays at full, so a left-leaning mix can never silently quieten the voice. The slider is saved only on release, not on every movement. Live control matters because a balance can only be judged while hearing both. The bed engine's level was renamed from `balance` to `volume`, since "balance" now means the slider. Assigning `player.volume` from event handlers trips the React Compiler lint rule against mutating a hook's return value, so it goes through a small module-level `setVoiceVolume` helper.
+
+**Verification**: 9 new `bedPrefs` tests (the mix curve, the 4.2 migration, fallbacks) and 8 new Player tests (preview, replacing and ending it, Play taking over, slider disabled without a bed, live rebalance saved on release, live bed switch and None, a bed switched while paused staying paused). The paused test was confirmed to fail with its line removed. Found along the way: React 19's synchronous `act()` left React's work queue stuck, so later tests in the file failed with "Unable to find Calm"; the existing sleep-timer test has the same pattern but runs last, which hid it. The new tests use `await act(async ...)`. 343 tests in CI mode, typecheck and lint clean. On the user's phone: previews, live rebalance and bed switching (including while paused), lock-screen playback, and the settings remembered after leaving and coming back.
+
+**Commit**: `73ff316` — Audio studio UI: ambience picker and voice/ambience balance slider (step 4.3)
+
+---
+
 ## 2026-10-10 — Final verification and code review of natural voices (Execution Plan step 3.13b, sub-step 7)
 
 **What**: Closed out 3.13b with a CI-equivalent test run (`TZ=UTC CI=true npx jest --ci --no-cache`) and an `engineering:code-review` pass over the whole `feature/neural-voice` branch against `develop` (42 files). Five findings, all fixed:

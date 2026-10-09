@@ -100,7 +100,7 @@ Goal: the in-app audio studio experience (ambience/music-bed layering) that the 
 
 - [x] **4.1** Source/curate a small CC0 ambience + music-bed library (freesound.org CC0 filter or equivalent). — 4 beds in `assets/beds/` (rain, ocean, crickets, pad); see `assets/beds/README.md`.
 - [x] **4.2** Layering/mixing implementation (affirmation track + ambience bed). — two-player crossfaded loop in `lib/bedLoop.ts`, wired into the Player; verified on-device.
-- [ ] **4.3** Audio studio UI (volume balance, bed selection).
+- [x] **4.3** Audio studio UI (volume balance, bed selection). — `components/BedPicker.tsx` in the Player: ambience chips with an 8 s preview before Play, and one voice/ambience balance slider (user's choice), live while playing.
 - [ ] **4.4** Design + accessibility pass on the studio UI.
 
 **Phase 4 exit criteria**: a recorded affirmation can be layered with an ambience/music bed and saved as part of the nightly playback.
