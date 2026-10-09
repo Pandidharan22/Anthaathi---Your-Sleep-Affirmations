@@ -1,4 +1,5 @@
-// Install path of lib/neuralVoice.ts: download -> verify SHA-256 -> extract -> clean up.
+// Install path of lib/neuralVoice.ts: download -> verify SHA-256 -> extract to a staging folder
+// -> rename into place -> clean up.
 const mockSha256 = jest.fn();
 const mockExtract = jest.fn();
 jest.mock('@/modules/anthaathi-neural-tts', () => ({
@@ -38,10 +39,23 @@ jest.mock('expo-file-system', () => {
     }
     delete() {
       mockDeleted.push(this.uri);
-      mockExisting.delete(this.uri);
+      for (const p of [...mockExisting]) {
+        if (p === this.uri || p.startsWith(`${this.uri}/`)) mockExisting.delete(p);
+      }
     }
     create() {
       mockExisting.add(this.uri);
+    }
+    // Directory -> existing directory: moves it inside, keeping its name (expo-file-system).
+    moveSync(dest: MockEntry) {
+      const target = `${dest.uri}/${this.uri.split('/').pop()}`;
+      for (const p of [...mockExisting]) {
+        if (p === this.uri || p.startsWith(`${this.uri}/`)) {
+          mockExisting.delete(p);
+          mockExisting.add(target + p.slice(this.uri.length));
+        }
+      }
+      this.uri = target;
     }
   }
   class File extends MockEntry {
@@ -72,6 +86,7 @@ import {
   deleteModel,
   getNeuralVoiceStatus,
   installModel,
+  isModelInstalled,
   MODEL_SHA256,
   startInstall,
   subscribeNeuralVoiceStatus,
@@ -80,8 +95,10 @@ import {
 const ROOT = 'doc/neural-voice';
 const ARCHIVE = `${ROOT}/kokoro-multi-lang-v1_0.tar.bz2`;
 const MODEL = `${ROOT}/kokoro-multi-lang-v1_0`;
+const STAGING = `${ROOT}/extracting`;
+const STAGED_MODEL = `${STAGING}/kokoro-multi-lang-v1_0`;
 
-function markExtracted() {
+function markExtracted(dir = MODEL) {
   for (const f of [
     'model.onnx',
     'voices.bin',
@@ -89,7 +106,7 @@ function markExtracted() {
     'lexicon-us-en.txt',
     'espeak-ng-data',
   ]) {
-    mockExisting.add(`${MODEL}/${f}`);
+    mockExisting.add(`${dir}/${f}`);
   }
 }
 
@@ -101,22 +118,58 @@ beforeEach(() => {
   mockFreeBytes = 5_000_000_000;
   mockNetFetch.mockResolvedValue({ isConnected: true, type: 'wifi' });
   mockExtract.mockImplementation(async () => {
-    markExtracted();
+    markExtracted(STAGED_MODEL);
     return 1;
   });
 });
 
 describe('installModel', () => {
-  it('verifies the checksum before extracting, then removes the archive', async () => {
+  it('verifies, extracts to a staging folder, moves the model into place and cleans up', async () => {
     mockSha256.mockResolvedValue(MODEL_SHA256);
     const stages: string[] = [];
 
     await installModel((p) => stages.push(p.stage));
 
     expect(mockSha256).toHaveBeenCalledWith(ARCHIVE);
-    expect(mockExtract).toHaveBeenCalledWith(ARCHIVE, ROOT);
+    expect(mockExtract).toHaveBeenCalledWith(ARCHIVE, STAGING);
     expect(stages).toEqual(['verifying', 'extracting']);
-    expect(mockDeleted).toContain(ARCHIVE);
+    expect(isModelInstalled()).toBe(true);
+    expect(mockExisting.has(ARCHIVE)).toBe(false);
+    expect(mockExisting.has(STAGING)).toBe(false);
+  });
+
+  it('an install cut short mid-extraction never looks installed, and the retry cleans it up', async () => {
+    // The app was killed while extracting: a staging folder with (truncated) files remains.
+    markExtracted(STAGED_MODEL);
+    mockExisting.add(STAGING);
+    expect(isModelInstalled()).toBe(false);
+
+    mockSha256.mockResolvedValue(MODEL_SHA256);
+    await installModel(() => {});
+
+    expect(mockDeleted).toContain(STAGING); // removed before extracting again
+    expect(isModelInstalled()).toBe(true);
+  });
+
+  it('replaces an incomplete model folder left by an older interrupted install', async () => {
+    mockExisting.add(MODEL);
+    mockExisting.add(`${MODEL}/model.onnx`); // the rest never got written
+    mockSha256.mockResolvedValue(MODEL_SHA256);
+
+    await installModel(() => {});
+
+    expect(mockDeleted).toContain(MODEL);
+    expect(isModelInstalled()).toBe(true);
+  });
+
+  it('rejects an archive that extracts without the model files, installing nothing', async () => {
+    mockSha256.mockResolvedValue(MODEL_SHA256);
+    mockExtract.mockResolvedValue(0);
+
+    await expect(installModel(() => {})).rejects.toThrow(/damaged or incomplete/);
+
+    expect(isModelInstalled()).toBe(false);
+    expect(mockExisting.has(STAGING)).toBe(false);
   });
 
   it('rejects a download whose checksum does not match, without extracting it', async () => {
@@ -170,13 +223,14 @@ describe('install preconditions', () => {
   it('removes a half-extracted model when extraction fails', async () => {
     mockSha256.mockResolvedValue(MODEL_SHA256);
     mockExtract.mockImplementation(async () => {
-      mockExisting.add(MODEL); // partly written before failing
+      mockExisting.add(`${STAGED_MODEL}/model.onnx`); // partly written before failing
       throw new Error('disk full');
     });
 
     await expect(installModel(() => {})).rejects.toThrow('disk full');
 
-    expect(mockDeleted).toContain(MODEL);
+    expect(mockExisting.has(STAGED_MODEL)).toBe(false);
+    expect(mockExisting.has(MODEL)).toBe(false);
     expect(mockDeleted).toContain(ARCHIVE);
   });
 });

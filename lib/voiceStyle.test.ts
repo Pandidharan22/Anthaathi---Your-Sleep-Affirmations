@@ -31,6 +31,10 @@ describe('splitIntoSentences with pause marks', () => {
       'Calm.',
     ]);
   });
+
+  it('drops sentences that are only punctuation', () => {
+    expect(splitIntoSentences('I am calm. . ...')).toEqual(['I am calm.']);
+  });
 });
 
 describe('splitIntoPhrases', () => {
@@ -66,7 +70,16 @@ describe('splitIntoPhrases', () => {
     ]);
   });
 
-  it('returns nothing for an empty script', () => {
+  it('never sends punctuation alone to the engine; a trailing mark closes the phrase before it', () => {
+    expect(splitIntoPhrases('I am calm /. I am safe, ! Hi. . ...', pauses)).toEqual([
+      { text: 'I am calm.', pauseAfterMs: 1800 },
+      { text: 'I am safe!', pauseAfterMs: 1800 },
+      { text: 'Hi.', pauseAfterMs: 0 },
+    ]);
+  });
+
+  it('returns nothing for an empty or punctuation-only script', () => {
     expect(splitIntoPhrases('  ', pauses)).toEqual([]);
+    expect(splitIntoPhrases('. / !', pauses)).toEqual([]);
   });
 });

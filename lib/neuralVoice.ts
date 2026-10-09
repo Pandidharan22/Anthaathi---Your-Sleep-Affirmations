@@ -19,6 +19,8 @@ export const MODEL_URL =
 export const MODEL_SHA256 = 'c5f7e2d2caf082bc1d20fb70334a61d99d20b484500aad32e7cf84c128ea3298';
 const ARCHIVE_NAME = 'kokoro-multi-lang-v1_0.tar.bz2';
 const MODEL_FOLDER = 'kokoro-multi-lang-v1_0';
+/** Extraction happens here first; the model is renamed into place only once complete. */
+const STAGING_FOLDER = 'extracting';
 const REQUIRED_FILES = ['model.onnx', 'voices.bin', 'tokens.txt', 'lexicon-us-en.txt'];
 
 export type NeuralVoice = {
@@ -76,12 +78,15 @@ function modelDir(): Directory {
   return new Directory(modelsRoot(), MODEL_FOLDER);
 }
 
-export function isModelInstalled(): boolean {
-  const dir = modelDir();
+function hasModelFiles(dir: Directory): boolean {
   return (
     REQUIRED_FILES.every((name) => new File(dir, name).exists) &&
     new Directory(dir, 'espeak-ng-data').exists
   );
+}
+
+export function isModelInstalled(): boolean {
+  return hasModelFiles(modelDir());
 }
 
 export type InstallCheck =
@@ -131,7 +136,9 @@ export type InstallProgress =
 /**
  * Downloads (~350 MB), verifies and extracts the model, then deletes the archive. Idempotent.
  * Refuses up front when offline or short of space (checkInstall); whatever fails later, no
- * partial archive or half-extracted model is left behind.
+ * partial archive or half-extracted model is left behind. Extraction goes to a staging folder
+ * that is renamed into place only once complete, so an install cut short (the app killed
+ * mid-extract, which takes a minute or more) can never leave truncated files that look installed.
  */
 export async function installModel(onProgress: (p: InstallProgress) => void): Promise<void> {
   if (isModelInstalled()) return;
@@ -140,9 +147,11 @@ export async function installModel(onProgress: (p: InstallProgress) => void): Pr
   const root = modelsRoot();
   if (!root.exists) root.create({ intermediates: true });
   const archive = new File(root, ARCHIVE_NAME);
-  let extractionStarted = false;
+  const staging = new Directory(root, STAGING_FOLDER);
   try {
-    if (archive.exists) archive.delete(); // a previous attempt may have left a partial file
+    // A previous attempt may have left a partial archive or a half-extracted staging folder.
+    if (archive.exists) archive.delete();
+    if (staging.exists) staging.delete();
     const task = File.createDownloadTask(MODEL_URL, archive, {
       onProgress: ({ bytesWritten, totalBytes }) =>
         onProgress({ stage: 'downloading', bytesWritten, totalBytes }),
@@ -156,18 +165,17 @@ export async function installModel(onProgress: (p: InstallProgress) => void): Pr
       throw new InstallError('The download was damaged or incomplete. Please try again.');
     }
     onProgress({ stage: 'extracting' });
-    extractionStarted = true;
-    await AnthaathiNeuralTts.extractTarBz2(archive.uri, root.uri);
-    if (!isModelInstalled())
+    staging.create();
+    await AnthaathiNeuralTts.extractTarBz2(archive.uri, staging.uri);
+    const extracted = new Directory(staging, MODEL_FOLDER);
+    if (!hasModelFiles(extracted))
       throw new InstallError('The download was damaged or incomplete. Please try again.');
-  } catch (err) {
-    if (extractionStarted) {
-      const partial = modelDir();
-      if (partial.exists) partial.delete();
-    }
-    throw err;
+    const dir = modelDir();
+    if (dir.exists) dir.delete(); // an incomplete copy left by an older, interrupted install
+    extracted.moveSync(root); // a rename within the same folder, so it's all-or-nothing
   } finally {
     if (archive.exists) archive.delete();
+    if (staging.exists) staging.delete();
   }
 }
 

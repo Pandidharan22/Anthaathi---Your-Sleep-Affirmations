@@ -27,6 +27,9 @@ export const AFFIRMATION_GAP_MS = 2500;
  */
 export const PAUSE_MARK = '/';
 const PAUSE_MARK_PATTERN = /\s*\/\s*/g;
+/** Only punctuation or quotes (".", "!", "...", "-"): nothing to say on its own. */
+const PUNCTUATION_ONLY = /^[\s.,!?;:…'"“”‘’()[\]{}\-–—_*\/]*$/;
+const isSpeakable = (text: string) => !PUNCTUATION_ONLY.test(text);
 
 function splitSentences(script: string): string[] {
   return script
@@ -49,7 +52,7 @@ export function splitIntoSentences(script: string): string[] {
         .replace(/,\s*([.!?])$/, '$1')
         .trim(),
     )
-    .filter((s) => s.length > 0);
+    .filter(isSpeakable);
 }
 
 export type Phrase = { text: string; pauseAfterMs: number };
@@ -60,7 +63,8 @@ export type Phrase = { text: string; pauseAfterMs: number };
  * phrase gets none. A phrase cut at a comma or mark is spoken ending in a comma, so the voice
  * carries on ("continuing tone") instead of sounding like the end of a statement — judged
  * better by ear than the bare fragment. A comma with no following space ("1,000") is not a
- * split point.
+ * split point. Punctuation left on its own ("I am calm / .") is never sent to the engine by
+ * itself; at the end of a sentence it closes the phrase before it ("I am calm.").
  */
 export function splitIntoPhrases(
   script: string,
@@ -74,6 +78,13 @@ export function splitIntoPhrases(
     for (let i = 0; i < pieces.length; i += 2) {
       const text = pieces[i].trim();
       if (!text) continue;
+      if (!isSpeakable(text)) {
+        const endsSentence = i === pieces.length - 1;
+        if (endsSentence && chunks.length > 0) {
+          chunks[chunks.length - 1] = chunks[chunks.length - 1].replace(/,$/, '') + text;
+        }
+        continue;
+      }
       chunks.push(pieces[i + 1] ? `${text},` : text);
     }
     chunks.forEach((text, j) =>

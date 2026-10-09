@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { radii, spacing, typography } from '@/constants/theme';
@@ -93,7 +93,11 @@ export function NaturalVoicesSection() {
     );
   }
 
-  const sizeBytes = status.state === 'installed' ? getInstalledSizeBytes() : null;
+  // Walks the model folder (hundreds of files), so only when the install state changes.
+  const sizeBytes = useMemo(
+    () => (status.state === 'installed' ? getInstalledSizeBytes() : null),
+    [status.state],
+  );
 
   return (
     <View style={[styles.section, { borderColor: colors.border }]}>
