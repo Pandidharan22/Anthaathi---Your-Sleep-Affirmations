@@ -4,6 +4,22 @@ One entry per committed step, newest first. Each entry: what was done, why, how 
 
 ---
 
+## 2026-10-10 — Pause marks in AI drafts, "/" hint on script fields (Execution Plan step 3.13b, sub-step 5)
+
+**What**: The `generate-affirmation` Edge Function's prompt now asks for 2-3 short, complete, natural sentences (about 4-9 words each), commas where a calm speaker would breathe, and one or two ` / ` pause marks inside sentences, with one example in the target style. Temperature dropped to 0.6. A small server-side tidy-up removes any `/` the model puts next to a comma or full stop, or at the start or end of a line. Redeployed to the live project. A shared `components/PauseMarkHint.tsx` ("Tip: add / where you'd like a short pause…") sits under the script field on the AI Guided, regenerate and goal-draft screens.
+
+**Why**: the natural voices pause 0.5 s at a comma or `/` and 1.8 s after a sentence (sub-step 4's pacing), so drafts written for that pacing sound calmer without the user editing them. The prompt was tuned against real Groq output, not guessed: 3 rounds on 6 sample goals; at temperature 0.8 the model produced awkward fragments, which 0.6 plus an explicit grammar rule removed. The tidy-up is cheap insurance against the occasional misplaced mark. One hint component keeps the wording identical on all three screens. For basic voices `/` reads as a comma, and when recording in your own voice it's a reading cue.
+
+**Verification**: the tidy-up was checked against 7 edge cases. 321 tests (1 new: the hint renders on the AI Guided screen), typecheck and lint clean. After deploying, the live endpoint still rejects unauthenticated and garbage-token calls (401). On the user's phone: drafts came back with short lines and `/` marks, and Nicole paused audibly at `/` and commas.
+
+**Environment notes**: the C: drive was full (0 bytes free) and broke an npx install mid-way; leftover temp files from earlier sessions were removed, and the user then freed more space (27 GB free now). Supabase CLI 2.120.0's npm package shipped without its Windows binary, so the deploy used the official 2.119.0 release binary, SHA-256 checked against GitHub's published digest.
+
+**Noted for later (user request)**: let the user choose how many affirmations to draft for a goal, up to 20 (a draft currently gives 2-3 sentences, which reads as about 3 affirmations). Recorded in the Execution Plan; not scheduled yet.
+
+**Commit**: `7848b96` — Pause marks in AI drafts and a "/" hint on script fields (step 3.13b-5)
+
+---
+
 ## 2026-10-10 — Natural voices in the AI Guided picker (Execution Plan step 3.13b, sub-step 4)
 
 **What**: The Kokoro voices are now a real choice in the app. `lib/aiVoice.ts` tags each voice with its engine: natural voices (Nicole, Bella, Michael, Echo; ids `kokoro:<speaker>`, stored in the existing `voice_id` column, so no migration) and basic voices (the tuned Android ones, relabelled "Basic female"/"Basic male"). `synthesizeAffirmationAudio` routes by engine, so everything downstream (the affirmation row, sync, Library, Player, beds, the gap between tracks) is unchanged (FR-515). A shared `components/VoicePicker.tsx` replaces the two duplicated chip lists on the AI Guided and regenerate screens. Natural voices are enabled only once downloaded; otherwise they're greyed out with a link to Settings. Nicole is the default when installed.
