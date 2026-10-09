@@ -4,6 +4,18 @@ One entry per committed step, newest first. Each entry: what was done, why, how 
 
 ---
 
+## 2026-10-10 — ADR-0008, docs, dev screen removed (Execution Plan step 3.13b, sub-step 6)
+
+**What**: New [ADR-0008](docs/adr/0008-on-device-neural-voices.md) records the neural-voice decision: Kokoro v1.0 (full precision) through sherpa-onnx, behind our own `modules/anthaathi-neural-tts`, as the primary AI Guided engine, with the Android system voices kept as the "Basic" fallback. It lists the options weighed (keep the tuned system voices, `react-native-sherpa-onnx`, int8/Q8/F16 models, an espeak-free build, cloud TTS), the model delivery (pinned-checksum download from sherpa-onnx's release, space/offline/mobile-data checks), the runtime (load on demand, 60 s idle unload), pacing, fallback, the GPL-3.0 consequence, and what to revisit. ADR-0007 is marked as partly superseded (voice engine only) with an update note; the ADR index lists both. SRS FR-513 and its external-interfaces table, System Design (component table, architecture diagram, AI Guided flow, revisit notes), the PRD and the README now describe the two engines. The temporary `app/dev-neural-tts.tsx` and its Settings link are gone, and `lib/neuralVoice.ts`'s stale "spike, not wired in" header is rewritten.
+
+**Why**: NFR-502 asks for every non-trivial architectural decision to be recorded; this one changes the voice engine, adds a 350 MB download and changed the project's licence, so it needs its reasoning written down where a reviewer will find it, not only in journal entries. "Partly supersedes" rather than "supersedes": ADR-0007's generate-once-to-a-file architecture is what made the new engine a drop-in, and it still holds. Piper was never compared side by side, so the ADR says so instead of implying it was evaluated. The dev screen's job (judging voices on a real phone) is done, and the real Settings and picker flows now cover everything it did.
+
+**Verification**: every relative link across the docs and ADRs resolves (script check). The System Design diagram's voice box was already misaligned before this change and is now squared up. Every function the dev screen imported is still used by the real code, so no dead code was left. Typecheck, lint and 321 tests clean; the running Metro server built the full Android bundle (1,708 modules) after the route removal.
+
+**Commit**: `1c01156` — ADR-0008: on-device neural voices; docs updated, dev screen removed (step 3.13b-6)
+
+---
+
 ## 2026-10-10 — Pause marks in AI drafts, "/" hint on script fields (Execution Plan step 3.13b, sub-step 5)
 
 **What**: The `generate-affirmation` Edge Function's prompt now asks for 2-3 short, complete, natural sentences (about 4-9 words each), commas where a calm speaker would breathe, and one or two ` / ` pause marks inside sentences, with one example in the target style. Temperature dropped to 0.6. A small server-side tidy-up removes any `/` the model puts next to a comma or full stop, or at the start or end of a line. Redeployed to the live project. A shared `components/PauseMarkHint.tsx` ("Tip: add / where you'd like a short pause…") sits under the script field on the AI Guided, regenerate and goal-draft screens.
