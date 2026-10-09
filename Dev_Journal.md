@@ -4,6 +4,25 @@ One entry per committed step, newest first. Each entry: what was done, why, how 
 
 ---
 
+## 2026-10-10 — Final verification and code review of natural voices (Execution Plan step 3.13b, sub-step 7)
+
+**What**: Closed out 3.13b with a CI-equivalent test run (`TZ=UTC CI=true npx jest --ci --no-cache`) and an `engineering:code-review` pass over the whole `feature/neural-voice` branch against `develop` (42 files). Five findings, all fixed:
+1. **Native work blocked other modules (medium).** Reading `expo-modules-core` showed that every plain `AsyncFunction` in the app runs on one shared `HandlerThread`. Our extraction (a minute or more), checksum, load and synthesis ran there, so other modules' async calls, including every `expo-sqlite` query the app makes, queued behind them. They now use `AsyncFunction(...) Coroutine { withContext(worker) { ... } }` with the module's own single-thread dispatcher: off the shared thread, and still in call order, so an idle unload and the next load can't overtake each other.
+2. **An interrupted install could look installed (medium).** Extraction wrote straight into the final model folder, and "installed" meant "the required files exist", so an app killed mid-extract left truncated files that passed the check: Settings said Installed and every generation failed. Extraction now goes to a staging folder; the model is moved into place with `moveSync`, which on Android is a same-filesystem `renameTo` (checked in `expo-file-system`'s source), only once complete. A leftover staging folder or incomplete model folder is removed on the next attempt.
+3. **Punctuation-only phrases (low-medium).** "I am calm /." or "Hi. ." produced a phrase of just "." sent to Kokoro on its own; if the engine returns no audio, the native "no audio was generated" check fails the whole generation. Such pieces are never synthesized alone now; at a sentence end the mark closes the previous phrase ("I am calm."). Detected with an explicit punctuation set rather than `\p{L}`, so it doesn't depend on Hermes supporting Unicode property escapes and still treats non-English text (e.g. Tamil) as speakable.
+4. **Model size recomputed on every Settings render (minor).** Now memoized on the install state.
+5. **CI didn't run on PRs into develop (minor).** Added, so the coming feature PR shows checks.
+
+Checked and ruled out: a suspected race between the idle unload and a new load (the shared thread already runs our calls in order, and the new worker keeps that).
+
+**Why**: 3.13b's last sub-step is to verify the whole feature before its first PR. Findings 1 and 2 only show up with a real install on a real phone at the wrong moment, which is exactly when a user would hit them and have no way to recover.
+
+**Verification**: 5 new tests (punctuation-only phrases and sentences, interrupted extraction, incomplete leftover model folder, archive without model files); the 3 pacing tests were confirmed to fail on the old code. 326 tests in CI mode, typecheck and lint clean. New dev build `86a54aac` compiled the Kotlin change. On the user's phone: removed and re-downloaded the voices while browsing the Library tab during "Installing…" (no hang), generated "I am calm /. I am safe." with Nicole, and regenerated an AI Guided affirmation, all working.
+
+**Commit**: `f2d7ef8` — Code review fixes for natural voices (step 3.13b-7)
+
+---
+
 ## 2026-10-10 — ADR-0008, docs, dev screen removed (Execution Plan step 3.13b, sub-step 6)
 
 **What**: New [ADR-0008](docs/adr/0008-on-device-neural-voices.md) records the neural-voice decision: Kokoro v1.0 (full precision) through sherpa-onnx, behind our own `modules/anthaathi-neural-tts`, as the primary AI Guided engine, with the Android system voices kept as the "Basic" fallback. It lists the options weighed (keep the tuned system voices, `react-native-sherpa-onnx`, int8/Q8/F16 models, an espeak-free build, cloud TTS), the model delivery (pinned-checksum download from sherpa-onnx's release, space/offline/mobile-data checks), the runtime (load on demand, 60 s idle unload), pacing, fallback, the GPL-3.0 consequence, and what to revisit. ADR-0007 is marked as partly superseded (voice engine only) with an update note; the ADR index lists both. SRS FR-513 and its external-interfaces table, System Design (component table, architecture diagram, AI Guided flow, revisit notes), the PRD and the README now describe the two engines. The temporary `app/dev-neural-tts.tsx` and its Settings link are gone, and `lib/neuralVoice.ts`'s stale "spike, not wired in" header is rewritten.
