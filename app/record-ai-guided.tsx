@@ -3,12 +3,15 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { FolderPicker } from '@/components/FolderPicker';
+import { PauseMarkHint } from '@/components/PauseMarkHint';
+import { VoicePicker } from '@/components/VoicePicker';
 import { radii, spacing, typography } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { createAiGuidedAffirmation } from '@/lib/affirmations.local';
-import { VOICE_OPTIONS } from '@/lib/aiVoice';
+import { getDefaultVoiceId } from '@/lib/aiVoice';
 import { listLocalFolders, type LocalFolder } from '@/lib/folders.local';
+import { getNeuralVoiceStatus, NeuralModelMissingError } from '@/lib/neuralVoice';
 
 /** FR-511/FR-513/FR-515: create an AI Guided affirmation -- script + voice, synthesized on-device. */
 export default function RecordAiGuidedScreen() {
@@ -21,7 +24,9 @@ export default function RecordAiGuidedScreen() {
 
   const [title, setTitle] = useState(suggestedTitle ?? '');
   const [scriptText, setScriptText] = useState(initialScriptText ?? '');
-  const [voiceId, setVoiceId] = useState(VOICE_OPTIONS[0]?.id ?? '');
+  const [voiceId, setVoiceId] = useState(() =>
+    getDefaultVoiceId(getNeuralVoiceStatus().state === 'installed'),
+  );
   const [folders, setFolders] = useState<LocalFolder[]>([]);
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
@@ -58,8 +63,12 @@ export default function RecordAiGuidedScreen() {
         voiceId,
       });
       router.back();
-    } catch {
-      setError('Could not generate the affirmation. Please try again.');
+    } catch (err) {
+      setError(
+        err instanceof NeuralModelMissingError
+          ? err.message
+          : 'Could not generate the affirmation. Please try again.',
+      );
       setGenerating(false);
     }
   }
@@ -68,7 +77,7 @@ export default function RecordAiGuidedScreen() {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <ActivityIndicator color={colors.primary} />
-        <Text style={[styles.body, { color: colors.textSecondary }]}>Generating…</Text>
+        <Text style={[styles.body, { color: colors.textSecondary }]}>Generating… this can take a moment.</Text>
       </View>
     );
   }
@@ -102,29 +111,9 @@ export default function RecordAiGuidedScreen() {
           { color: colors.textPrimary, borderColor: colors.border, backgroundColor: colors.surface },
         ]}
       />
+      <PauseMarkHint />
 
-      <View style={styles.row}>
-        {VOICE_OPTIONS.map((voice) => {
-          const selected = voice.id === voiceId;
-          return (
-            <Pressable
-              key={voice.id}
-              onPress={() => setVoiceId(voice.id)}
-              accessibilityRole="button"
-              accessibilityState={{ selected }}
-              style={[
-                styles.chip,
-                {
-                  borderColor: selected ? colors.primary : colors.border,
-                  backgroundColor: selected ? colors.primary : 'transparent',
-                },
-              ]}
-            >
-              <Text style={{ color: selected ? colors.background : colors.textPrimary }}>{voice.label}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
+      <VoicePicker value={voiceId} onChange={setVoiceId} />
 
       <FolderPicker folders={folders} selectedFolderId={selectedFolderId} onSelect={setSelectedFolderId} />
 

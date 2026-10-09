@@ -10,4 +10,5 @@ Each ADR captures one significant technical decision: the context that forced it
 | [0004](0004-audio-storage-strategy.md) | Audio storage & sync strategy | Accepted |
 | [0005](0005-monetization-platform.md) | Monetization / billing platform | Proposed (deferred to Phase 6) |
 | [0006](0006-navigation-routing.md) | Navigation / routing library | Accepted |
-| [0007](0007-voice-synthesis-strategy.md) | Voice synthesis strategy for AI Guided Sessions | Accepted |
+| [0007](0007-voice-synthesis-strategy.md) | Voice synthesis strategy for AI Guided Sessions | Accepted (voice engine partly superseded by 0008) |
+| [0008](0008-on-device-neural-voices.md) | On-device neural voices (Kokoro via sherpa-onnx) | Accepted |

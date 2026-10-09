@@ -77,7 +77,7 @@ Anthaathi is a standalone mobile app (not a companion to any other product). It 
 ### 4.6 AI Guided Session (voice synthesis)
 - **FR-511**: The system shall allow a user to choose, per affirmation, between Self-Recorded (their own voice) and AI Guided (synthesized voice) modes.
 - **FR-512**: The system shall offer at least one male and one female voice option for AI Guided sessions.
-- **FR-513**: The system shall synthesize affirmation text to a local audio file on-device — never via a cloud TTS call — per [ADR-0007](adr/0007-voice-synthesis-strategy.md).
+- **FR-513**: The system shall synthesize affirmation text to a local audio file on-device — never via a cloud TTS call — per [ADR-0007](adr/0007-voice-synthesis-strategy.md) and [ADR-0008](adr/0008-on-device-neural-voices.md). The optional natural-voice model is a one-time, user-initiated download; synthesis itself never uses the network.
 - **FR-514**: The system shall cache the synthesized audio file after first generation and reuse it on subsequent playbacks, re-synthesizing only if the text or selected voice changes.
 - **FR-515**: An AI Guided affirmation shall integrate with the same Library, folder, Player, and ambience-layering experience as a self-recorded one (FR-204–FR-206, FR-301–FR-304) — no separate playback path.
 - **FR-516**: The system shall degrade gracefully (clear error state, no crash) if on-device voice synthesis fails, without affecting the rest of the app.
@@ -130,7 +130,8 @@ Anthaathi is a standalone mobile app (not a companion to any other product). It 
 | Supabase Edge Functions | Client → Edge Function → LLM provider | Used for anything requiring a secret key (AI drafting) |
 | LLM provider (Gemini or Groq) | Edge Function → provider | Server-side only, never called from client |
 | Expo Push service | Client ↔ Expo | Local notifications for v1 (FR-701); remote push not required for MVP |
-| Device OS TTS engine (Android `TextToSpeech`, iOS `AVSpeechSynthesizer`) | Client (native module) → OS | On-device only, no network; see [ADR-0007](adr/0007-voice-synthesis-strategy.md) |
+| Device OS TTS engine (Android `TextToSpeech`, iOS `AVSpeechSynthesizer`) | Client (native module) → OS | On-device only, no network; the "Basic" voices. See [ADR-0007](adr/0007-voice-synthesis-strategy.md) |
+| Kokoro v1.0 via sherpa-onnx | Client (native module) → bundled native library + downloaded model | Synthesis on-device, no network; the model (~350 MB) is downloaded once from sherpa-onnx's GitHub release and checked against a pinned SHA-256. See [ADR-0008](adr/0008-on-device-neural-voices.md) |
 | App Store / Google Play | Build/submission | EAS Build + store submission tooling |
 
 ## 7. Data requirements (high level)

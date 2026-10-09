@@ -4,6 +4,125 @@ One entry per committed step, newest first. Each entry: what was done, why, how 
 
 ---
 
+## 2026-10-10 — Final verification and code review of natural voices (Execution Plan step 3.13b, sub-step 7)
+
+**What**: Closed out 3.13b with a CI-equivalent test run (`TZ=UTC CI=true npx jest --ci --no-cache`) and an `engineering:code-review` pass over the whole `feature/neural-voice` branch against `develop` (42 files). Five findings, all fixed:
+1. **Native work blocked other modules (medium).** Reading `expo-modules-core` showed that every plain `AsyncFunction` in the app runs on one shared `HandlerThread`. Our extraction (a minute or more), checksum, load and synthesis ran there, so other modules' async calls, including every `expo-sqlite` query the app makes, queued behind them. They now use `AsyncFunction(...) Coroutine { withContext(worker) { ... } }` with the module's own single-thread dispatcher: off the shared thread, and still in call order, so an idle unload and the next load can't overtake each other.
+2. **An interrupted install could look installed (medium).** Extraction wrote straight into the final model folder, and "installed" meant "the required files exist", so an app killed mid-extract left truncated files that passed the check: Settings said Installed and every generation failed. Extraction now goes to a staging folder; the model is moved into place with `moveSync`, which on Android is a same-filesystem `renameTo` (checked in `expo-file-system`'s source), only once complete. A leftover staging folder or incomplete model folder is removed on the next attempt.
+3. **Punctuation-only phrases (low-medium).** "I am calm /." or "Hi. ." produced a phrase of just "." sent to Kokoro on its own; if the engine returns no audio, the native "no audio was generated" check fails the whole generation. Such pieces are never synthesized alone now; at a sentence end the mark closes the previous phrase ("I am calm."). Detected with an explicit punctuation set rather than `\p{L}`, so it doesn't depend on Hermes supporting Unicode property escapes and still treats non-English text (e.g. Tamil) as speakable.
+4. **Model size recomputed on every Settings render (minor).** Now memoized on the install state.
+5. **CI didn't run on PRs into develop (minor).** Added, so the coming feature PR shows checks.
+
+Checked and ruled out: a suspected race between the idle unload and a new load (the shared thread already runs our calls in order, and the new worker keeps that).
+
+**Why**: 3.13b's last sub-step is to verify the whole feature before its first PR. Findings 1 and 2 only show up with a real install on a real phone at the wrong moment, which is exactly when a user would hit them and have no way to recover.
+
+**Verification**: 5 new tests (punctuation-only phrases and sentences, interrupted extraction, incomplete leftover model folder, archive without model files); the 3 pacing tests were confirmed to fail on the old code. 326 tests in CI mode, typecheck and lint clean. New dev build `86a54aac` compiled the Kotlin change. On the user's phone: removed and re-downloaded the voices while browsing the Library tab during "Installing…" (no hang), generated "I am calm /. I am safe." with Nicole, and regenerated an AI Guided affirmation, all working.
+
+**Commit**: `f2d7ef8` — Code review fixes for natural voices (step 3.13b-7)
+
+---
+
+## 2026-10-10 — ADR-0008, docs, dev screen removed (Execution Plan step 3.13b, sub-step 6)
+
+**What**: New [ADR-0008](docs/adr/0008-on-device-neural-voices.md) records the neural-voice decision: Kokoro v1.0 (full precision) through sherpa-onnx, behind our own `modules/anthaathi-neural-tts`, as the primary AI Guided engine, with the Android system voices kept as the "Basic" fallback. It lists the options weighed (keep the tuned system voices, `react-native-sherpa-onnx`, int8/Q8/F16 models, an espeak-free build, cloud TTS), the model delivery (pinned-checksum download from sherpa-onnx's release, space/offline/mobile-data checks), the runtime (load on demand, 60 s idle unload), pacing, fallback, the GPL-3.0 consequence, and what to revisit. ADR-0007 is marked as partly superseded (voice engine only) with an update note; the ADR index lists both. SRS FR-513 and its external-interfaces table, System Design (component table, architecture diagram, AI Guided flow, revisit notes), the PRD and the README now describe the two engines. The temporary `app/dev-neural-tts.tsx` and its Settings link are gone, and `lib/neuralVoice.ts`'s stale "spike, not wired in" header is rewritten.
+
+**Why**: NFR-502 asks for every non-trivial architectural decision to be recorded; this one changes the voice engine, adds a 350 MB download and changed the project's licence, so it needs its reasoning written down where a reviewer will find it, not only in journal entries. "Partly supersedes" rather than "supersedes": ADR-0007's generate-once-to-a-file architecture is what made the new engine a drop-in, and it still holds. Piper was never compared side by side, so the ADR says so instead of implying it was evaluated. The dev screen's job (judging voices on a real phone) is done, and the real Settings and picker flows now cover everything it did.
+
+**Verification**: every relative link across the docs and ADRs resolves (script check). The System Design diagram's voice box was already misaligned before this change and is now squared up. Every function the dev screen imported is still used by the real code, so no dead code was left. Typecheck, lint and 321 tests clean; the running Metro server built the full Android bundle (1,708 modules) after the route removal.
+
+**Commit**: `1c01156` — ADR-0008: on-device neural voices; docs updated, dev screen removed (step 3.13b-6)
+
+---
+
+## 2026-10-10 — Pause marks in AI drafts, "/" hint on script fields (Execution Plan step 3.13b, sub-step 5)
+
+**What**: The `generate-affirmation` Edge Function's prompt now asks for 2-3 short, complete, natural sentences (about 4-9 words each), commas where a calm speaker would breathe, and one or two ` / ` pause marks inside sentences, with one example in the target style. Temperature dropped to 0.6. A small server-side tidy-up removes any `/` the model puts next to a comma or full stop, or at the start or end of a line. Redeployed to the live project. A shared `components/PauseMarkHint.tsx` ("Tip: add / where you'd like a short pause…") sits under the script field on the AI Guided, regenerate and goal-draft screens.
+
+**Why**: the natural voices pause 0.5 s at a comma or `/` and 1.8 s after a sentence (sub-step 4's pacing), so drafts written for that pacing sound calmer without the user editing them. The prompt was tuned against real Groq output, not guessed: 3 rounds on 6 sample goals; at temperature 0.8 the model produced awkward fragments, which 0.6 plus an explicit grammar rule removed. The tidy-up is cheap insurance against the occasional misplaced mark. One hint component keeps the wording identical on all three screens. For basic voices `/` reads as a comma, and when recording in your own voice it's a reading cue.
+
+**Verification**: the tidy-up was checked against 7 edge cases. 321 tests (1 new: the hint renders on the AI Guided screen), typecheck and lint clean. After deploying, the live endpoint still rejects unauthenticated and garbage-token calls (401). On the user's phone: drafts came back with short lines and `/` marks, and Nicole paused audibly at `/` and commas.
+
+**Environment notes**: the C: drive was full (0 bytes free) and broke an npx install mid-way; leftover temp files from earlier sessions were removed, and the user then freed more space (27 GB free now). Supabase CLI 2.120.0's npm package shipped without its Windows binary, so the deploy used the official 2.119.0 release binary, SHA-256 checked against GitHub's published digest.
+
+**Noted for later (user request)**: let the user choose how many affirmations to draft for a goal, up to 20 (a draft currently gives 2-3 sentences, which reads as about 3 affirmations). Recorded in the Execution Plan; not scheduled yet.
+
+**Commit**: `7848b96` — Pause marks in AI drafts and a "/" hint on script fields (step 3.13b-5)
+
+---
+
+## 2026-10-10 — Natural voices in the AI Guided picker (Execution Plan step 3.13b, sub-step 4)
+
+**What**: The Kokoro voices are now a real choice in the app. `lib/aiVoice.ts` tags each voice with its engine: natural voices (Nicole, Bella, Michael, Echo; ids `kokoro:<speaker>`, stored in the existing `voice_id` column, so no migration) and basic voices (the tuned Android ones, relabelled "Basic female"/"Basic male"). `synthesizeAffirmationAudio` routes by engine, so everything downstream (the affirmation row, sync, Library, Player, beds, the gap between tracks) is unchanged (FR-515). A shared `components/VoicePicker.tsx` replaces the two duplicated chip lists on the AI Guided and regenerate screens. Natural voices are enabled only once downloaded; otherwise they're greyed out with a link to Settings. Nicole is the default when installed.
+
+**Why**: routing at the single synthesis entry point kept the change small and left the Player untouched, which matters because it was verified on-device over several steps. A missing model is a normal, expected state (the voices were never downloaded, were removed, or this is a new device), so it gets a specific message (`NeuralModelMissingError`) rather than the generic failure, and the screens keep the affirmation's own voice selected instead of silently switching to a basic one.
+
+**Verification**: 10 new tests (natural routing that never touches Android TTS, FR-512 male+female in each engine, Nicole first and default, the picker's installed/not-installed/unavailable states, the missing-model message on both screens). 320 tests, typecheck and lint clean; the two screen edits were redone without Prettier so the diff carries no reformatting noise. Also confirmed on-device the one sub-step 1 path that had only been unit-tested: with a deliberately wrong pinned checksum (temporary, never committed), a real 350 MB download was rejected with "The download was damaged or incomplete" and nothing was extracted. On the user's phone: generate and regenerate with natural voices, playback mixed with a self-recording under a bed, looping, lock screen, and the not-installed fallback. A Metro "Host unreachable" during this step was a stale leftover Metro process, not the build; restarting it fixed it.
+
+**Noted for later**: choosing the bed in the Player is step 4.3 (studio UI), still to come; until then it's set from the dev bed screen.
+
+**Commit**: `c6ccc26` — Natural voices in the AI Guided voice picker (step 3.13b-4)
+
+---
+
+## 2026-10-09 — Settings: Natural voices download (Execution Plan step 3.13b, sub-step 3)
+
+**What**: A "Natural voices" section in Settings (`components/NaturalVoicesSection.tsx`) lets a real user install the Kokoro voices: Download (with a confirmation before using ~350 MB of mobile data, and clear offline / not-enough-space messages), live progress through downloading, checking and installing, the installed size, "Remove voices" behind a confirmation that existing affirmations keep their audio, and "Try again" after a failure. The install status is app-wide (`startInstall` / `getNeuralVoiceStatus` / `subscribeNeuralVoiceStatus`, read via `useSyncExternalStore` in `hooks/useNeuralVoiceStatus.ts`). Settings now scrolls.
+
+**Why**: an install takes minutes, so it must not be tied to the Settings screen. Leaving mid-download keeps the progress, and pressing Download again joins the running install instead of starting a second download into the same archive path. Failures are classified: our own `InstallError` messages are shown as written, and anything else (a network drop, a disk error) gets a friendly generic message, never a raw Java/OS error. The offline and space messages come from one function (`describeInstallBlocker`) shared with `installModel`, so they can't drift apart. The copy was reviewed with `design:ux-copy`: action-labelled dialog buttons ("Keep voices" / "Remove voices"), a space error that says how to fix it, and "stopped before it finished" instead of a blaming "cancelled".
+
+**Verification**: 12 new tests: the status store (transitions and subscribers, joining an in-flight install, known vs generic failure messages, delete resetting status) and each state of the section (Wi-Fi, mobile-data confirm, offline, no space, progress, installed/remove, failed/try again). One new act() warning in the section's tests was fixed; the Player tests' act() warnings already existed on committed code and are left as noted test debt. 310 tests, typecheck and lint clean. On the user's phone: removed the voices, re-downloaded while leaving and returning to Settings, and the install completed.
+
+**Commit**: `b9b2b22` — Settings: Natural voices download, progress and removal (step 3.13b-3)
+
+---
+
+## 2026-10-09 — Kokoro model management (Execution Plan step 3.13b, sub-step 2)
+
+**What**: `lib/neuralVoice.ts` now manages the model's whole lifecycle, ready for the Settings UI and voice picker. `checkInstall()` blocks when offline or when less than ~800 MB is free, and the message says how much is needed against how much is free (the 350 MB archive and the ~370 MB extracted model briefly coexist). It reports a cellular connection so the UI can confirm before using mobile data. A failed extraction now also removes the half-extracted model. Loading is automatic and shared: `synthesizeNeural` loads on demand, back-to-back and concurrent generations reuse one load, and the model is unloaded after 60 s idle. A failed load is not cached. `deleteModel()` unloads first, and a missing model rejects with `NeuralModelMissingError` for the picker's fallback. The dev screen's "Load model" button is gone, since loading is automatic.
+
+**Why**: a full-precision Kokoro model occupies several hundred MB of RAM once loaded, which is too much to hold for the whole app session. A load costs ~2 s, though, so unloading after every affirmation would make creating several in a row needlessly slow; a 60 s idle window balances the two. Every failure path leaves nothing behind on disk, so a retry always starts from a clean state.
+
+**Verification**: 9 new tests (offline, free-space and cellular checks; half-extract cleanup; one load for several generations; exact idle-unload timing; idle cancelled by new use; concurrent callers share a load; failed load retried; missing model rejects without touching the engine). Mutation-checked: removing the idle-timer cancel fails the test for it. 298 tests, typecheck and lint clean. On the user's phone with build `16f09117` (which also confirmed sub-step 1's native code compiles): install showed the new "verifying" stage, back-to-back generations worked, and airplane mode produced the offline message.
+
+**Commit**: `536f68b` — Kokoro model management: install checks, cleanup, load lifecycle (step 3.13b-2)
+
+---
+
+## 2026-10-09 — Kokoro integration sub-step 1 + GPL-3.0 licence decision (Execution Plan step 3.13b)
+
+**What**: Started 3.13b (real Kokoro integration) on `feature/neural-voice`. Sub-step 1 hardens the native side ahead of a single rebuild: a native `sha256(path)` lets `installModel` verify the ~350 MB archive against a pinned digest (the one GitHub itself publishes for that release asset) before extracting, and only the arm64-v8a library is now taken from the sherpa-onnx AAR (16 MB less; Play requires 64-bit, and a 32-bit-only phone can't hold this model anyway). `load()` now catches `Throwable` so a missing native library (an `UnsatisfiedLinkError`, which is an Error, not an Exception) becomes a normal rejection instead of a crash. Separately, the project is now licensed **GPL-3.0-or-later** (LICENSE, `package.json`, README licence section with a third-party table); Expo's scaffolded MIT LICENSE in `modules/anthaathi-tts` was removed because it named Expo as copyright holder of our code.
+
+**Why GPL**: sherpa-onnx's Android library statically includes espeak-ng (GPL-3.0-or-later). Reading sherpa-onnx's source showed there is no build switch to drop it, and that for Kokoro v1.0 it is used only for words missing from the 178k-word `lexicon-us-en.txt`. To see what an espeak-free build would sound like, the desktop engine was run on affirmation-style sentences with dictionary-missing words removed, which is exactly what such a build does ("Skip OOV"): "I attract positive energy and opportunities." became "I attract positive energy and." Plurals ("opportunities"), other inflections ("empowered", "overthinking"), contractions ("what's"), names ("Priya", "Anthaathi") and numbers ("1,000", "2027") all went silent. The fixes (a patched native build, number normalization, a morphology-derived extra lexicon, and editor warnings for names) would still leave names weak. The user chose quality with no compromise: keep espeak-ng and release the app under the GPL. The repo was already public, and the GPL still allows selling the app.
+
+**Decisions recorded for the rest of 3.13b**: model hosting stays on sherpa-onnx's release, pinned by checksum (mirroring to our own release is deferred); default natural voices are Nicole (female) and Michael (male); AI drafts will carry `/` pause marks (live Edge Function redeploy approved).
+
+**Verification**: 289 tests, typecheck and lint clean. 4 new install-path tests (checksum match → extract, mismatch → never extracts, partial download removed, already installed → no-op); mutation-checked by disabling the comparison, which the mismatch test catches. The pinned digest was computed from the real downloaded archive and matched GitHub's published one. The Kotlin changes compile only in the EAS build that follows this commit.
+
+**Commits**: `0386a16` — Verify the Kokoro model download; ship arm64 only (step 3.13b-1); `dbd19a1` — License the project under GPL-3.0-or-later
+
+---
+
+## 2026-10-08 — Neural voice spike: Kokoro on-device (Execution Plan step 3.13a)
+
+**What**: A spike, on branch `feature/neural-voice`, to see whether a free offline neural voice can give the calm, soothing delivery the tuned Android system voices could not. The user auditioned Kokoro-82M voices and picked Bella, Nicole, Echo and Michael. Built: `modules/anthaathi-neural-tts`, a thin Expo module (Kotlin) around sherpa-onnx's official Android AAR, which extracts the model archive, loads Kokoro from disk and synthesizes text to WAV with timings; `lib/neuralVoice.ts` (in-app model download and install, the four voices, phrase-by-phrase synthesis); phrase pacing in `lib/voiceStyle.ts` (`splitIntoPhrases`) and `lib/wav.ts` (`joinWavSegments`, with per-gap lengths and edge-silence trimming); and a temporary `__DEV__` screen `app/dev-neural-tts.tsx`. Not wired into the real AI Guided flow yet; that is 3.13b.
+
+**Decisions and why**:
+- **Model precision**: the user ruled out int8 for quality. Q8 is 8-bit too, so it was ruled out for the same reason. F16 was tried properly: the stock converter silently clamped the 24000 Hz sample-rate constant to 10000, which was fixed by keeping the generator's sine source and final phase ops in F32 and raising the clamp limit. The result then crashed ONNX Runtime's full graph optimizer (sherpa-onnx's default) and only loaded at basic optimization, and ORT's CPU backend logged missing F16 kernels, so it would cast back to F32 anyway. The only gain would be a smaller download, so the spike uses full precision (`kokoro-multi-lang-v1_0`, ~350 MB), the only v1.0 build with all four voices plus `am_echo`.
+- **Our own module, not `react-native-sherpa-onnx`**: reading its source showed it ships FFmpeg, libarchive, MMKV, Play Asset Delivery and a custom onnxruntime from a personal Maven repo, a CMake build and two extra native peer packages, and it compiles against RN 0.83 (we are on 0.86). That was too much supply-chain and size risk for one TTS call. The official `sherpa-onnx-static-link-onnxruntime-1.13.8.aar` is fetched by Gradle at build time and checked against a pinned SHA-256, so it is never committed. Only `classes.jar` and the ARM ABIs are taken, because a library module cannot depend directly on a local .aar.
+- **Pacing**: the user asked for a therapeutic rhythm: "I am deserving. (1.8 s) My strength (0.5 s) is permanent. (1.8 s) I am calm, (0.5 s) safe (0.5 s) and at peace." Pauses inside a sentence come from commas or an explicit `/` mark. Each phrase is synthesized separately, and a phrase cut mid-sentence is spoken ending in a comma ("continuing tone"). Side-by-side samples made on the desktop with the same sherpa-onnx version and model were judged better that way than the bare fragments. Edge silence is trimmed so the pauses are exact. On the system-voice path, `/` reads as a comma so it is never spoken as "slash".
+- **Speeds, by ear**: desktop samples first (1.0 vs 0.85, then 0.8/0.7 with pauses), then on the phone. The final values are Bella 0.8 and Nicole, Echo and Michael 1.0, because those three sounded laggy below 1.0.
+
+**Verification**: desktop A/B samples through sherpa-onnx's own Python build (same version and model as the phone) for every listening decision. The first EAS build of the module compiled. On the user's phone: install 158 s, model load 1.8 s, 24 kHz, 54 speakers, synthesis ×0.51-0.60 real time (about 10 s of audio in 5-7 s). Voices judged good, pacing then tuned. 285 tests, typecheck and lint clean. New tests cover the user's pacing example phrase by phrase, a number like `1,000` not being split, stray marks, per-voice speed, exact gaps, edge-trim margin, and cleanup when a phrase fails.
+
+**Costs found**: the dev APK went from 276 to 317 MB. The universal debug build includes every ABI; the meaningful number is the ~24 MB arm64 native library, against NFR-103's 60 MB. The model is a one-off ~350 MB download. Still open for 3.13b: espeak-ng (used by Kokoro's phonemizer) is, I believe, GPL-3.0, which needs checking before any paid release.
+
+**Also fixed in this session** (separate commit on `develop`): the CI emails. CI had been failing intermittently since late September because the first test in each screen test file exceeds Jest's 5 s default on a cold runner (first-time React Native/router module loading). Reproduced locally with `TZ=UTC CI=true jest --ci --no-cache`, and fixed by raising `testTimeout`.
+
+**Commit**: `dd759d8` — Neural voice spike: Kokoro v1.0 on-device via sherpa-onnx (step 3.13a)
+
+---
+
 ## 2026-10-07 — AI Guided voice pacing, "Step A" (Execution Plan step 3.12)
 
 **What**: User feedback after the step 4.2 device pass: the AI Guided voice was too fast and robotic against the beds, and there was no pause between affirmations. Measured the user's reference recording (a commercial app with a human narrator) from its on-screen captions, since the voice itself is buried under music: ~1 word/s delivery and a fixed ~2.4 s of silence between affirmations. Then: (1) the native module's `synthesizeToFile` gained `rate` and `pitch` (set on every request); (2) `synthesizeAffirmationAudio` now splits a script into sentences (`lib/voiceStyle.ts`), synthesizes each separately and joins them with silence (`lib/wav.ts`, a minimal PCM WAV joiner that rejects mismatched formats), cleaning up pieces and any partial output on failure; (3) per-voice style lives with `VOICE_OPTIONS`; (4) the Player waits `AFFIRMATION_GAP_MS` (2.5 s) between consecutive tracks, recorded or AI Guided, with the bed still playing; (5) the dev TTS screen got rate/pitch/pause chips and was cut to the two finalized voices.

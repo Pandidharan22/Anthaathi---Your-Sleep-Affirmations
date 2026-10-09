@@ -1,7 +1,17 @@
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  View,
+} from 'react-native';
 
+import { NaturalVoicesSection } from '@/components/NaturalVoicesSection';
 import { radii, spacing, typography } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { useThemeColors } from '@/hooks/useThemeColors';
@@ -32,7 +42,11 @@ export default function SettingsScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const remindersSupported = areRemindersSupported();
-  const [reminder, setReminder] = useState<ReminderPreference>({ enabled: false, hour: 21, minute: 0 });
+  const [reminder, setReminder] = useState<ReminderPreference>({
+    enabled: false,
+    hour: 21,
+    minute: 0,
+  });
   const [reminderError, setReminderError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -84,7 +98,9 @@ export default function SettingsScreen() {
             try {
               await deleteAccount(user.id);
             } catch {
-              setError('Could not delete your account. Please check your connection and try again.');
+              setError(
+                'Could not delete your account. Please check your connection and try again.',
+              );
               setDeleting(false);
             }
           },
@@ -94,7 +110,10 @@ export default function SettingsScreen() {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <ScrollView
+      style={{ backgroundColor: colors.background }}
+      contentContainerStyle={styles.container}
+    >
       <Text style={[styles.title, { color: colors.textPrimary }]}>Settings</Text>
       {user ? (
         <Text style={[styles.description, { color: colors.textSecondary }]}>
@@ -116,7 +135,9 @@ export default function SettingsScreen() {
             ? 'Get a nightly reminder to play your affirmations.'
             : "Reminders aren't available in Expo Go on Android — they'll work in the full app build."}
         </Text>
-        {reminderError ? <Text style={[styles.error, { color: colors.error }]}>{reminderError}</Text> : null}
+        {reminderError ? (
+          <Text style={[styles.error, { color: colors.error }]}>{reminderError}</Text>
+        ) : null}
         {remindersSupported && reminder.enabled ? (
           <ScrollView
             horizontal
@@ -149,6 +170,8 @@ export default function SettingsScreen() {
           </ScrollView>
         ) : null}
       </View>
+
+      <NaturalVoicesSection />
 
       {__DEV__ ? (
         <Pressable
@@ -192,13 +215,13 @@ export default function SettingsScreen() {
           <Text style={{ color: colors.error }}>Delete account</Text>
         )}
       </Pressable>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    flexGrow: 1,
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.md,

@@ -1,4 +1,4 @@
-import { joinWavWithSilence, parseWav } from '@/lib/wav';
+import { joinWavSegments, joinWavWithSilence, parseWav } from '@/lib/wav';
 
 function makeWav(samples: number[], sampleRate = 1000): Uint8Array {
   const data = new Uint8Array(samples.length * 2);
@@ -66,5 +66,30 @@ describe('joinWavWithSilence', () => {
     // Truncate the last sample; the header still claims 8 data bytes.
     const truncated = base.subarray(0, base.length - 2);
     expect(samplesOf(truncated)).toEqual([9, 9, 9]);
+  });
+});
+
+describe('joinWavSegments', () => {
+  it('inserts a different gap after each part, none after the last', () => {
+    const joined = joinWavSegments([makeWav([1]), makeWav([2]), makeWav([3])], [2, 3, 99]);
+    expect(samplesOf(joined)).toEqual([1, 0, 0, 2, 0, 0, 0, 3]);
+  });
+
+  it('trims edge silence from each part (keeping a 30 ms margin) so pauses are exact', () => {
+    // 1 kHz: 30 ms margin = 30 frames. 100 frames of silence, 5 loud, 100 silent.
+    const quiet = Array(100).fill(0);
+    const loud = Array(5).fill(5000);
+    const joined = joinWavSegments([makeWav([...quiet, ...loud, ...quiet])], [], {
+      trimEdges: true,
+    });
+    const out = samplesOf(joined);
+    expect(out).toHaveLength(30 + 5 + 30);
+    expect(out.slice(30, 35)).toEqual(loud);
+  });
+
+  it('keeps quiet-but-audible speech and drops an all-silent part entirely', () => {
+    const joined = joinWavSegments([makeWav([0, 0, 0]), makeWav([400])], [2], { trimEdges: true });
+    // 400 is above the ~-45 dBFS (≈184) threshold; the silent part contributes no samples.
+    expect(samplesOf(joined)).toEqual([0, 0, 400]);
   });
 });

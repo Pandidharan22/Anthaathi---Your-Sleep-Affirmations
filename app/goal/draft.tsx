@@ -2,6 +2,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { PauseMarkHint } from '@/components/PauseMarkHint';
 import { radii, spacing, typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { requestAffirmationDraft, type DraftErrorKind } from '@/lib/aiDraft';
@@ -124,6 +125,7 @@ export default function DraftAffirmationScreen() {
           { color: colors.textPrimary, borderColor: colors.border, backgroundColor: colors.surface },
         ]}
       />
+      <PauseMarkHint />
 
       <View style={styles.row}>
         <Pressable

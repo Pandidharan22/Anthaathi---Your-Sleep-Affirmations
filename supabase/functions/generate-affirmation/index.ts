@@ -13,10 +13,35 @@ const GROQ_MODEL = "openai/gpt-oss-20b";
 const RATE_LIMIT_WINDOW_HOURS = 24;
 const RATE_LIMIT_MAX_REQUESTS = 20;
 
-const SYSTEM_PROMPT =
-  "You write a single short, first-person, present-tense, positive sleep " +
-  "affirmation (1-2 sentences) based on the user's stated goal. Output only " +
-  "the affirmation text itself -- no quotes, no preamble, no markdown.";
+// Drafts are read aloud slowly by the on-device voices (step 3.13b), which pause 1.8 s after a
+// sentence and 0.5 s at a comma or a " / " mark, so the prompt asks for short sentences and a
+// pause or two marked inside them. Tuned against real Groq output: temperature 0.6 and the
+// explicit grammar rule cut the awkward fragments seen at 0.8.
+const SYSTEM_PROMPT = [
+  "You write a short, positive sleep affirmation for the user's goal: first person, present tense,",
+  "2-3 short, complete, natural-sounding sentences of about 4-9 words each. It will be read aloud",
+  "slowly at bedtime by a calm voice, so it must read naturally and be grammatical.",
+  "Pacing marks: you may use a comma where a calm speaker would naturally breathe, and add one or two",
+  "short pauses inside a sentence with ' / ' (a slash with a space on each side) between two words",
+  "that have no punctuation between them. Never put ' / ' next to a comma or period.",
+  "Example of the style: I am deserving. My strength / is permanent. I am calm, safe / and at peace.",
+  "Output only the affirmation text -- no quotes, no preamble, no markdown.",
+].join(" ");
+
+/**
+ * Safety net for the model occasionally breaking its own pause-mark rules: drops a " / " next
+ * to punctuation or at a line's start/end (redundant there), and normalizes the spacing.
+ */
+function tidyPauseMarks(text: string): string {
+  return text
+    .replace(/\s*\/\s*(?=[,.;:!?])/g, "")
+    .replace(/([,.;:!?])\s*\/\s*/g, "$1 ")
+    .replace(/^[ \t]*\/[ \t]*/gm, "")
+    .replace(/[ \t]*\/[ \t]*$/gm, "")
+    .replace(/[ \t]*\/[ \t]*/g, " / ")
+    .replace(/[ \t]+$/gm, "")
+    .trim();
+}
 
 export default {
   fetch: withSupabase({ auth: "user" }, async (req, ctx) => {
@@ -83,7 +108,7 @@ export default {
               { role: "system", content: SYSTEM_PROMPT },
               { role: "user", content: userPrompt },
             ],
-            temperature: 0.8,
+            temperature: 0.6,
             max_tokens: 300,
             reasoning_effort: "low",
           }),
@@ -101,7 +126,7 @@ export default {
         console.error("Groq response had no usable content:", JSON.stringify(groqBody));
         return Response.json({ error: "provider_unavailable" }, { status: 502 });
       }
-      draftText = content.trim();
+      draftText = tidyPauseMarks(content.trim());
     } catch (err) {
       console.error("Groq request threw:", err);
       return Response.json({ error: "provider_unavailable" }, { status: 502 });

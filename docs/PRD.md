@@ -64,7 +64,7 @@ Prioritized MoSCoW. Full functional detail in [SRS.md](SRS.md).
 - Ambience/music-bed layering in the audio studio
 - Manifestation journal with prompts
 - Local reminders/notifications
-- AI Guided Session mode: on-device text-to-speech narration of affirmation text, male/female voice choice, generated once and saved locally (see [ADR-0007](adr/0007-voice-synthesis-strategy.md))
+- AI Guided Session mode: on-device text-to-speech narration of affirmation text, male/female voice choice, generated once and saved locally. Natural neural voices after a one-time optional download, with the phone's own voices as a fallback (see [ADR-0007](adr/0007-voice-synthesis-strategy.md), [ADR-0008](adr/0008-on-device-neural-voices.md))
 
 **Could have**
 - Weekly goal check-in nudges
@@ -109,4 +109,4 @@ Post-launch (not v1-blocking): install count, D7 retention, streak-length distri
 
 - Exact subscription pricing/tiering — deferred to Phase 6, not blocking MVP.
 
-**Resolved**: the AI Guided Session (TTS) voice strategy was an open question as of the original draft. Decided: native on-device synthesis-to-file (not a cloud TTS call, not live-only OS speech) — see [ADR-0007](adr/0007-voice-synthesis-strategy.md). This means the feature requires real native code and a custom development-build workflow (`expo-dev-client`), which is a genuine scope/effort trade-off accepted deliberately — tracked as a risk in §9.
+**Resolved**: the AI Guided Session (TTS) voice strategy was an open question as of the original draft. Decided: native on-device synthesis-to-file (not a cloud TTS call, not live-only OS speech) — see [ADR-0007](adr/0007-voice-synthesis-strategy.md). This means the feature requires real native code and a custom development-build workflow (`expo-dev-client`), which is a genuine scope/effort trade-off accepted deliberately — tracked as a risk in §9. Updated by [ADR-0008](adr/0008-on-device-neural-voices.md): the OS voices were too flat for a calm bedtime voice, so on-device Kokoro neural voices are now the primary engine.
