@@ -20,8 +20,8 @@ export function fadeGains(p: number): { in: number; out: number } {
 export type BedLoop = {
   pause(): void;
   resume(): void;
-  /** Applies instantly. `balance` is 0..1, the bed's volume relative to the affirmation. */
-  setBalance(balance: number): void;
+  /** Applies instantly. `volume` is the bed's volume, 0..1 (see mixGains in lib/bedPrefs.ts). */
+  setVolume(volume: number): void;
   /** Fades out, then releases both players. Safe to call more than once. */
   stop(): void;
 };
@@ -30,7 +30,7 @@ type Phase = 'fadeIn' | 'steady' | 'crossfade' | 'fadeOut';
 
 export function startBedLoop(
   bed: Bed,
-  balance: number,
+  volume: number,
   createPlayer: (source: number) => AudioPlayer = createAudioPlayer,
 ): BedLoop {
   const players = [createPlayer(bed.source), createPlayer(bed.source)];
@@ -39,7 +39,7 @@ export function startBedLoop(
     player.volume = 0;
   }
 
-  let level = balance;
+  let level = volume;
   let active = 0;
   let phase: Phase = 'fadeIn';
   let paused = false;
@@ -135,7 +135,7 @@ export function startBedLoop(
       // Mid-crossfade the other player was playing too (it holds a non-zero gain).
       if (phase === 'crossfade') players[1 - active].play();
     },
-    setBalance(next) {
+    setVolume(next) {
       level = Math.min(1, Math.max(0, next));
       applyVolumes();
     },

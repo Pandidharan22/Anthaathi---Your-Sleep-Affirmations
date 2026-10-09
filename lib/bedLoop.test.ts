@@ -48,9 +48,9 @@ function makeFakePlayer(): FakePlayer {
 
 let players: FakePlayer[];
 
-function start(balance = 0.5) {
+function start(volume = 0.5) {
   players = [];
-  const loop = startBedLoop(BED, balance, () => {
+  const loop = startBedLoop(BED, volume, () => {
     const p = makeFakePlayer();
     players.push(p);
     return p as unknown as AudioPlayer;
@@ -91,7 +91,7 @@ describe('fadeGains', () => {
 });
 
 describe('startBedLoop', () => {
-  it('starts one silent non-looping player and fades in to the balance', () => {
+  it('starts one silent non-looping player and fades in to the volume', () => {
     start(0.5);
     expect(players).toHaveLength(2);
     expect(players.every((p) => p.loop === false)).toBe(true);
@@ -140,12 +140,12 @@ describe('startBedLoop', () => {
     expect(minTotal).toBeGreaterThan(0.7);
   });
 
-  it('applies balance changes immediately', () => {
+  it('applies volume changes immediately', () => {
     const loop = start(0.2);
     advance(FADE_IN_MS);
-    loop.setBalance(0.8);
+    loop.setVolume(0.8);
     expect(players[0].volume).toBeCloseTo(0.8);
-    loop.setBalance(5);
+    loop.setVolume(5);
     expect(players[0].volume).toBeCloseTo(1);
   });
 

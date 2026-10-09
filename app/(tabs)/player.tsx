@@ -1,20 +1,39 @@
-import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
+import {
+  setAudioModeAsync,
+  useAudioPlayer,
+  useAudioPlayerStatus,
+  type AudioPlayer,
+} from 'expo-audio';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { BedPicker } from '@/components/BedPicker';
 import { radii, spacing, typography } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { listLocalAffirmations, type LocalAffirmation } from '@/lib/affirmations.local';
 import { startBedLoop, type BedLoop } from '@/lib/bedLoop';
-import { getBedPreference } from '@/lib/bedPrefs';
-import { getBed } from '@/lib/beds';
+import { DEFAULT_MIX, getBedPreference, mixGains, setBedPreference } from '@/lib/bedPrefs';
+import { getBed, type Bed } from '@/lib/beds';
 import { formatDuration } from '@/lib/format';
 import { logLocalPlaybackSession } from '@/lib/playbackSessions.local';
 import { AFFIRMATION_GAP_MS } from '@/lib/voiceStyle';
 
 const SLEEP_TIMER_OPTIONS = [15, 30, 45, 60] as const;
+/** Tapping a bed before Play lets you hear it for this long. */
+const PREVIEW_MS = 8000;
+const AUDIO_MODE = {
+  playsInSilentMode: true,
+  shouldPlayInBackground: true,
+  interruptionMode: 'doNotMix',
+} as const;
+
+// A plain function so the mix can be applied from event handlers: the React Compiler's lint
+// rules forbid assigning to a hook's return value inline.
+function setVoiceVolume(player: AudioPlayer, volume: number) {
+  player.volume = volume;
+}
 
 export default function PlayerScreen() {
   const colors = useThemeColors();
@@ -33,6 +52,16 @@ export default function PlayerScreen() {
   // The ambience bed (FR-304) lives for the whole session: queue advances and single-track
   // repeats never touch it, only start/pause/resume/stop do.
   const bedRef = useRef<BedLoop | null>(null);
+  // The studio settings (FR-304): saved per device, applied live while playing. Mirrored in refs
+  // so the track-start effect can read the current mix without re-running on every slider move.
+  const [bedId, setBedId] = useState<string | null>(null);
+  const [mix, setMix] = useState(DEFAULT_MIX);
+  const bedIdRef = useRef<string | null>(null);
+  const mixRef = useRef(DEFAULT_MIX);
+  // A bed heard on its own before Play. The token makes a quick second tap (or Play) win over a
+  // preview still waiting for the audio mode to be set.
+  const previewRef = useRef<{ loop: BedLoop; timer: ReturnType<typeof setTimeout> } | null>(null);
+  const previewTokenRef = useRef(0);
   // Silence between affirmations: after a track ends the affirmation player waits here (the bed
   // keeps playing) before the queue advances. 'paused' means the user paused during the gap,
   // so Resume should advance straight away rather than replay the finished track.
@@ -44,19 +73,41 @@ export default function PlayerScreen() {
     gapTimerRef.current = null;
   }, []);
 
+  const stopPreview = useCallback(() => {
+    previewTokenRef.current++;
+    const preview = previewRef.current;
+    if (!preview) return;
+    clearTimeout(preview.timer);
+    preview.loop.stop();
+    previewRef.current = null;
+  }, []);
+
   useEffect(
     () => () => {
       bedRef.current?.stop();
+      stopPreview();
       clearGapTimer();
     },
-    [clearGapTimer],
+    [clearGapTimer, stopPreview],
   );
+
+  useEffect(() => {
+    getBedPreference().then((pref) => {
+      bedIdRef.current = pref.bedId;
+      mixRef.current = pref.mix;
+      setBedId(pref.bedId);
+      setMix(pref.mix);
+    });
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
       if (user) listLocalAffirmations(user.id).then(setAffirmations);
     }, [user]),
   );
+
+  // Leaving the Player tab ends a preview.
+  useFocusEffect(useCallback(() => stopPreview, [stopPreview]));
 
   const currentIndex = queue.length ? playCount % queue.length : 0;
   const currentTrack = queue[currentIndex];
@@ -70,6 +121,7 @@ export default function PlayerScreen() {
   useEffect(() => {
     if (screenState !== 'playing' || !currentTrack) return;
     const trimStartSec = (currentTrack.trim_start_ms ?? 0) / 1000;
+    setVoiceVolume(player, mixGains(mixRef.current, bedIdRef.current !== null).voice);
     player.seekTo(trimStartSec);
     player.setActiveForLockScreen(true, { title: currentTrack.title });
     player.play();
@@ -153,20 +205,69 @@ export default function PlayerScreen() {
     });
   }
 
+  async function startPreview(bed: Bed) {
+    stopPreview();
+    const token = previewTokenRef.current;
+    await setAudioModeAsync(AUDIO_MODE);
+    if (token !== previewTokenRef.current) return;
+    const loop = startBedLoop(bed, mixGains(mixRef.current, true).bed);
+    previewRef.current = { loop, timer: setTimeout(stopPreview, PREVIEW_MS) };
+  }
+
+  const isPaused = !(status.playing || gapState === 'waiting');
+
+  function handleBedChange(nextBedId: string | null) {
+    bedIdRef.current = nextBedId;
+    setBedId(nextBedId);
+    void setBedPreference({ bedId: nextBedId, mix: mixRef.current });
+    const bed = getBed(nextBedId);
+    const gains = mixGains(mixRef.current, bed !== null);
+    if (screenState === 'playing') {
+      // The old bed fades out as the new one fades in.
+      bedRef.current?.stop();
+      bedRef.current = bed ? startBedLoop(bed, gains.bed) : null;
+      if (isPaused) bedRef.current?.pause();
+      setVoiceVolume(player, gains.voice);
+    } else if (bed) {
+      void startPreview(bed);
+    } else {
+      stopPreview();
+    }
+  }
+
+  function handleMixChange(nextMix: number) {
+    mixRef.current = nextMix;
+    setMix(nextMix);
+    const gains = mixGains(nextMix, bedIdRef.current !== null);
+    bedRef.current?.setVolume(gains.bed);
+    previewRef.current?.loop.setVolume(gains.bed);
+    if (screenState === 'playing') setVoiceVolume(player, gains.voice);
+  }
+
+  function handleMixCommit(nextMix: number) {
+    void setBedPreference({ bedId: bedIdRef.current, mix: nextMix });
+  }
+
+  const bedPicker = (
+    <BedPicker
+      bedId={bedId}
+      mix={mix}
+      onBedChange={handleBedChange}
+      onMixChange={handleMixChange}
+      onMixCommit={handleMixCommit}
+    />
+  );
+
   async function handleStart() {
     const selected = affirmations.filter((a) => selectedIds.has(a.id));
     if (selected.length === 0) return;
 
-    await setAudioModeAsync({
-      playsInSilentMode: true,
-      shouldPlayInBackground: true,
-      interruptionMode: 'doNotMix',
-    });
+    stopPreview();
+    await setAudioModeAsync(AUDIO_MODE);
 
-    const { bedId, balance } = await getBedPreference();
-    const bed = getBed(bedId);
+    const bed = getBed(bedIdRef.current);
     bedRef.current?.stop();
-    bedRef.current = bed ? startBedLoop(bed, balance) : null;
+    bedRef.current = bed ? startBedLoop(bed, mixGains(mixRef.current, true).bed) : null;
 
     sessionStartRef.current = Date.now();
     timerEndRef.current = sleepTimerMinutes ? Date.now() + sleepTimerMinutes * 60_000 : null;
@@ -200,7 +301,7 @@ export default function PlayerScreen() {
 
         <Pressable
           onPress={() => {
-            if (status.playing || gapState === 'waiting') {
+            if (!isPaused) {
               player.pause();
               bedRef.current?.pause();
               if (gapState === 'waiting') {
@@ -221,7 +322,7 @@ export default function PlayerScreen() {
           style={[styles.primaryButton, { backgroundColor: colors.primary }]}
         >
           <Text style={[styles.primaryButtonLabel, { color: colors.background }]}>
-            {status.playing || gapState === 'waiting' ? 'Pause' : 'Resume'}
+            {isPaused ? 'Resume' : 'Pause'}
           </Text>
         </Pressable>
 
@@ -232,6 +333,8 @@ export default function PlayerScreen() {
         >
           <Text style={{ color: colors.error }}>Stop</Text>
         </Pressable>
+
+        {bedPicker}
       </View>
     );
   }
@@ -301,6 +404,8 @@ export default function PlayerScreen() {
           );
         })}
       </ScrollView>
+
+      {bedPicker}
 
       <Pressable
         onPress={handleStart}

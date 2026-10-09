@@ -14,7 +14,7 @@ let mockPlayerStatus: { playing: boolean; currentTime: number } = { playing: fal
 type StatusEvent = { currentTime: number; didJustFinish?: boolean };
 let statusListener: ((status: StatusEvent) => void) | null = null;
 
-const mockPlayerObj = {
+const mockPlayerObj: { volume?: number; [key: string]: unknown } = {
   play: mockPlay,
   pause: mockPause,
   seekTo: mockSeekTo,
@@ -50,14 +50,28 @@ jest.mock('@/lib/affirmations.local', () => ({
 const mockBedPause = jest.fn();
 const mockBedResume = jest.fn();
 const mockBedStop = jest.fn();
+const mockBedSetVolume = jest.fn();
 const mockStartBedLoop = jest.fn();
 const mockGetBedPreference = jest.fn();
+const mockSetBedPreference = jest.fn().mockResolvedValue(undefined);
 jest.mock('@/lib/bedLoop', () => ({
   startBedLoop: (...args: unknown[]) => mockStartBedLoop(...args),
 }));
-jest.mock('@/lib/bedPrefs', () => ({
-  getBedPreference: (...args: unknown[]) => mockGetBedPreference(...args),
+// The real mixGains/DEFAULT_MIX are used; storage itself is mocked below.
+jest.mock('@react-native-async-storage/async-storage', () => ({
+  __esModule: true,
+  default: { getItem: jest.fn(), setItem: jest.fn() },
 }));
+jest.mock('@/lib/bedPrefs', () => ({
+  ...jest.requireActual('@/lib/bedPrefs'),
+  getBedPreference: (...args: unknown[]) => mockGetBedPreference(...args),
+  setBedPreference: (...args: unknown[]) => mockSetBedPreference(...args),
+}));
+jest.mock('@react-native-community/slider', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { View } = require('react-native');
+  return { __esModule: true, default: (props: object) => <View {...props} /> };
+});
 
 // The gap between affirmations is real silence in the app; tests default it to 0 so queue
 // advances stay immediate, and set it per test where the gap itself is under test.
@@ -97,8 +111,14 @@ beforeEach(() => {
   statusListener = null;
   mockListLocalAffirmations.mockResolvedValue([track1, track2]);
   mockGapMs = 0;
-  mockGetBedPreference.mockResolvedValue({ bedId: null, balance: 0.35 });
-  mockStartBedLoop.mockReturnValue({ pause: mockBedPause, resume: mockBedResume, stop: mockBedStop });
+  mockGetBedPreference.mockResolvedValue({ bedId: null, mix: 0.825 });
+  mockStartBedLoop.mockReturnValue({
+    pause: mockBedPause,
+    resume: mockBedResume,
+    stop: mockBedStop,
+    setVolume: mockBedSetVolume,
+  });
+  delete mockPlayerObj.volume;
 });
 
 describe('PlayerScreen', () => {
@@ -260,7 +280,7 @@ describe('PlayerScreen', () => {
 
     it('keeps the ambience bed playing through the gap', async () => {
       mockGapMs = 300;
-      mockGetBedPreference.mockResolvedValue({ bedId: 'rain', balance: 0.5 });
+      mockGetBedPreference.mockResolvedValue({ bedId: 'rain', mix: 0.75 });
       await startTwoTracks();
       statusListener?.({ currentTime: 9.1 });
       expect(mockBedPause).not.toHaveBeenCalled();
@@ -313,8 +333,8 @@ describe('PlayerScreen', () => {
       expect(mockStartBedLoop).not.toHaveBeenCalled();
     });
 
-    it('starts the saved bed at the saved balance alongside the affirmation', async () => {
-      mockGetBedPreference.mockResolvedValue({ bedId: 'rain', balance: 0.5 });
+    it('starts the saved bed at the volume its saved mix gives, alongside the affirmation', async () => {
+      mockGetBedPreference.mockResolvedValue({ bedId: 'rain', mix: 0.75 });
       await startWithTrack();
       expect(mockStartBedLoop).toHaveBeenCalledTimes(1);
       expect(mockStartBedLoop.mock.calls[0][0]).toMatchObject({ id: 'rain' });
@@ -322,13 +342,13 @@ describe('PlayerScreen', () => {
     });
 
     it('ignores a saved bed id that no longer exists', async () => {
-      mockGetBedPreference.mockResolvedValue({ bedId: 'gone', balance: 0.5 });
+      mockGetBedPreference.mockResolvedValue({ bedId: 'gone', mix: 0.75 });
       await startWithTrack();
       expect(mockStartBedLoop).not.toHaveBeenCalled();
     });
 
     it('pauses the bed together with the affirmation', async () => {
-      mockGetBedPreference.mockResolvedValue({ bedId: 'rain', balance: 0.5 });
+      mockGetBedPreference.mockResolvedValue({ bedId: 'rain', mix: 0.75 });
       mockPlayerStatus = { playing: true, currentTime: 0 };
       const { getByText } = await startWithTrack();
 
@@ -340,7 +360,7 @@ describe('PlayerScreen', () => {
     });
 
     it('resumes the bed together with the affirmation', async () => {
-      mockGetBedPreference.mockResolvedValue({ bedId: 'rain', balance: 0.5 });
+      mockGetBedPreference.mockResolvedValue({ bedId: 'rain', mix: 0.75 });
       mockPlayerStatus = { playing: false, currentTime: 0 };
       const { getByText } = await startWithTrack();
 
@@ -351,14 +371,14 @@ describe('PlayerScreen', () => {
     });
 
     it('stops the bed on manual Stop', async () => {
-      mockGetBedPreference.mockResolvedValue({ bedId: 'rain', balance: 0.5 });
+      mockGetBedPreference.mockResolvedValue({ bedId: 'rain', mix: 0.75 });
       const { getByText } = await startWithTrack();
       await fireEvent.press(getByText('Stop'));
       expect(mockBedStop).toHaveBeenCalledTimes(1);
     });
 
     it('leaves the bed running when the queue advances or a single track repeats', async () => {
-      mockGetBedPreference.mockResolvedValue({ bedId: 'rain', balance: 0.5 });
+      mockGetBedPreference.mockResolvedValue({ bedId: 'rain', mix: 0.75 });
       await startWithTrack();
 
       statusListener?.({ currentTime: 9.1 });
@@ -369,9 +389,135 @@ describe('PlayerScreen', () => {
     });
   });
 
+  describe('audio studio controls (step 4.3)', () => {
+    type SliderProps = {
+      onValueChange: (v: number) => void;
+      onSlidingComplete: (v: number) => void;
+      disabled: boolean;
+    };
+    const slider = (utils: Awaited<ReturnType<typeof render>>) =>
+      utils.getByLabelText('Voice and ambience balance').props as SliderProps;
+
+    async function startSession() {
+      const utils = await render(<PlayerScreen />);
+      await waitFor(() => expect(utils.getByText('Calm')).toBeTruthy());
+      await fireEvent.press(utils.getByText('Calm'));
+      await fireEvent.press(utils.getByText('Play (1)'));
+      await waitFor(() => expect(utils.getByText('Stop')).toBeTruthy());
+      return utils;
+    }
+
+    it('previews a tapped bed at its mix volume and saves the choice', async () => {
+      const utils = await render(<PlayerScreen />);
+      await waitFor(() => expect(utils.getByText('Calm')).toBeTruthy());
+
+      await fireEvent.press(utils.getByText('Rain'));
+
+      await waitFor(() => expect(mockStartBedLoop).toHaveBeenCalledTimes(1));
+      expect(mockStartBedLoop.mock.calls[0][0]).toMatchObject({ id: 'rain' });
+      expect(mockStartBedLoop.mock.calls[0][1]).toBeCloseTo(0.35);
+      expect(mockSetBedPreference).toHaveBeenCalledWith({ bedId: 'rain', mix: 0.825 });
+    });
+
+    it('a second tap replaces the preview, and None ends it', async () => {
+      const utils = await render(<PlayerScreen />);
+      await waitFor(() => expect(utils.getByText('Calm')).toBeTruthy());
+
+      await fireEvent.press(utils.getByText('Rain'));
+      await waitFor(() => expect(mockStartBedLoop).toHaveBeenCalledTimes(1));
+      await fireEvent.press(utils.getByText('Ocean'));
+      await waitFor(() => expect(mockStartBedLoop).toHaveBeenCalledTimes(2));
+      expect(mockBedStop).toHaveBeenCalledTimes(1);
+
+      await fireEvent.press(utils.getByText('None'));
+      expect(mockBedStop).toHaveBeenCalledTimes(2);
+      expect(mockSetBedPreference).toHaveBeenLastCalledWith({ bedId: null, mix: 0.825 });
+    });
+
+    it('ends the preview after a few seconds', async () => {
+      jest.useFakeTimers();
+      const utils = await render(<PlayerScreen />);
+      await waitFor(() => expect(utils.getByText('Calm')).toBeTruthy());
+
+      await fireEvent.press(utils.getByText('Rain'));
+      await waitFor(() => expect(mockStartBedLoop).toHaveBeenCalledTimes(1));
+      await act(async () => {
+        jest.advanceTimersByTime(8000);
+      });
+
+      expect(mockBedStop).toHaveBeenCalledTimes(1);
+      jest.useRealTimers();
+    });
+
+    it('Play ends the preview and starts the session with the chosen bed', async () => {
+      const utils = await render(<PlayerScreen />);
+      await waitFor(() => expect(utils.getByText('Calm')).toBeTruthy());
+      await fireEvent.press(utils.getByText('Rain'));
+      await waitFor(() => expect(mockStartBedLoop).toHaveBeenCalledTimes(1));
+
+      await fireEvent.press(utils.getByText('Calm'));
+      await fireEvent.press(utils.getByText('Play (1)'));
+      await waitFor(() => expect(utils.getByText('Stop')).toBeTruthy());
+
+      expect(mockBedStop).toHaveBeenCalledTimes(1); // the preview
+      expect(mockStartBedLoop).toHaveBeenCalledTimes(2);
+      expect(mockStartBedLoop.mock.calls[1][0]).toMatchObject({ id: 'rain' });
+    });
+
+    it('the slider is disabled without a bed, and the voice then plays at full', async () => {
+      mockGetBedPreference.mockResolvedValue({ bedId: null, mix: 0.1 });
+      const utils = await startSession();
+      expect(slider(utils).disabled).toBe(true);
+      expect(mockPlayerObj.volume).toBe(1);
+    });
+
+    it('while playing, the slider rebalances voice and bed live and is saved on release', async () => {
+      mockGetBedPreference.mockResolvedValue({ bedId: 'rain', mix: 0.75 });
+      const utils = await startSession();
+      expect(mockPlayerObj.volume).toBe(1);
+
+      await act(async () => slider(utils).onValueChange(0.25));
+      expect(mockPlayerObj.volume).toBe(0.5); // the voice fades left of the middle
+      expect(mockBedSetVolume).toHaveBeenLastCalledWith(1);
+      expect(mockSetBedPreference).not.toHaveBeenCalled();
+
+      await act(async () => slider(utils).onSlidingComplete(0.25));
+      expect(mockSetBedPreference).toHaveBeenCalledWith({ bedId: 'rain', mix: 0.25 });
+    });
+
+    it('while playing, switching beds crossfades to the new one; None stops it', async () => {
+      mockGetBedPreference.mockResolvedValue({ bedId: 'rain', mix: 0.75 });
+      const utils = await startSession();
+      expect(mockStartBedLoop).toHaveBeenCalledTimes(1);
+
+      await fireEvent.press(utils.getByText('Ocean'));
+      expect(mockBedStop).toHaveBeenCalledTimes(1);
+      expect(mockStartBedLoop).toHaveBeenCalledTimes(2);
+      expect(mockStartBedLoop.mock.calls[1]).toEqual([
+        expect.objectContaining({ id: 'ocean' }),
+        0.5,
+      ]);
+      expect(mockSetAudioModeAsync).toHaveBeenCalledTimes(1); // no preview during a session
+
+      await fireEvent.press(utils.getByText('None'));
+      expect(mockBedStop).toHaveBeenCalledTimes(2);
+      expect(mockStartBedLoop).toHaveBeenCalledTimes(2);
+      expect(mockPlayerObj.volume).toBe(1);
+    });
+
+    it('a bed switched to while paused stays paused until Resume', async () => {
+      mockGetBedPreference.mockResolvedValue({ bedId: 'rain', mix: 0.75 });
+      mockPlayerStatus = { playing: false, currentTime: 0 };
+      const utils = await startSession();
+
+      await fireEvent.press(utils.getByText('Ocean'));
+      expect(mockBedPause).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it('stops playback automatically when the sleep timer elapses, and logs a session', async () => {
     jest.useFakeTimers();
-    mockGetBedPreference.mockResolvedValue({ bedId: 'rain', balance: 0.5 });
+    mockGetBedPreference.mockResolvedValue({ bedId: 'rain', mix: 0.75 });
     const { getByText } = await render(<PlayerScreen />);
     await waitFor(() => expect(getByText('Calm')).toBeTruthy());
 
