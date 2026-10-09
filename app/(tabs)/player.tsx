@@ -8,7 +8,7 @@ import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { BedPicker } from '@/components/BedPicker';
+import { BedPicker, CHIP_HIT_SLOP, CHIP_ROW_PADDING } from '@/components/BedPicker';
 import { radii, spacing, typography } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { useThemeColors } from '@/hooks/useThemeColors';
@@ -334,7 +334,8 @@ export default function PlayerScreen() {
           <Text style={{ color: colors.error }}>Stop</Text>
         </Pressable>
 
-        {bedPicker}
+        {/* Set apart from Stop so reaching for the sound controls can't end the session. */}
+        <View style={styles.studioSection}>{bedPicker}</View>
       </View>
     );
   }
@@ -374,36 +375,39 @@ export default function PlayerScreen() {
         />
       )}
 
-      <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Sleep timer</Text>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.chipScroll}
-        contentContainerStyle={styles.chipRow}
-      >
-        {[...SLEEP_TIMER_OPTIONS, null].map((minutes) => {
-          const selected = sleepTimerMinutes === minutes;
-          return (
-            <Pressable
-              key={minutes ?? 'off'}
-              onPress={() => setSleepTimerMinutes(minutes)}
-              accessibilityRole="button"
-              accessibilityState={{ selected }}
-              style={[
-                styles.chip,
-                {
-                  borderColor: selected ? colors.primary : colors.border,
-                  backgroundColor: selected ? colors.primary : 'transparent',
-                },
-              ]}
-            >
-              <Text style={{ color: selected ? colors.background : colors.textPrimary }}>
-                {minutes ? `${minutes} min` : 'No timer'}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
+      <View style={styles.section}>
+        <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Sleep timer</Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.chipScroll}
+          contentContainerStyle={styles.chipRow}
+        >
+          {[...SLEEP_TIMER_OPTIONS, null].map((minutes) => {
+            const selected = sleepTimerMinutes === minutes;
+            return (
+              <Pressable
+                key={minutes ?? 'off'}
+                onPress={() => setSleepTimerMinutes(minutes)}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                hitSlop={CHIP_HIT_SLOP}
+                style={[
+                  styles.chip,
+                  {
+                    borderColor: selected ? colors.primary : colors.border,
+                    backgroundColor: selected ? colors.primary : 'transparent',
+                  },
+                ]}
+              >
+                <Text style={{ color: selected ? colors.background : colors.textPrimary }}>
+                  {minutes ? `${minutes} min` : 'No timer'}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </View>
 
       {bedPicker}
 
@@ -496,9 +500,18 @@ const styles = StyleSheet.create({
     fontSize: typography.body.fontSize,
     flexShrink: 1,
   },
+  // Matches BedPicker's label-to-chips spacing.
+  section: {
+    alignSelf: 'stretch',
+    gap: spacing.xs,
+  },
   sectionLabel: {
     fontSize: typography.caption.fontSize,
     alignSelf: 'flex-start',
+  },
+  studioSection: {
+    alignSelf: 'stretch',
+    marginTop: spacing.lg,
   },
   chipScroll: {
     flexGrow: 0,
@@ -508,6 +521,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
+    ...CHIP_ROW_PADDING,
   },
   chip: {
     borderWidth: 1,

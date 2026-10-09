@@ -19,6 +19,8 @@ type Props = {
 /**
  * The audio studio controls (FR-304): which ambience bed plays under the affirmations, and one
  * slider balancing the voice against it. Used on the Player both before Play and while playing.
+ * The slider only appears with a bed chosen: without one there is nothing to balance, and the
+ * voice plays at full.
  */
 export function BedPicker({ bedId, mix, onBedChange, onMixChange, onMixCommit }: Props) {
   const colors = useThemeColors();
@@ -43,7 +45,9 @@ export function BedPicker({ bedId, mix, onBedChange, onMixChange, onMixCommit }:
               key={id ?? 'none'}
               onPress={() => onBedChange(id)}
               accessibilityRole="button"
+              accessibilityLabel={bed ? `${bed.label} ambience` : 'No ambience'}
               accessibilityState={{ selected }}
+              hitSlop={CHIP_HIT_SLOP}
               style={[
                 styles.chip,
                 {
@@ -60,42 +64,49 @@ export function BedPicker({ bedId, mix, onBedChange, onMixChange, onMixCommit }:
         })}
       </ScrollView>
 
-      <View style={[styles.mix, { opacity: hasBed ? 1 : 0.5 }]}>
-        <View style={styles.mixLabels}>
-          <Text style={[styles.label, { color: colors.textSecondary }]}>
-            More ambience · {percent(gains.bed)}%
-          </Text>
-          <Text style={[styles.label, { color: colors.textSecondary }]}>
-            More voice · {percent(gains.voice)}%
-          </Text>
+      {hasBed ? (
+        <View style={styles.mix}>
+          <View style={styles.mixLabels}>
+            <Text style={[styles.label, { color: colors.textSecondary }]}>
+              More ambience · {percent(gains.bed)}%
+            </Text>
+            <Text style={[styles.label, { color: colors.textSecondary }]}>
+              More voice · {percent(gains.voice)}%
+            </Text>
+          </View>
+          <Slider
+            style={styles.slider}
+            minimumValue={0}
+            maximumValue={1}
+            step={0.025}
+            value={mix}
+            onValueChange={onMixChange}
+            onSlidingComplete={onMixCommit}
+            minimumTrackTintColor={colors.textSecondary}
+            maximumTrackTintColor={colors.textSecondary}
+            thumbTintColor={colors.controlAccent}
+            accessibilityLabel="Voice and ambience balance"
+            accessibilityValue={{
+              text: `Voice ${percent(gains.voice)} percent, ambience ${percent(gains.bed)} percent`,
+            }}
+          />
         </View>
-        <Slider
-          style={styles.slider}
-          minimumValue={0}
-          maximumValue={1}
-          step={0.025}
-          value={mix}
-          disabled={!hasBed}
-          onValueChange={onMixChange}
-          onSlidingComplete={onMixCommit}
-          minimumTrackTintColor={colors.border}
-          maximumTrackTintColor={colors.border}
-          thumbTintColor={colors.primary}
-          accessibilityLabel="Voice and ambience balance"
-          accessibilityValue={{
-            text: `Voice ${percent(gains.voice)} percent, ambience ${percent(gains.bed)} percent`,
-          }}
-        />
-      </View>
+      ) : null}
     </View>
   );
 }
 
+// The chips are ~30 pt tall; this makes their touch area 46 pt (NFR-401) without making them
+// look bulkier. Android ignores hit slop outside the parent, so chip rows pad by the same amount
+// (CHIP_ROW_PADDING) to keep it inside their ScrollView.
+export const CHIP_HIT_SLOP = { top: 8, bottom: 8 };
+export const CHIP_ROW_PADDING = { paddingVertical: 8 };
+
 const styles = StyleSheet.create({
-  container: { alignSelf: 'stretch', gap: spacing.sm },
+  container: { alignSelf: 'stretch', gap: spacing.xs },
   label: { fontSize: typography.caption.fontSize, lineHeight: typography.caption.lineHeight },
   chipScroll: { flexGrow: 0 },
-  chipRow: { gap: spacing.sm },
+  chipRow: { gap: spacing.sm, ...CHIP_ROW_PADDING },
   chip: {
     borderWidth: 1,
     borderRadius: radii.full,
@@ -104,5 +115,5 @@ const styles = StyleSheet.create({
   },
   mix: { gap: spacing.xs },
   mixLabels: { flexDirection: 'row', justifyContent: 'space-between' },
-  slider: { alignSelf: 'stretch', height: 40 },
+  slider: { alignSelf: 'stretch', height: 44 },
 });

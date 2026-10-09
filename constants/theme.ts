@@ -17,6 +17,10 @@
  * text ~2.2:1, error as caption-size text ~3.2:1) but are used pervasively across
  * every phase's buttons — left for the full step 5.3 audit rather than changed
  * here as a side effect of a Phase-2-scoped pass.
+ *
+ * `controlAccent` (step 4.4) is the gold for non-text controls that must stand out at
+ * WCAG 1.4.11's 3:1, like the balance slider's thumb: the brand gold in dark mode, a
+ * darker gold in light mode, where the brand gold is only 2.16:1.
  */
 
 const palette = {
@@ -36,6 +40,8 @@ export type ThemeColors = {
   secondary: string;
   /** Text-safe variant of the violet accent — use for violet text, not `secondary`'s fills/borders. */
   accentText: string;
+  /** Gold for non-text controls (e.g. a slider thumb): at least 3:1 on the background. */
+  controlAccent: string;
   success: string;
   error: string;
   info: string;
@@ -50,6 +56,7 @@ export const lightColors: ThemeColors = {
   primary: palette.gold,
   secondary: palette.violet,
   accentText: palette.violet, // 5.44:1 on this mode's background — already AA-safe as-is
+  controlAccent: '#A97A26', // 3.66:1 on this mode's background (the brand gold is 2.16:1)
   success: '#357A58', // darkened from the flat #4CAF7D — 4.94:1 on this mode's background (was 2.60:1)
   error: palette.error,
   info: palette.info,
@@ -64,6 +71,7 @@ export const darkColors: ThemeColors = {
   primary: palette.gold,
   secondary: palette.violet,
   accentText: '#897DB7', // lightened from the flat #6B5CA5 — 5.11:1 on this mode's background (was 3.33:1)
+  controlAccent: palette.gold, // 8.40:1 on this mode's background
   success: '#4CAF7D',
   error: palette.error,
   info: palette.info,

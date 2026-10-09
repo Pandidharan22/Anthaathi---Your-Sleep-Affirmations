@@ -393,7 +393,6 @@ describe('PlayerScreen', () => {
     type SliderProps = {
       onValueChange: (v: number) => void;
       onSlidingComplete: (v: number) => void;
-      disabled: boolean;
     };
     const slider = (utils: Awaited<ReturnType<typeof render>>) =>
       utils.getByLabelText('Voice and ambience balance').props as SliderProps;
@@ -464,11 +463,14 @@ describe('PlayerScreen', () => {
       expect(mockStartBedLoop.mock.calls[1][0]).toMatchObject({ id: 'rain' });
     });
 
-    it('the slider is disabled without a bed, and the voice then plays at full', async () => {
+    it('hides the slider without a bed, and the voice then plays at full', async () => {
       mockGetBedPreference.mockResolvedValue({ bedId: null, mix: 0.1 });
       const utils = await startSession();
-      expect(slider(utils).disabled).toBe(true);
+      expect(utils.queryByLabelText('Voice and ambience balance')).toBeNull();
       expect(mockPlayerObj.volume).toBe(1);
+
+      await fireEvent.press(utils.getByText('Rain'));
+      expect(utils.getByLabelText('Voice and ambience balance')).toBeTruthy();
     });
 
     it('while playing, the slider rebalances voice and bed live and is saved on release', async () => {
