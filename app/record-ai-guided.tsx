@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { FolderPicker } from '@/components/FolderPicker';
+import { PauseMarkHint } from '@/components/PauseMarkHint';
 import { VoicePicker } from '@/components/VoicePicker';
 import { radii, spacing, typography } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
@@ -110,6 +111,7 @@ export default function RecordAiGuidedScreen() {
           { color: colors.textPrimary, borderColor: colors.border, backgroundColor: colors.surface },
         ]}
       />
+      <PauseMarkHint />
 
       <VoicePicker value={voiceId} onChange={setVoiceId} />
 

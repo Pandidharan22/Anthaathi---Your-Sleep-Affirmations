@@ -71,6 +71,11 @@ beforeEach(() => {
 });
 
 describe('RecordAiGuidedScreen', () => {
+  it('explains the / pause mark under the script field', async () => {
+    const { getByText } = await render(<RecordAiGuidedScreen />);
+    expect(getByText(/add \/ where you'd like a short pause/)).toBeTruthy();
+  });
+
   it('defaults to Nicole once the natural voices are installed', async () => {
     mockNeuralState = 'installed';
     const { getByText } = await render(<RecordAiGuidedScreen />);

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { FolderPicker } from '@/components/FolderPicker';
+import { PauseMarkHint } from '@/components/PauseMarkHint';
 import { TrimEditor } from '@/components/TrimEditor';
 import { VoicePicker } from '@/components/VoicePicker';
 import { radii, spacing, typography } from '@/constants/theme';
@@ -169,6 +170,7 @@ export default function AffirmationTrimScreen() {
               { color: colors.textPrimary, borderColor: colors.border, backgroundColor: colors.surface },
             ]}
           />
+          <PauseMarkHint />
           <VoicePicker value={voiceId} onChange={setVoiceId} />
           <Pressable
             onPress={handleRegenerate}
