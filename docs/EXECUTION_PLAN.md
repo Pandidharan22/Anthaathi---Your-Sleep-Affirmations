@@ -101,9 +101,19 @@ Goal: the in-app audio studio experience (ambience/music-bed layering) that the 
 - [x] **4.1** Source/curate a small CC0 ambience + music-bed library (freesound.org CC0 filter or equivalent). — 4 beds in `assets/beds/` (rain, ocean, crickets, pad); see `assets/beds/README.md`.
 - [x] **4.2** Layering/mixing implementation (affirmation track + ambience bed). — two-player crossfaded loop in `lib/bedLoop.ts`, wired into the Player; verified on-device.
 - [x] **4.3** Audio studio UI (volume balance, bed selection). — `components/BedPicker.tsx` in the Player: ambience chips with an 8 s preview before Play, and one voice/ambience balance slider (user's choice), live while playing.
-- [ ] **4.4** Design + accessibility pass on the studio UI.
+- [x] **4.4** Design + accessibility pass on the studio UI. — slider track/thumb contrast (new `controlAccent` token), 44+ pt touch targets, slider only with a bed, controls set apart from Stop, screen-reader labels.
 
 **Phase 4 exit criteria**: a recorded affirmation can be layered with an ambience/music bed and saved as part of the nightly playback.
+
+---
+
+## UI/UX redesign (before Phase 5)
+
+Requested by the user on 2026-10-10: the whole app's UI/UX is to be redesigned **before** starting Store Readiness. The user will provide their design ideas; the steps get planned from those, not before. Phase 5 does not start until this is done.
+
+Inputs already known: the earlier Claude Design Canvas direction (dark-first "warm, cozy, dreamy" palette, Fraunces + Nunito, "Dawn Glow" gradient treatment for hero moments; not yet applied to the app); gold-on-light contrast failing across buttons and selected chips (deferred from 2.6 and 4.4); the Player's duplicated "Player" title and the off-screen "No timer" chip; no screen titles using `accessibilityRole="header"` and no explicit `TextInput` labels (deferred from 2.6).
+
+- [ ] Steps to be planned once the user shares their design ideas.
 
 ---
 

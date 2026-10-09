@@ -4,6 +4,22 @@ One entry per committed step, newest first. Each entry: what was done, why, how 
 
 ---
 
+## 2026-10-10 — Design and accessibility pass on the audio studio UI (Execution Plan step 4.4)
+
+**What**: `design:design-critique` and an accessibility review of the Player's studio controls (setup and now-playing screens), grounded in screenshots at 375×812 in dark and light mode (web preview signed in to a throwaway account on the local Supabase stack, five seeded recordings) and contrast ratios computed from the theme tokens. Fixed: the balance slider's track was nearly invisible (1.25:1 light, 1.39:1 dark, against WCAG 1.4.11's 3:1 for controls) and now uses `textSecondary` (6.6:1 / 7.8:1); its thumb was 2.16:1 in light mode and now uses a new `controlAccent` token (a darker gold in light mode at 3.66:1, the brand gold in dark at 8.4:1). Chips (ambience and sleep timer) were ~30 pt tall and now have a 46 pt touch area via hit slop (NFR-401), with matching row padding because Android ignores hit slop outside the parent ScrollView; the slider is 44 pt tall. The slider now appears only with a bed chosen: disabled, it still read "ambience 35%" with no bed playing. On the now-playing screen the sound controls are set apart from Stop. Chips read "No ambience" / "Rain ambience" to screen readers. The sleep-timer label-to-chips spacing now matches the Ambience section.
+
+**Why**: the slider is the core of the studio and was the least visible control on the screen, especially in light mode. `controlAccent` follows step 2.6's `accentText` precedent: a dedicated token for one use rather than changing the brand gold everywhere. Only the block this step touched was re-indented; the Player file's one pre-existing Prettier deviation was left alone.
+
+**Deliberately not fixed here**: white text on the selected gold chip in light mode (2.16:1) is the app-wide "gold in light mode" issue already deferred to step 5.3. Older Player issues: "Player" appears twice (header and screen title), and the sleep timer's "No timer" chip starts fully off-screen at 375 pt. Both are noted for the UI/UX redesign the user asked for before Phase 5. On web, a live light/dark switch updated the header but not the screen until reload; on the user's phone the switch works, so it is a web-preview quirk only.
+
+**Verification**: before-and-after screenshots in both modes; the "No ambience" label confirmed in the page's accessibility tree; 1 new/changed test (slider hidden without a bed, shown once one is picked). 343 tests in CI mode, typecheck and lint clean. On the user's phone: slider hidden with None, chips easy to tap, slider visible in light mode, controls spaced from Stop, and live theme switching all fine. Process note: the web preview session kept looping the Ocean bed after the server was stopped (the page was still open); from now on a preview playing audio is stopped in-app and its tab closed before finishing.
+
+**Phase 4 exit criteria met**: a recorded or AI Guided affirmation can be layered with an ambience bed, balanced, and saved as part of the nightly playback.
+
+**Commit**: `c5208df` — Design and accessibility pass on the audio studio UI (step 4.4)
+
+---
+
 ## 2026-10-10 — Audio studio UI: ambience picker and balance slider (Execution Plan step 4.3)
 
 **What**: The Player now has the audio studio controls (FR-304) in a shared `components/BedPicker.tsx`, shown on both the setup and now-playing screens: ambience chips (None, Rain, Ocean, Night crickets, Soft pad) and one slider balancing the voice against the bed. Before Play, tapping a bed previews it for 8 s at the current balance; the preview ends on another tap, None, Play, or leaving the tab. While playing, moving the slider and switching beds apply live: the old bed fades out as the new one fades in, and a bed chosen while paused stays silent until Resume. The choice is saved per device. The temporary `app/dev-bed-test.tsx` and its Settings link are gone.
