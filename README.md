@@ -26,7 +26,7 @@ Phase 0 (Foundations) complete; Phase 1 (Core Parity) starting next. See [`CLAUD
 - **Client**: React Native + Expo (TypeScript)
 - **Backend**: Supabase (Postgres, Auth, Storage, Edge Functions) — free tier
 - **AI text**: Gemini / Groq free-tier API, called server-side from an Edge Function
-- **AI voice**: native on-device TTS-to-file module (Android/iOS), no cloud TTS — [ADR-0007](docs/adr/0007-voice-synthesis-strategy.md)
+- **AI voice**: on-device synthesis to a file, no cloud TTS: Kokoro neural voices via sherpa-onnx (optional one-time model download), with the phone's own TTS as fallback — [ADR-0007](docs/adr/0007-voice-synthesis-strategy.md), [ADR-0008](docs/adr/0008-on-device-neural-voices.md)
 - **Monetization**: RevenueCat (deferred to post-MVP)
 
 Full rationale in [docs/adr/](docs/adr/).

@@ -6,9 +6,9 @@ import { splitIntoPhrases } from '@/lib/voiceStyle';
 import { joinWavSegments, parseWav } from '@/lib/wav';
 import AnthaathiNeuralTts, { type NeuralLoadResult } from '@/modules/anthaathi-neural-tts';
 
-// Execution Plan step 3.13 (spike): Kokoro v1.0 (full precision) via sherpa-onnx. Not wired into
-// VOICE_OPTIONS or the real AI Guided flow yet; app/dev-neural-tts.tsx drives it so the voices
-// can be judged on a real phone first.
+// ADR-0008: Kokoro v1.0 (full precision) via sherpa-onnx, the "natural voices" of AI Guided.
+// Covers the model's lifecycle (install, checks, load/unload) and phrase-by-phrase synthesis;
+// lib/aiVoice.ts routes `kokoro:` voice ids here.
 
 // sherpa-onnx's own release of Kokoro v1.0 (~350 MB). Full precision by the user's choice:
 // int8 risks quality loss, and an F16 conversion crashed ONNX Runtime's optimizer (see journal).

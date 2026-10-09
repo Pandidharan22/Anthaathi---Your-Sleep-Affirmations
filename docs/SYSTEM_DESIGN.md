@@ -33,9 +33,9 @@ Full detail in [SRS.md](SRS.md). The requirements that most shape this design:
 │                 — recordings AND AI-synthesized audio live here     │
 │                                                                     │
 │  ┌───────────────────────────────────────────────────────────┐   │
-│  │  Native module: voice synthesis (Kotlin + Swift)            │   │
-│  │  device OS TTS engine → local audio file, no network         │   │
-│  │  (ADR-0007)                                                   │   │
+│  │  Native module: voice synthesis (Kotlin + Swift)          │   │
+│  │  Kokoro neural voices or OS TTS → local audio file        │   │
+│  │  (ADR-0007, ADR-0008)                                     │   │
 │  └───────────────────────────────────────────────────────────┘   │
 └────────────────────────────┬────────────────────────────────────┘
                               │ HTTPS (Supabase client SDK)
@@ -75,7 +75,7 @@ Full detail in [SRS.md](SRS.md). The requirements that most shape this design:
 | Auth | Sign up/in/out, session persistence | Client (Supabase Auth SDK) |
 | Recorder | Mic capture, waveform preview, trim | Client (expo-av) |
 | Audio Studio | Layering ambience/music beds, mixing | Client (expo-av / ffmpeg-kit) |
-| Voice Synthesis | AI Guided Session narration: text → local audio file | Client (native module, on-device OS TTS engine — [ADR-0007](adr/0007-voice-synthesis-strategy.md)) |
+| Voice Synthesis | AI Guided Session narration: text → local audio file | Client (native modules, on-device: Kokoro neural voices via sherpa-onnx, with the OS TTS engine as the "Basic" fallback — [ADR-0007](adr/0007-voice-synthesis-strategy.md), [ADR-0008](adr/0008-on-device-neural-voices.md)) |
 | Library | Folder/recording CRUD, list/search | Client + Postgres (metadata), local FS (audio) |
 | Player | Loop playback, sleep timer, background audio | Client (expo-av, background audio mode) |
 | Goals / Vision Board | Goal CRUD, image attachment | Client + Postgres + Storage (images) |
@@ -196,16 +196,18 @@ User → Recorder: records the (possibly edited) text in their own voice
 **AI Guided Session: generate once, cache, reuse (on-device, no network)**
 ```
 User → Affirmation editor: choose "AI Guided" mode, pick a voice (male/female)
-Client → Native voice-synthesis module: synthesize(text, voiceId)
-Native module → Device OS TTS engine: request synthesis to file
-                 (Android: TextToSpeech.synthesizeToFile
-                  iOS: AVSpeechSynthesizer buffer-write, assembled to a file)
-Device OS TTS engine → Native module: local audio file
-Native module → Client: local file path
+Client: split the script into phrases (sentences, commas, "/" marks)
+Client → Native voice-synthesis module, one call per phrase, by voice engine:
+          natural voice ("kokoro:<speaker>"): Kokoro via sherpa-onnx, model loaded on demand
+          basic voice: Android TextToSpeech.synthesizeToFile
+                       (iOS AVSpeechSynthesizer buffer-write once step 3.7 lands)
+Native module → Client: one local WAV per phrase
+Client: join the phrases with exact silences (1.8 s after a sentence, 0.5 s at a comma or "/")
 Client → Local FS: save file
 Client → Local DB: insert affirmation row (source: 'ai_generated', voice_id, script_text)
                     [same folder/Player/ambience integration as a recording from here — FR-515]
-(No network at any step. Re-synthesized only if script_text or voice_id changes - FR-514.)
+(No network at any step. The natural-voice model is a separate one-time download from Settings.
+ Re-synthesized only if script_text or voice_id changes - FR-514.)
 ```
 
 **Nightly playback with sleep timer**
@@ -261,4 +263,4 @@ Local DB -- background sync --> Postgres: upsert playback_sessions row (streak s
 - **Streak computation**: recomputing from `playback_sessions` is fine at this row count; would need a materialized/cached value if the table grows into the tens of thousands of rows per user.
 - **Edge Function rate limiting**: a simple per-user counter is enough pre-launch; a real multi-user launch would want a proper rate-limiting layer (e.g. Upstash free tier) in front of the LLM call.
 - **Monetization integration**: RevenueCat is deferred entirely (see [ADR-0005](adr/0005-monetization-platform.md)) — not designed into the data model yet beyond leaving room for a future `subscriptions` table.
-- **Voice synthesis approach**: the native on-device module ([ADR-0007](adr/0007-voice-synthesis-strategy.md)) is accepted with its native-code cost explicitly. If it threatens the store-submission timeline, the self-hosted Piper/Coqui cloud approach is documented in that ADR as a ready fallback, not something to re-derive from scratch.
+- **Voice synthesis approach**: on-device native modules ([ADR-0007](adr/0007-voice-synthesis-strategy.md), [ADR-0008](adr/0008-on-device-neural-voices.md)), accepted with their native-code cost explicitly. Watch the release APK against NFR-103 (the neural engine adds ~24 MB of native code) and the availability of the pinned model download; ADR-0008 lists what to do if either becomes a problem.

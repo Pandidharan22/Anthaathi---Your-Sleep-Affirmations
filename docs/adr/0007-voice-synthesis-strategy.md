@@ -1,8 +1,10 @@
 # ADR-0007: Voice synthesis strategy for AI Guided Sessions
 
-**Status:** Accepted
+**Status:** Accepted; voice engine partly superseded by [ADR-0008](0008-on-device-neural-voices.md)
 **Date:** 2026-09-21
 **Deciders:** Pandidharan
+
+> **Update (2026-10-10):** the native-module, generate-once-to-a-file architecture below still stands. The Android system voices it chose turned out too flat for a calm bedtime voice even after tuning, so [ADR-0008](0008-on-device-neural-voices.md) adds on-device Kokoro neural voices as the primary engine, with these system voices kept as the "Basic" fallback.
 
 ## Context
 
