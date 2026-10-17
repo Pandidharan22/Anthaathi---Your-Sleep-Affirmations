@@ -4,6 +4,28 @@ One entry per committed step, newest first. Each entry: what was done, why, how 
 
 ---
 
+## 2026-10-17 — Sign Up and Sign In screens (redesign step R.3b)
+
+**What**: The old combined `/auth` screen (a mode toggle between two forms) is replaced by two screens built from their mockups. `app/sign-up.tsx`: Name, Email, Password, the "At least 8 characters" helper, Create Account, and an "Already have an account? Sign In" link. `app/sign-in.tsx`: Email, Password, Sign in. Both sit on a shared `components/AuthLayout.tsx` (back button, large serif title and subtitle, the form scrolling above the keyboard). Sign Up uses the dusk mesh, Sign In the plain background, as in the mockups. `lib/authErrors.ts` turns Supabase failures into copy shown under the right field. `useAuth` now takes the name at sign-up and passes Supabase's error code through. Welcome's buttons go straight to `/sign-up` and `/sign-in`.
+
+**Why**: the Name field is one of the mockup-only extras the user chose to build (R.3). The mockups also show errors under the field they're about, not in a banner, which needs to know which field a failure belongs to.
+
+**Decisions with reasons**:
+- **Name goes in Supabase user metadata (`display_name`)**, not a new `profiles` table: it is one value, read only by the signed-in user (for "Good evening, Maya." in R.4), and it needs no migration or RLS. A table can come later if profiles grow.
+- **8-character minimum on sign-up only.** The mockup says "At least 8 characters", but the project allows 6, so accounts made before now may have 6–7 character passwords. Sign-in checks only that a password was entered, so those accounts still get in.
+- **Errors keyed by Supabase's `error.code`, not its English message**: codes are a stable contract, the messages aren't. Wrong credentials say "Email or password doesn't match our records." under the password. The mockup's "Password doesn't match our records." was rejected because Supabase returns the same code for an unknown email, and claiming it was the password would also reveal that the email has an account. A failure with no code (offline, timeout) says to check the connection.
+- **Basic checks before any network call**: an empty name, an email that doesn't look like one, or a short password get an error without contacting Supabase.
+- **The switch between screens uses `replace`, not `push`**, so going back and forth doesn't build a stack, and Back still goes to Welcome. The Back button falls back to Welcome when there's no history, for example after the email-confirmation step.
+- **`TextField` forwards a `ref`** (React 19 passes it as a normal prop), so the keyboard's Next key moves Name → Email → Password and Done submits.
+- **User's changes after the phone check**: "Create account" became **"Create Account"**, and the Sign In link was added under it. Forgot password is the next step, R.3c. It needs a reset email, a deep link back into the app, a new-password screen and a Supabase redirect setting, so it stays its own reviewable step.
+- **Left out for now**: "Continue with Apple" (paid Apple account, like 3.7) and the Terms & Privacy line (waits for step 5.2).
+
+**Verification**: 24 new or updated tests: sign-up trimming and the name passed through, every field checked before submit, an existing account shown under email, the email-confirmation state and its "Go to sign in", the Sign In link; sign-in trimming, short passwords allowed, wrong credentials under the password, a codeless failure shown as a connection problem, Back falling back to Welcome; error mapping and the email check; `useAuth` passing the name and error codes. Full suite 398/398, typecheck and lint clean (the 11 warnings are older ones in `lib/*.test.ts`). In the web preview at phone width, both screens matched their mockups, empty submits put a message under each field, the network log showed no Supabase request for them, and the Sign In link opened `/sign-in`. On the user's phone: both screens open from Welcome, signing in works, a wrong password shows the error, the keyboard and Back behave, and the later Sign Up changes look right.
+
+**Commit**: `28c8670` — Split auth into Sign Up and Sign In screens (redesign step R.3b)
+
+---
+
 ## 2026-10-17 — Splash and Welcome screens (redesign step R.3a)
 
 **What**: The first two mockup screens are live. `components/BrandSplash.tsx` draws the Splash mockup (Cradle logo with its terracotta glow, Playfair wordmark, tagline, gradient bar on the dusk mesh) over the app on every cold start. `app/welcome.tsx` is the new signed-out start screen ("Fall asleep to your *own voice*", rings around a glowing mic, Get started / I already have an account). `/auth` opens in sign-up or sign-in mode depending on which Welcome button was pressed; it gets its own redesign in R.3b. R.3 was split into R.3a (splash + welcome), R.3b (sign up + sign in) and R.3c (forgot password).
