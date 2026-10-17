@@ -16,11 +16,26 @@ jest.mock('@/hooks/useAuth', () => ({
   }),
 }));
 
+let mockParams: { mode?: string } = {};
+jest.mock('expo-router', () => ({
+  useLocalSearchParams: () => mockParams,
+}));
+
 beforeEach(() => {
   jest.resetAllMocks();
+  mockParams = {};
 });
 
 describe('AuthScreen', () => {
+  it("opens in sign-up mode when Welcome's Get started asks for it", async () => {
+    mockParams = { mode: 'sign-up' };
+
+    const { getByText } = await render(<AuthScreen />);
+
+    expect(getByText('Create your account')).toBeTruthy();
+    expect(getByText('Sign up')).toBeTruthy();
+  });
+
   it('defaults to sign-in mode and submits via signIn', async () => {
     mockSignIn.mockResolvedValue({ error: null });
 
@@ -44,7 +59,9 @@ describe('AuthScreen', () => {
     await fireEvent.changeText(getByPlaceholderText('Password'), 'correct-horse');
     await fireEvent.press(getByText('Sign up'));
 
-    await waitFor(() => expect(mockSignUp).toHaveBeenCalledWith('bob@example.com', 'correct-horse'));
+    await waitFor(() =>
+      expect(mockSignUp).toHaveBeenCalledWith('bob@example.com', 'correct-horse'),
+    );
   });
 
   it('shows a confirmation message when sign-up requires email confirmation', async () => {

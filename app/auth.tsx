@@ -1,12 +1,6 @@
+import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import {
-  ActivityIndicator,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { radii, spacing, typography } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
@@ -18,7 +12,9 @@ export default function AuthScreen() {
   const colors = useThemeColors();
   const { signIn, signUp } = useAuth();
 
-  const [mode, setMode] = useState<Mode>('sign-in');
+  // Welcome's "Get started" opens this in sign-up mode (R.3b splits it into two screens).
+  const params = useLocalSearchParams<{ mode?: string }>();
+  const [mode, setMode] = useState<Mode>(params.mode === 'sign-up' ? 'sign-up' : 'sign-in');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -32,7 +28,9 @@ export default function AuthScreen() {
     setSubmitting(true);
 
     const result =
-      mode === 'sign-in' ? await signIn(email.trim(), password) : await signUp(email.trim(), password);
+      mode === 'sign-in'
+        ? await signIn(email.trim(), password)
+        : await signUp(email.trim(), password);
 
     setSubmitting(false);
 
@@ -87,7 +85,11 @@ export default function AuthScreen() {
         textContentType="emailAddress"
         style={[
           styles.input,
-          { color: colors.textPrimary, borderColor: colors.border, backgroundColor: colors.surface },
+          {
+            color: colors.textPrimary,
+            borderColor: colors.border,
+            backgroundColor: colors.surface,
+          },
         ]}
       />
       <TextInput
@@ -100,7 +102,11 @@ export default function AuthScreen() {
         textContentType={mode === 'sign-in' ? 'password' : 'newPassword'}
         style={[
           styles.input,
-          { color: colors.textPrimary, borderColor: colors.border, backgroundColor: colors.surface },
+          {
+            color: colors.textPrimary,
+            borderColor: colors.border,
+            backgroundColor: colors.surface,
+          },
         ]}
       />
 
@@ -110,7 +116,10 @@ export default function AuthScreen() {
         onPress={handleSubmit}
         disabled={!canSubmit}
         accessibilityRole="button"
-        style={[styles.submitButton, { backgroundColor: colors.action, opacity: canSubmit ? 1 : 0.5 }]}
+        style={[
+          styles.submitButton,
+          { backgroundColor: colors.action, opacity: canSubmit ? 1 : 0.5 },
+        ]}
       >
         {submitting ? (
           <ActivityIndicator color={colors.background} />
@@ -127,7 +136,9 @@ export default function AuthScreen() {
         style={styles.linkButton}
       >
         <Text style={{ color: colors.accent }}>
-          {mode === 'sign-in' ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
+          {mode === 'sign-in'
+            ? "Don't have an account? Sign up"
+            : 'Already have an account? Sign in'}
         </Text>
       </Pressable>
     </View>

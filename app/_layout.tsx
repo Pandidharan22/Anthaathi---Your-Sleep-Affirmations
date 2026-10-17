@@ -1,18 +1,20 @@
 import { Fraunces_400Regular_Italic } from '@expo-google-fonts/fraunces/400Regular_Italic';
 import { Fraunces_600SemiBold } from '@expo-google-fonts/fraunces/600SemiBold';
 import { Fraunces_700Bold } from '@expo-google-fonts/fraunces/700Bold';
+import { Fraunces_700Bold_Italic } from '@expo-google-fonts/fraunces/700Bold_Italic';
 import { Nunito_400Regular } from '@expo-google-fonts/nunito/400Regular';
 import { Nunito_600SemiBold } from '@expo-google-fonts/nunito/600SemiBold';
 import { Nunito_700Bold } from '@expo-google-fonts/nunito/700Bold';
 import { PlayfairDisplay_800ExtraBold } from '@expo-google-fonts/playfair-display/800ExtraBold';
 import { useFonts } from 'expo-font';
-import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
+import { DarkTheme, router, Stack, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
+import { BrandSplash } from '@/components/BrandSplash';
 import { colors, fonts } from '@/constants/theme';
 import { AuthProvider, useAuth } from '@/hooks/useAuth';
+import { useSignOutReplay } from '@/hooks/useSignOutReplay';
 import { useSyncQueue } from '@/hooks/useSyncQueue';
 import { installDebugTools } from '@/lib/devTools';
 
@@ -22,6 +24,7 @@ const FONT_FILES = {
   Fraunces_400Regular_Italic,
   Fraunces_600SemiBold,
   Fraunces_700Bold,
+  Fraunces_700Bold_Italic,
   Nunito_400Regular,
   Nunito_600SemiBold,
   Nunito_700Bold,
@@ -57,41 +60,51 @@ function NavigationStack() {
     if (__DEV__) installDebugTools(user?.id ?? null);
   }, [user?.id]);
 
-  if (loading) {
-    return (
-      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
-        <ActivityIndicator color={colors.action} />
-      </View>
-    );
-  }
+  // Signing out plays the splash again (keyed remount) and lands on Welcome, the
+  // signed-out start screen — the same way a cold start does.
+  const signOutReplay = useSignOutReplay(user?.id ?? null);
+  useEffect(() => {
+    if (signOutReplay > 0) router.replace('/welcome');
+  }, [signOutReplay]);
 
+  // One splash instance for the whole cold start (its minimum-time timer must not
+  // restart when loading ends). Until the session is known nothing renders under it:
+  // mounting the stack early would briefly route a signed-in user to Welcome.
   return (
-    <Stack>
-      <Stack.Protected guard={!!session}>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen
-          name="record"
-          options={{ title: 'New Recording', presentation: 'modal', headerBackVisible: false }}
-        />
-        <Stack.Screen
-          name="affirmation/[id]/trim"
-          options={{ title: 'Recording', presentation: 'modal' }}
-        />
-        <Stack.Screen name="folders" options={{ title: 'Folders' }} />
-        <Stack.Screen name="goal/new" options={{ title: 'New Goal', presentation: 'modal' }} />
-        <Stack.Screen name="goal/[id]" options={{ title: 'Goal' }} />
-        <Stack.Screen
-          name="journal/new"
-          options={{ title: 'New Journal Entry', presentation: 'modal' }}
-        />
-        <Stack.Screen name="journal/[id]" options={{ title: 'Journal Entry' }} />
-      </Stack.Protected>
-      {/* Dev-only component gallery (R.2): needs no account or data, so it sits outside both guards. */}
-      <Stack.Screen name="dev-components" options={{ headerShown: false }} />
-      <Stack.Protected guard={!session}>
-        <Stack.Screen name="auth" options={{ title: 'Sign in', headerBackVisible: false }} />
-      </Stack.Protected>
-    </Stack>
+    <>
+      {loading ? null : (
+        <Stack>
+          <Stack.Protected guard={!!session}>
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen
+              name="record"
+              options={{ title: 'New Recording', presentation: 'modal', headerBackVisible: false }}
+            />
+            <Stack.Screen
+              name="affirmation/[id]/trim"
+              options={{ title: 'Recording', presentation: 'modal' }}
+            />
+            <Stack.Screen name="folders" options={{ title: 'Folders' }} />
+            <Stack.Screen name="goal/new" options={{ title: 'New Goal', presentation: 'modal' }} />
+            <Stack.Screen name="goal/[id]" options={{ title: 'Goal' }} />
+            <Stack.Screen
+              name="journal/new"
+              options={{ title: 'New Journal Entry', presentation: 'modal' }}
+            />
+            <Stack.Screen name="journal/[id]" options={{ title: 'Journal Entry' }} />
+          </Stack.Protected>
+          <Stack.Protected guard={!session}>
+            <Stack.Screen name="welcome" options={{ headerShown: false }} />
+            <Stack.Screen name="auth" options={{ title: '' }} />
+          </Stack.Protected>
+          {/* Dev-only component gallery (R.2): needs no account or data, so it sits outside
+              both guards. It must stay last: a blocked route redirects to the first
+              available screen in this list, which has to be Welcome, not the gallery. */}
+          <Stack.Screen name="dev-components" options={{ headerShown: false }} />
+        </Stack>
+      )}
+      <BrandSplash key={signOutReplay} loading={loading} />
+    </>
   );
 }
 
@@ -110,11 +123,3 @@ export default function RootLayout() {
     </ThemeProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});

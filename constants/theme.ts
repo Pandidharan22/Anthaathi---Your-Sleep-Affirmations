@@ -75,6 +75,8 @@ export const fonts = {
   serifBold: 'Fraunces_700Bold',
   serifSemiBold: 'Fraunces_600SemiBold',
   serifItalic: 'Fraunces_400Regular_Italic',
+  /** Italic accents inside bold headings, e.g. Welcome's "own voice". */
+  serifBoldItalic: 'Fraunces_700Bold_Italic',
   sans: 'Nunito_400Regular',
   sansSemiBold: 'Nunito_600SemiBold',
   sansBold: 'Nunito_700Bold',
