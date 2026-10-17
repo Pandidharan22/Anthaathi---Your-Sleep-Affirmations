@@ -4,6 +4,28 @@ One entry per committed step, newest first. Each entry: what was done, why, how 
 
 ---
 
+## 2026-10-17 — Design direction chosen: Velvet Dusk, terracotta accent, Cradle logo (input to the pre-Phase-5 redesign)
+
+**What**: Design work on the Claude Design canvas, not app code. Potential users said the first full-app design ("Dawn Glow": mauve → terracotta → gold) felt too warm because of the orange. Keeping that board untouched for reference, I built a second full 24-screen version using only the **Velvet Dusk** gradient (`#1D1622 → #362A3F → #A98FC4`). Then, over several rounds with the user, terracotta (`#E3946E`) came back as a single accent with one rule: **mauve means "do something", terracotta means "chosen or on"**. It fills or borders selected states (active tab, selected chips, toggles, chosen card and voice, current step, streak badge, "● Recording") and glows softly around the big round voice controls (mic, play, pause, Generating orb, app icon). Text buttons and small icons stay plain. The logo moved from "Descender" to **"Cradle"**. Recorded all of it in a new `docs/DESIGN.md`, linked from the README and the plan's "UI/UX redesign" section, and saved the logo cutout as `assets/brand/anthaathi-mark-cradle.png`.
+
+**Why**: the user wanted "a night with a little warmth — like curling up in a warm bedsheet while it's raining outside", and the first palette overshot it. The design itself lives on claude.ai, and the 2026-09-21 entry flagged that the repo had no record of it. `docs/DESIGN.md` fixes that and is the reference the redesign steps will build against. The logo cutout existed only in a temporary folder; the previous session's copy of the design export had already been wiped, so the repo is the safe home for it.
+
+**Decisions with reasons**:
+- **Filled controls use dark text on mauve → light mauve**, not cream text on the Velvet Dusk ramp: cream on mauve is 2.47:1, a WCAG fail. Dark on mauve is 6.23:1.
+- **Error color changed from rust `#D9614A` to rose `#E07A8A`**: rust was orange (the complaint), and as text it was only 4.39:1, just under AA's 4.5:1. Rose is 5.58:1.
+- **The accent never relies on hue alone**: terracotta and mauve are 1.18:1 apart in lightness, so every selected state also has a shape cue (fill, border, wider bar or checkmark).
+- **Glow level**: tuned in three rounds. A single layer at ~45–55% read as no warmth; two layers at 75–90% with 2–2.5× the reach "went too far". The user chose a middle ground: one layer, ~60–65% opacity, ~40px reach. A terracotta ring around buttons was also tried and rejected.
+- **Cream text kept** on purpose, for a little warmth.
+- **Logo recolor via CSS mask**: the cutout is white plus alpha, and the gradient color comes from CSS, so one file works in any palette. For Cradle only the original AI-generated reference existed (dark background baked in). I cut it out with `pngjs` from the repo's dev dependencies (no Python on this machine): crop to the mark, then alpha from luminance. The image is cleanly two-toned (background 20–40, mark 140–200 out of 255), so the edges came out smooth.
+
+**Verification**: design review, no app code changed. Each edit was a scripted find-and-replace that checked the exact number of matches before writing, and stopped instead of guessing when a match was ambiguous. That caught one: a class string shared by the Record mic and the Mode Choice tile. HTML tag balance was checked after every publish. One real bug was caught that way: the canvas editor had nested the whole screen grid inside the logo-exploration box, so removing that box left a stray closing tag. All contrast ratios were computed, not eyeballed. Before committing, every claim in `DESIGN.md` was checked against the published board; three were wrong (step indicator color, "no outlines" vs. selected-card borders, a 44px touch-target claim chips don't meet) and were fixed. Links resolve; the logo file's checksum matches the canvas copy.
+
+**Not done yet**: the app still uses the old tokens in `constants/theme.ts`; applying this design is the redesign's job. The Cradle cutout is 638 × 328, fine for the splash but too small for store icons (1024 × 1024), and should be redrawn as a vector before Phase 5. The light theme (NFR-403) is still deferred.
+
+**Commit**: `1a7b9c2` — Record the chosen design direction: Velvet Dusk, terracotta accent, Cradle logo
+
+---
+
 ## 2026-10-10 — Design and accessibility pass on the audio studio UI (Execution Plan step 4.4)
 
 **What**: `design:design-critique` and an accessibility review of the Player's studio controls (setup and now-playing screens), grounded in screenshots at 375×812 in dark and light mode (web preview signed in to a throwaway account on the local Supabase stack, five seeded recordings) and contrast ratios computed from the theme tokens. Fixed: the balance slider's track was nearly invisible (1.25:1 light, 1.39:1 dark, against WCAG 1.4.11's 3:1 for controls) and now uses `textSecondary` (6.6:1 / 7.8:1); its thumb was 2.16:1 in light mode and now uses a new `controlAccent` token (a darker gold in light mode at 3.66:1, the brand gold in dark at 8.4:1). Chips (ambience and sleep timer) were ~30 pt tall and now have a 46 pt touch area via hit slop (NFR-401), with matching row padding because Android ignores hit slop outside the parent ScrollView; the slider is 44 pt tall. The slider now appears only with a bed chosen: disabled, it still read "ambience 35%" with no bed playing. On the now-playing screen the sound controls are set apart from Stop. Chips read "No ambience" / "Rain ambience" to screen readers. The sleep-timer label-to-chips spacing now matches the Ambience section.
