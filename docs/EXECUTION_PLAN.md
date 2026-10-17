@@ -111,7 +111,9 @@ Goal: the in-app audio studio experience (ambience/music-bed layering) that the 
 
 Requested by the user on 2026-10-10: the whole app's UI/UX is to be redesigned **before** starting Store Readiness. The user will provide their design ideas; the steps get planned from those, not before. Phase 5 does not start until this is done.
 
-Inputs already known: the earlier Claude Design Canvas direction (dark-first "warm, cozy, dreamy" palette, Fraunces + Nunito, "Dawn Glow" gradient treatment for hero moments; not yet applied to the app); gold-on-light contrast failing across buttons and selected chips (deferred from 2.6 and 4.4); the Player's duplicated "Player" title and the off-screen "No timer" chip; no screen titles using `accessibilityRole="header"` and no explicit `TextInput` labels (deferred from 2.6).
+**Design direction chosen 2026-10-17: see [DESIGN.md](DESIGN.md).** Potential users found the first "Dawn Glow" palette too warm because of the orange; the current direction is the cooler "Velvet Dusk" palette, with terracotta used only as an accent for selected/on states and a soft glow around the voice controls, plus the "Cradle" logo. All 24 screens are on the design canvas linked from DESIGN.md.
+
+Other inputs already known: gold-on-light contrast failing across buttons and selected chips (deferred from 2.6 and 4.4); the Player's duplicated "Player" title and the off-screen "No timer" chip; no screen titles using `accessibilityRole="header"` and no explicit `TextInput` labels (deferred from 2.6).
 
 - [ ] Steps to be planned once the user shares their design ideas.
 

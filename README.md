@@ -17,6 +17,7 @@ Phase 0 (Foundations) complete; Phase 1 (Core Parity) starting next. See [`CLAUD
 | [docs/PRD.md](docs/PRD.md) | Product Requirements — problem, users, scope, success metrics |
 | [docs/SRS.md](docs/SRS.md) | Software Requirements Specification — functional & non-functional requirements |
 | [docs/SYSTEM_DESIGN.md](docs/SYSTEM_DESIGN.md) | Architecture, data model, API design, sequence flows, security model |
+| [docs/DESIGN.md](docs/DESIGN.md) | Visual design — palette, accent rule, type, logo, and a link to the design canvas |
 | [docs/adr/](docs/adr/) | Architecture Decision Records — the "why" behind each major technical choice |
 | [docs/EXECUTION_PLAN.md](docs/EXECUTION_PLAN.md) | The build order — phases and steps, checked off as work lands |
 | [Dev_Journal.md](Dev_Journal.md) | Chronological log of completed work, one entry per commit |
