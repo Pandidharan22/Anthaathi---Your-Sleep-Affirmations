@@ -4,6 +4,28 @@ One entry per committed step, newest first. Each entry: what was done, why, how 
 
 ---
 
+## 2026-10-17 — Velvet Dusk tokens, fonts and dark-only theme (redesign step R.1)
+
+**What**: `constants/theme.ts` now holds DESIGN.md's Velvet Dusk palette as a single dark set, replacing the old gold light/dark sets. It also gains `gradients` (filled-control and Velvet Dusk CSS strings), `glows` (the three terracotta `boxShadow` levels), `fonts`, and a type scale that carries font families. Fraunces, Nunito and Playfair Display (`@expo-google-fonts/*`) load in `app/_layout.tsx`, the navigation theme uses them, and the app is dark-only (`userInterfaceStyle: "dark"`, light status bar). Every old token use (`primary` ×67, `secondary`, `accentText`, `controlAccent`) was moved to a role-named token. New `constants/theme.test.ts` checks contrast, and a temporary `app/dev-design-check.tsx` (Settings, dev only) was added for the on-device check.
+
+**Why**: everything after R.1 builds on these tokens. Doing the migration first means each screen step starts from the right colors and fonts instead of re-solving them.
+
+**Decisions with reasons**:
+- **Tokens named by role, not by color**: `action` (mauve, "do something"), `selected` (terracotta, "chosen or on"), `accent` (light mauve, text and links). DESIGN.md's one rule is about meaning, so the names carry it. Removing `primary` made TypeScript flag every old use, so each was mapped by its role: fills → `action`, selected chips and checkmarks → `selected`, link text and spinners' text partners → `accent`. Nothing was left on a gold value by accident.
+- **Font families instead of `fontWeight`**: every weight is its own font file, and on Android a `fontWeight` on a custom family can fall back to the system font or a fake bold. The 5 places that copied `typography.*.fontWeight` now copy the family instead. 23 hard-coded `fontWeight`s remain on plain text; their screens are rebuilt in R.3–R.10.
+- **Fonts imported per weight** (`@expo-google-fonts/fraunces/600SemiBold`), not from each package's root, which `require`s every weight and would bundle about 50 font files instead of 7.
+- **A font that fails to load doesn't block the app**: it falls back to the system font.
+- **Navigation `primary` is light mauve, not terracotta**: it tints the header back button, which DESIGN.md keeps out of the accent.
+- **Gradient button kept as in the mockup**: on the phone the `#A98FC4 → #C3AEDA` shift looks subtle. I confirmed the canvas uses the exact same gradient, and the user chose to keep it.
+
+**Verification**: the contrast test computes WCAG ratios from the real token values. 16 text pairs pass AA, 2 control pairs pass 3:1, and it pins the known fail (cream on mauve, 2.47:1). The computed ratios match DESIGN.md's table exactly (2.47 / 6.23 / 7.33 / 5.58). Full suite: 362 tests pass, typecheck and lint clean. The web preview showed fonts and glows working but **react-native-web 0.21 silently drops `experimental_backgroundImage`**. On the user's Android phone (dev client, JS-only change), all three render: fonts, glows, and both gradients (button and the mesh with radial blobs). So R.2 can use React Native's own `boxShadow` and gradients with no extra library, plus a web fallback so the preview stays useful.
+
+**Not done yet**: the screens keep their old layouts, so the app currently looks like the old app recolored. The mockup layouts arrive screen by screen in R.3–R.10, built on R.2's components. R.2 also removes the dev screen.
+
+**Commit**: `e52dc82` — Apply Velvet Dusk tokens, fonts and dark-only theme (redesign step R.1)
+
+---
+
 ## 2026-10-17 — UI/UX redesign planned as steps R.1–R.11
 
 **What**: Replaced the "UI/UX redesign (before Phase 5)" placeholder in `docs/EXECUTION_PLAN.md` with eleven steps, built from `docs/DESIGN.md` and the 24 screens on the Velvet Dusk board: foundations (tokens, fonts, dark-only) → shared components → one step per screen group (entry, Library, recording, AI Guided, Player, Goals, Journal, Settings) → a review step that ends in a PR.
