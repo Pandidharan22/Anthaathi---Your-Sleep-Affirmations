@@ -4,6 +4,27 @@ One entry per committed step, newest first. Each entry: what was done, why, how 
 
 ---
 
+## 2026-10-17 — Splash and Welcome screens (redesign step R.3a)
+
+**What**: The first two mockup screens are live. `components/BrandSplash.tsx` draws the Splash mockup (Cradle logo with its terracotta glow, Playfair wordmark, tagline, gradient bar on the dusk mesh) over the app on every cold start. `app/welcome.tsx` is the new signed-out start screen ("Fall asleep to your *own voice*", rings around a glowing mic, Get started / I already have an account). `/auth` opens in sign-up or sign-in mode depending on which Welcome button was pressed; it gets its own redesign in R.3b. R.3 was split into R.3a (splash + welcome), R.3b (sign up + sign in) and R.3c (forgot password).
+
+**Why**: these are the first screens anyone sees, and the user wanted the real design in the app, not just the component gallery.
+
+**Decisions with reasons**:
+- **Welcome is one page, no page dots** (user's choice): the mockup shows three dots but only page one is designed, and dots would promise pages that don't exist.
+- **Splash holds at least 3 s** (user raised it from 1.2 s after seeing it), and longer if the session is still loading. It fades out over 0.4 s, or disappears at once with the system's reduce-motion setting.
+- **One splash instance across loading**: rendering it in both the loading and loaded branches would remount it and restart its timer. While the session is unknown nothing renders under it, otherwise a signed-in user would briefly be routed to Welcome.
+- **Splash plays again after sign-out, then Welcome** (user's request after testing): `hooks/useSignOutReplay.ts` counts signed-in → signed-out transitions, and the count is the splash's `key`, so it remounts. A sign-in or the session arriving at launch doesn't count. Sign-out also goes explicitly to `/welcome`; the user had been landing on Sign In.
+- **The logo took three attempts, settled by testing on the phone**: (1) masked-view with the PNG as the mask drew nothing on Android, while the wordmark, also masked-view but with a text mask, worked; switching it to software rendering didn't help. (2) Redrawn as an SVG mask over the gradient with a runtime `blurRadius` copy for the glow: the mark showed, but the blur couldn't spread past the image's own edges, so the copy had to be enlarged and looked like a second, bigger logo. (3) The glow is now baked into `assets/brand/anthaathi-mark-cradle-glow.png` by `scripts/make-brand-glow.js`: three box blurs approximating the mockup's `drop-shadow(0 0 20px …0.62)` (sigma 10px at the 96px display size, about 66px at source scale), padded so the glow fades out inside the image, then drawn at the same scale and position as the mark. `pngjs` became an explicit dev dependency (pinned 7.0.0) instead of a transitive one.
+- **Gallery route moved after the signed-out screens**: a blocked route redirects to the first available screen in the list, which had briefly made signed-out web visits land on the dev gallery instead of Welcome.
+- **Left out on purpose**: the Apple button (blocked on the paid Apple account, like 3.7) and the sign-up "agree to Terms & Privacy" line (needs step 5.2's documents; noted on 5.2). The native Android launch screen before JS loads stays the default until 5.1.
+
+**Verification**: 11 new tests (splash minimum time, waiting on loading, fade/unmount, single screen-reader announcement; Welcome heading and both buttons; `/auth` opening in sign-up mode; sign-out replay counting). Full suite 385/385, typecheck and lint clean. In the web preview: cold start showed the splash for about 4 s (3 s hold, the fade, plus timing slack in the measurement) and landed on Welcome; Welcome at phone width matched the mockup, and Get started opened sign-up. On the user's phone: logo and glow correct, splash on a signed-in cold start, splash again after sign-out landing on Welcome, both Welcome buttons working.
+
+**Commit**: `06b1b84` — Add the splash and Welcome screens (redesign step R.3a)
+
+---
+
 ## 2026-10-17 — Shared components and tab bar (redesign step R.2)
 
 **What**: New `components/ui/` holding the parts every redesigned screen is built from, each copied from the Velvet Dusk board's own CSS: `Button` (gradient fill / gradient outline with gradient text / plain), `IconButton` (44pt round), `Chip` (terracotta when selected), `Card` (surface/elevated, optional corner glows), `TextField` (uppercase label, focus ring, rose error), `GradientText`, `ScreenTitle`, `NavHeader`, `GlowButton` (round voice control with the terracotta glow and optional warm halo), `DuskBackground` (the hero mesh) and `Icon` with all 34 icons the board uses, path for path. `components/TabBar.tsx` replaces the default tab bar and is live in the app. R.1's dev screen became `app/dev-components.tsx`, a gallery of every component (dev only).
