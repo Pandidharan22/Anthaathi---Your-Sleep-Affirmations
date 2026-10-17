@@ -95,7 +95,8 @@ function NavigationStack() {
           </Stack.Protected>
           <Stack.Protected guard={!session}>
             <Stack.Screen name="welcome" options={{ headerShown: false }} />
-            <Stack.Screen name="auth" options={{ title: '' }} />
+            <Stack.Screen name="sign-up" options={{ headerShown: false }} />
+            <Stack.Screen name="sign-in" options={{ headerShown: false }} />
           </Stack.Protected>
           {/* Dev-only component gallery (R.2): needs no account or data, so it sits outside
               both guards. It must stay last: a blocked route redirects to the first

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type Ref } from 'react';
 import { StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
 
 import { colors, fonts, radii, typography } from '@/constants/theme';
@@ -9,6 +9,8 @@ type TextFieldProps = Omit<TextInputProps, 'style' | 'placeholderTextColor'> & {
   /** Replaces the helper text and turns the border rose. */
   error?: string | null;
   helper?: string;
+  /** Lets a form move focus to the next field (React 19 passes `ref` as a prop). */
+  ref?: Ref<TextInput>;
 };
 
 /**

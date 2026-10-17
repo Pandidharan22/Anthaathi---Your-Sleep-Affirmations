@@ -28,7 +28,7 @@ describe('WelcomeScreen', () => {
 
     await fireEvent.press(screen.getByRole('button', { name: 'Get started' }));
 
-    expect(mockPush).toHaveBeenCalledWith({ pathname: '/auth', params: { mode: 'sign-up' } });
+    expect(mockPush).toHaveBeenCalledWith('/sign-up');
   });
 
   it('I already have an account opens sign-in', async () => {
@@ -36,6 +36,6 @@ describe('WelcomeScreen', () => {
 
     await fireEvent.press(screen.getByRole('button', { name: 'I already have an account' }));
 
-    expect(mockPush).toHaveBeenCalledWith({ pathname: '/auth', params: { mode: 'sign-in' } });
+    expect(mockPush).toHaveBeenCalledWith('/sign-in');
   });
 });

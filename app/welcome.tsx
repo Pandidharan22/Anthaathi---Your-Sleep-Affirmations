@@ -42,13 +42,13 @@ export default function WelcomeScreen() {
       <View style={[styles.actions, { paddingBottom: insets.bottom + 40 }]}>
         <Button
           label="Get started"
-          onPress={() => router.push({ pathname: '/auth', params: { mode: 'sign-up' } })}
+          onPress={() => router.push('/sign-up')}
           style={styles.fullWidth}
         />
         <Button
           label="I already have an account"
           variant="ghost"
-          onPress={() => router.push({ pathname: '/auth', params: { mode: 'sign-in' } })}
+          onPress={() => router.push('/sign-in')}
         />
       </View>
     </View>

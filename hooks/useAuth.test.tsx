@@ -60,11 +60,14 @@ describe('useAuth', () => {
     const { result } = await renderUseAuth();
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    const outcome = await act(() => result.current.signUp('alice@example.com', 'hunter22'));
+    const outcome = await act(() =>
+      result.current.signUp('alice@example.com', 'hunter22', 'Alice'),
+    );
 
     expect(supabase.auth.signUp).toHaveBeenCalledWith({
       email: 'alice@example.com',
       password: 'hunter22',
+      options: { data: { display_name: 'Alice' } },
     });
     expect(outcome).toEqual({ error: null, needsEmailConfirmation: false });
   });
@@ -77,7 +80,9 @@ describe('useAuth', () => {
     const { result } = await renderUseAuth();
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    const outcome = await act(() => result.current.signUp('alice@example.com', 'hunter22'));
+    const outcome = await act(() =>
+      result.current.signUp('alice@example.com', 'hunter22', 'Alice'),
+    );
 
     expect(outcome).toEqual({ error: null, needsEmailConfirmation: true });
   });
@@ -85,19 +90,21 @@ describe('useAuth', () => {
   it('signUp surfaces a Supabase error', async () => {
     supabase.auth.signUp.mockResolvedValue({
       data: { session: null },
-      error: { message: 'User already registered' },
+      error: { message: 'User already registered', code: 'user_already_exists' },
     });
     const { result } = await renderUseAuth();
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    const outcome = await act(() => result.current.signUp('alice@example.com', 'hunter22'));
+    const outcome = await act(() =>
+      result.current.signUp('alice@example.com', 'hunter22', 'Alice'),
+    );
 
-    expect(outcome).toEqual({ error: 'User already registered' });
+    expect(outcome).toEqual({ error: 'User already registered', errorCode: 'user_already_exists' });
   });
 
   it('signIn calls signInWithPassword and surfaces errors', async () => {
     supabase.auth.signInWithPassword.mockResolvedValue({
-      error: { message: 'Invalid login credentials' },
+      error: { message: 'Invalid login credentials', code: 'invalid_credentials' },
     });
     const { result } = await renderUseAuth();
     await waitFor(() => expect(result.current.loading).toBe(false));
@@ -108,7 +115,10 @@ describe('useAuth', () => {
       email: 'alice@example.com',
       password: 'wrong',
     });
-    expect(outcome).toEqual({ error: 'Invalid login credentials' });
+    expect(outcome).toEqual({
+      error: 'Invalid login credentials',
+      errorCode: 'invalid_credentials',
+    });
   });
 
   it('signOut calls supabase signOut', async () => {
