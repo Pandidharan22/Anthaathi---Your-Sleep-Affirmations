@@ -4,6 +4,28 @@ One entry per committed step, newest first. Each entry: what was done, why, how 
 
 ---
 
+## 2026-10-17 — Shared components and tab bar (redesign step R.2)
+
+**What**: New `components/ui/` holding the parts every redesigned screen is built from, each copied from the Velvet Dusk board's own CSS: `Button` (gradient fill / gradient outline with gradient text / plain), `IconButton` (44pt round), `Chip` (terracotta when selected), `Card` (surface/elevated, optional corner glows), `TextField` (uppercase label, focus ring, rose error), `GradientText`, `ScreenTitle`, `NavHeader`, `GlowButton` (round voice control with the terracotta glow and optional warm halo), `DuskBackground` (the hero mesh) and `Icon` with all 34 icons the board uses, path for path. `components/TabBar.tsx` replaces the default tab bar and is live in the app. R.1's dev screen became `app/dev-components.tsx`, a gallery of every component (dev only).
+
+**Why**: building the parts once, tested, means R.3–R.10 assemble screens from the same pieces instead of each screen re-solving buttons and fields slightly differently. Several parts also close accessibility gaps deferred since step 2.6: `TextField` names its input by its label, and `ScreenTitle` / `NavHeader` mark titles as headers.
+
+**Decisions with reasons**:
+- **`react-native-svg` + `@react-native-masked-view/masked-view`, so a new dev build** (`8895e92b`). The board draws custom SVG icons (e.g. its moon tab icon isn't in any icon font) and fills titles and outline-button labels with a gradient. An icon font would only approximate them, and the user asked for the exact design. The build was started right after installing the two packages, since it only depends on native code, so its queue time overlapped with writing the components.
+- **`gradientBackground()` helper**: native reads `experimental_backgroundImage`, react-native-web drops it but passes plain CSS `backgroundImage`. One helper keeps gradients visible in the web preview too.
+- **Gradient text falls back to solid light mauve on web**: masked-view's web build ignores the mask and would draw a gradient block.
+- **Icons are hidden from screen readers via an `aria-hidden` wrapper `View`**, not props on the `Svg`. Those props leaked into the web DOM as invalid attributes. The control around an icon carries the name: `IconButton` and `GlowButton` require an `accessibilityLabel`.
+- **Tab bar** follows the board: icon in a terracotta pill when active plus the label turning cream, so the active tab never depends on color alone. It keeps React Navigation's `tabPress` contract (listeners can prevent navigation).
+- **The gallery route sits outside both auth guards**: it needs no account or data. Inside the signed-in group the web preview bounced to sign-in, and signing in there would have meant using real credentials.
+
+**Verification**: 12 new tests (button variants, disabled and loading states, chip selected state, labelled field and announced error, tab bar selection and navigation including a prevented `tabPress`). Full suite 374/374, typecheck, lint and Prettier (on the files this step touched) clean. Web preview of the gallery caught and fixed two real bugs: the outline button's inner fill didn't stretch, and the icons' accessibility props leaking into the DOM (re-checked: none left, 26 icons hidden). On the user's phone with the new build, the gallery and tab bar looked right.
+
+**Not done yet**: the screens keep their old layouts; R.3–R.10 rebuild them from the mockups with these parts. Tab screens still show the native header above their own title (the duplicate-title issue), fixed as each screen moves to `ScreenTitle`.
+
+**Commit**: `81a6fc0` — Add the redesign's shared components and tab bar (redesign step R.2)
+
+---
+
 ## 2026-10-17 — Velvet Dusk tokens, fonts and dark-only theme (redesign step R.1)
 
 **What**: `constants/theme.ts` now holds DESIGN.md's Velvet Dusk palette as a single dark set, replacing the old gold light/dark sets. It also gains `gradients` (filled-control and Velvet Dusk CSS strings), `glows` (the three terracotta `boxShadow` levels), `fonts`, and a type scale that carries font families. Fraunces, Nunito and Playfair Display (`@expo-google-fonts/*`) load in `app/_layout.tsx`, the navigation theme uses them, and the app is dark-only (`userInterfaceStyle: "dark"`, light status bar). Every old token use (`primary` ×67, `secondary`, `accentText`, `controlAccent`) was moved to a role-named token. New `constants/theme.test.ts` checks contrast, and a temporary `app/dev-design-check.tsx` (Settings, dev only) was added for the on-device check.
