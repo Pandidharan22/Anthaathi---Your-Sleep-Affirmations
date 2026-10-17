@@ -4,6 +4,24 @@ One entry per committed step, newest first. Each entry: what was done, why, how 
 
 ---
 
+## 2026-10-17 — UI/UX redesign planned as steps R.1–R.11
+
+**What**: Replaced the "UI/UX redesign (before Phase 5)" placeholder in `docs/EXECUTION_PLAN.md` with eleven steps, built from `docs/DESIGN.md` and the 24 screens on the Velvet Dusk board: foundations (tokens, fonts, dark-only) → shared components → one step per screen group (entry, Library, recording, AI Guided, Player, Goals, Journal, Settings) → a review step that ends in a PR.
+
+**Why**: CLAUDE.md rule 1 (plan before a phase). Reading the board screen by screen showed it includes features the app doesn't have yet: goal targets, progress, archive, linked affirmations and loop counts; Name at sign-up; forgot password; Apple sign-in; AI draft refinements; data export; attaching a recording to a journal entry; default-timer and crossfade preferences. I recommended restyling only and parking these, but the user chose to build them all as part of the redesign. Each extra sits in the step for its screen and is tagged **(migration)** or **(Edge Function)** where it touches the backend, so it gets the usual local-stack check.
+
+**Decisions with reasons**:
+- **Foundations and shared components come first (R.1, R.2)**. Every screen step after them reuses the same tokens, buttons, chips and labelled fields, instead of each screen re-solving them. The labelled field and the header component also close the accessibility gaps deferred from step 2.6.
+- **Dark-only for now**. The design is dark-first and DESIGN.md defers the light theme (NFR-403), so R.1 sets one dark token set rather than inventing a light Velvet Dusk.
+- **Check RN 0.86's `boxShadow` / `experimental_backgroundImage` on the phone first (R.1)**. They may make the glows and gradients possible without new libraries, but the web preview can't prove how Android renders them.
+- **"Continue with Apple" is marked blocked**. It needs an Apple Developer Program membership ($99/yr) even on Android, which conflicts with NFR-601's $0 budget. This is the same condition that deferred step 3.7.
+
+**Verification**: plan only, no code changed. Each extra was checked against the current code and schema to decide whether it needs a migration. For example, `playback_sessions` doesn't record which affirmations played, so per-goal loop counts do need one. No audio backup exists yet (`storage_path` is always null), so the "Recordings stay on device" row is a true statement as an info row.
+
+**Commit**: `6364ff3` — Plan the UI/UX redesign as steps R.1-R.11, including the mockups' new features
+
+---
+
 ## 2026-10-17 — Design direction chosen: Velvet Dusk, terracotta accent, Cradle logo (input to the pre-Phase-5 redesign)
 
 **What**: Design work on the Claude Design canvas, not app code. Potential users said the first full-app design ("Dawn Glow": mauve → terracotta → gold) felt too warm because of the orange. Keeping that board untouched for reference, I built a second full 24-screen version using only the **Velvet Dusk** gradient (`#1D1622 → #362A3F → #A98FC4`). Then, over several rounds with the user, terracotta (`#E3946E`) came back as a single accent with one rule: **mauve means "do something", terracotta means "chosen or on"**. It fills or borders selected states (active tab, selected chips, toggles, chosen card and voice, current step, streak badge, "● Recording") and glows softly around the big round voice controls (mic, play, pause, Generating orb, app icon). Text buttons and small icons stay plain. The logo moved from "Descender" to **"Cradle"**. Recorded all of it in a new `docs/DESIGN.md`, linked from the README and the plan's "UI/UX redesign" section, and saved the logo cutout as `assets/brand/anthaathi-mark-cradle.png`.
