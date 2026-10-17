@@ -156,8 +156,8 @@ export default function SettingsScreen() {
                   style={[
                     styles.chip,
                     {
-                      borderColor: selected ? colors.primary : colors.border,
-                      backgroundColor: selected ? colors.primary : 'transparent',
+                      borderColor: selected ? colors.selected : colors.border,
+                      backgroundColor: selected ? colors.selected : 'transparent',
                     },
                   ]}
                 >
@@ -180,6 +180,15 @@ export default function SettingsScreen() {
           style={[styles.button, { borderColor: colors.border }]}
         >
           <Text style={{ color: colors.textPrimary }}>Dev: on-device TTS test</Text>
+        </Pressable>
+      ) : null}
+      {__DEV__ ? (
+        <Pressable
+          onPress={() => router.push('/dev-design-check')}
+          accessibilityRole="button"
+          style={[styles.button, { borderColor: colors.border }]}
+        >
+          <Text style={{ color: colors.textPrimary }}>Dev: design check (R.1)</Text>
         </Pressable>
       ) : null}
 
@@ -220,7 +229,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: typography.title.fontSize,
     lineHeight: typography.title.lineHeight,
-    fontWeight: typography.title.fontWeight,
+    fontFamily: typography.title.fontFamily,
   },
   description: {
     fontSize: typography.body.fontSize,
@@ -254,7 +263,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: typography.subtitle.fontSize,
-    fontWeight: typography.subtitle.fontWeight,
+    fontFamily: typography.subtitle.fontFamily,
   },
   chipScroll: {
     flexGrow: 0,

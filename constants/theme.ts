@@ -1,88 +1,110 @@
 /**
- * Design tokens. Night-leaning palette (deep, warm neutrals) with a gold accent —
- * ties to the brand's end-of-night/dawn framing rather than a generic "sleep app blue."
- * Full WCAG contrast audit is deferred to Execution Plan step 5.3
- * (design:accessibility-review); values below were chosen for generous perceptual
- * contrast as a working baseline, not yet formally verified.
+ * Design tokens — the "Velvet Dusk" direction in docs/DESIGN.md, which is the
+ * reference for every value here (and for the contrast ratios `theme.test.ts` checks).
  *
- * `primary`/`secondary`/`success`/`error`/`info` were originally flat (identical
- * value in both color schemes), unlike the neutrals above them — fine for a fill
- * or border, but a single hex can't hit AA contrast as *text* against both a
- * near-black and a near-white background at once. `success` is now mode-aware
- * (Execution Plan step 2.6's design pass — its only current uses, the goal
- * "Achieved" badge/toggle, are text) and `accentText` is a dedicated
- * text-safe variant of the violet accent (used for journal prompts), so the
- * `secondary` fill color itself (e.g. TrimEditor's save button) stays untouched.
- * `primary`/`error` as text/fill-partner still fail AA in light mode (primary as
- * text ~2.2:1, error as caption-size text ~3.2:1) but are used pervasively across
- * every phase's buttons — left for the full step 5.3 audit rather than changed
- * here as a side effect of a Phase-2-scoped pass.
+ * Dark-only for now: the design is dark-first and DESIGN.md defers a light theme
+ * (NFR-403), so there is a single color set. `useThemeColors()` stays the one way
+ * screens read colors, so a light set can slot back in behind it later.
  *
- * `controlAccent` (step 4.4) is the gold for non-text controls that must stand out at
- * WCAG 1.4.11's 3:1, like the balance slider's thumb: the brand gold in dark mode, a
- * darker gold in light mode, where the brand gold is only 2.16:1.
+ * Color roles:
+ * - `action` (mauve) means "do something": filled buttons, links' light variant.
+ * - `selected` (terracotta) means "this is chosen or on": selected chips, active tab,
+ *   toggles, and the warm glow around the round voice controls (`glows`). It is never
+ *   used for text buttons or small utility icons. Terracotta and mauve are only 1.18:1
+ *   apart, so every selected state must also have a non-color cue (fill, border,
+ *   checkmark) — never rely on hue alone.
+ * - Text and icons drawn on an `action`/`selected` fill use `background` (dark):
+ *   cream on mauve is 2.47:1, a WCAG fail.
  */
 
-const palette = {
-  gold: '#D9A441',
-  violet: '#6B5CA5',
-  error: '#E5654D',
-  info: '#5B8DEF',
+export const colors = {
+  /** Screen background; also the text/icon color on `action` and `selected` fills. */
+  background: '#1D1622',
+  /** Cards, inputs, small icon buttons. */
+  surface: '#271E2E',
+  /** Chips, sheets — one step above `surface`. */
+  elevated: '#362A3F',
+  /** Unselected outlines, inactive step dots, unplayed waveform. */
+  border: '#4A3B54',
+  /** Warm cream, kept on purpose for a little warmth. */
+  textPrimary: '#F7EEE3',
+  textSecondary: '#C9BDB0',
+  /** Timestamps, inactive tab labels. */
+  textMuted: '#8B8090',
+  /** Mauve: actions (filled buttons, spinners). */
+  action: '#A98FC4',
+  /** Light mauve: accent text, links and icons; light end of filled controls. */
+  accent: '#C3AEDA',
+  /** Terracotta: selected/on states only — see the role notes above. */
+  selected: '#E3946E',
+  success: '#8FBF9F',
+  /** Cool rose for errors and destructive actions. */
+  error: '#E07A8A',
+  info: '#8FA3D9',
 } as const;
 
-export type ThemeColors = {
-  background: string;
-  surface: string;
-  border: string;
-  textPrimary: string;
-  textSecondary: string;
-  primary: string;
-  secondary: string;
-  /** Text-safe variant of the violet accent — use for violet text, not `secondary`'s fills/borders. */
-  accentText: string;
-  /** Gold for non-text controls (e.g. a slider thumb): at least 3:1 on the background. */
-  controlAccent: string;
-  success: string;
-  error: string;
-  info: string;
-};
+export type ThemeColors = typeof colors;
 
-export const lightColors: ThemeColors = {
-  background: '#FBFAF8',
-  surface: '#F4F2EF',
-  border: '#E4E1DB',
-  textPrimary: '#1A1A1A',
-  textSecondary: '#5C5A56',
-  primary: palette.gold,
-  secondary: palette.violet,
-  accentText: palette.violet, // 5.44:1 on this mode's background — already AA-safe as-is
-  controlAccent: '#A97A26', // 3.66:1 on this mode's background (the brand gold is 2.16:1)
-  success: '#357A58', // darkened from the flat #4CAF7D — 4.94:1 on this mode's background (was 2.60:1)
-  error: palette.error,
-  info: palette.info,
-};
+/**
+ * CSS gradient strings for React Native's `experimental_backgroundImage`.
+ * `actionFill` is the filled-control gradient (primary button, play, record,
+ * progress); `velvetDusk` is the full-screen hero ramp.
+ */
+export const gradients = {
+  actionFill: `linear-gradient(135deg, ${colors.action} 0%, ${colors.accent} 100%)`,
+  velvetDusk: `linear-gradient(180deg, ${colors.background} 0%, ${colors.elevated} 65%, ${colors.action} 100%)`,
+} as const;
 
-export const darkColors: ThemeColors = {
-  background: '#0F1115',
-  surface: '#1A1D24',
-  border: '#2A2E37',
-  textPrimary: '#F5F3EF',
-  textSecondary: '#A8A6A0',
-  primary: palette.gold,
-  secondary: palette.violet,
-  accentText: '#897DB7', // lightened from the flat #6B5CA5 — 5.11:1 on this mode's background (was 3.33:1)
-  controlAccent: palette.gold, // 8.40:1 on this mode's background
-  success: '#4CAF7D',
-  error: palette.error,
-  info: palette.info,
-};
+/**
+ * Terracotta glows (`boxShadow` strings) around the big round voice controls, at the
+ * levels settled in DESIGN.md: one layer, ~60–65% opacity, ~40px reach.
+ * rgba(227,148,110) is `colors.selected`.
+ */
+export const glows = {
+  /** Mic and play buttons, Mode Choice tile. */
+  control: '0px 0px 36px 4px rgba(227, 148, 110, 0.62)',
+  /** Player pause, Generating orb. */
+  hero: '0px 0px 40px 4px rgba(227, 148, 110, 0.65)',
+  /** Trim handles. */
+  handle: '0px 0px 14px 2px rgba(227, 148, 110, 0.62)',
+} as const;
 
+/** Font family names, as registered by `useFonts` in `app/_layout.tsx`. */
+export const fonts = {
+  wordmark: 'PlayfairDisplay_800ExtraBold',
+  serifBold: 'Fraunces_700Bold',
+  serifSemiBold: 'Fraunces_600SemiBold',
+  serifItalic: 'Fraunces_400Regular_Italic',
+  sans: 'Nunito_400Regular',
+  sansSemiBold: 'Nunito_600SemiBold',
+  sansBold: 'Nunito_700Bold',
+} as const;
+
+/**
+ * Type scale. Each weight is its own font file, so styles set `fontFamily` and no
+ * `fontWeight` — on Android, a `fontWeight` on a custom family can fall back to the
+ * system font or a synthetic bold.
+ */
 export const typography = {
-  display: { fontSize: 32, lineHeight: 40, fontWeight: '700' },
-  title: { fontSize: 24, lineHeight: 32, fontWeight: '600' },
-  subtitle: { fontSize: 18, lineHeight: 26, fontWeight: '600' },
-  body: { fontSize: 16, lineHeight: 24, fontWeight: '400' },
-  caption: { fontSize: 13, lineHeight: 18, fontWeight: '400' },
+  /** "Anthaathi" on the splash only. */
+  wordmark: { fontFamily: fonts.wordmark, fontSize: 56, lineHeight: 68 },
+  display: { fontFamily: fonts.serifBold, fontSize: 32, lineHeight: 40 },
+  title: { fontFamily: fonts.serifSemiBold, fontSize: 24, lineHeight: 32 },
+  /** Subtitles and card titles. */
+  subtitle: { fontFamily: fonts.serifSemiBold, fontSize: 18, lineHeight: 26 },
+  /** Taglines, quoted affirmations, journal prompts. */
+  quote: { fontFamily: fonts.serifItalic, fontSize: 16, lineHeight: 24 },
+  body: { fontFamily: fonts.sans, fontSize: 16, lineHeight: 24 },
+  caption: { fontFamily: fonts.sans, fontSize: 13, lineHeight: 18 },
+  button: { fontFamily: fonts.sansBold, fontSize: 15, lineHeight: 20 },
+  /** Field labels — uppercase. */
+  label: {
+    fontFamily: fonts.sansSemiBold,
+    fontSize: 12,
+    lineHeight: 16,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
 } as const;
 
 export const spacing = {
@@ -96,7 +118,10 @@ export const spacing = {
 
 export const radii = {
   sm: 6,
+  /** Inputs. */
   md: 12,
+  /** Cards. */
   lg: 20,
+  /** Pills: buttons and chips. */
   full: 999,
 } as const;

@@ -64,7 +64,7 @@ export default function AuthScreen() {
           onPress={() => switchMode('sign-in')}
           accessibilityRole="button"
         >
-          <Text style={{ color: colors.primary }}>Back to sign in</Text>
+          <Text style={{ color: colors.accent }}>Back to sign in</Text>
         </Pressable>
       </View>
     );
@@ -110,7 +110,7 @@ export default function AuthScreen() {
         onPress={handleSubmit}
         disabled={!canSubmit}
         accessibilityRole="button"
-        style={[styles.submitButton, { backgroundColor: colors.primary, opacity: canSubmit ? 1 : 0.5 }]}
+        style={[styles.submitButton, { backgroundColor: colors.action, opacity: canSubmit ? 1 : 0.5 }]}
       >
         {submitting ? (
           <ActivityIndicator color={colors.background} />
@@ -126,7 +126,7 @@ export default function AuthScreen() {
         accessibilityRole="button"
         style={styles.linkButton}
       >
-        <Text style={{ color: colors.primary }}>
+        <Text style={{ color: colors.accent }}>
           {mode === 'sign-in' ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
         </Text>
       </Pressable>
@@ -144,7 +144,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: typography.title.fontSize,
     lineHeight: typography.title.lineHeight,
-    fontWeight: typography.title.fontWeight,
+    fontFamily: typography.title.fontFamily,
     textAlign: 'center',
     marginBottom: spacing.md,
   },

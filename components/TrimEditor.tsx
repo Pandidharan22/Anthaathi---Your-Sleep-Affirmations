@@ -110,16 +110,16 @@ export function TrimEditor({
         minimumValue={0}
         maximumValue={durationMs / 1000}
         value={status.currentTime}
-        minimumTrackTintColor={colors.primary}
+        minimumTrackTintColor={colors.action}
         maximumTrackTintColor={colors.border}
-        thumbTintColor={colors.primary}
+        thumbTintColor={colors.action}
         onSlidingComplete={(value) => player.seekTo(value)}
       />
 
       <Pressable
         onPress={handleTogglePlay}
         accessibilityRole="button"
-        style={[styles.button, { backgroundColor: colors.primary }]}
+        style={[styles.button, { backgroundColor: colors.action }]}
       >
         <Text style={[styles.buttonLabel, { color: colors.background }]}>
           {status.playing ? 'Pause' : 'Play'}
@@ -153,7 +153,7 @@ export function TrimEditor({
         onPress={handleSave}
         disabled={saving}
         accessibilityRole="button"
-        style={[styles.button, { backgroundColor: colors.secondary, opacity: saving ? 0.5 : 1 }]}
+        style={[styles.button, { backgroundColor: colors.action, opacity: saving ? 0.5 : 1 }]}
       >
         {saving ? (
           <ActivityIndicator color={colors.background} />

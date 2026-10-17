@@ -27,7 +27,7 @@ export default function JournalScreen() {
         <Pressable
           onPress={() => router.push('/journal/new')}
           accessibilityRole="button"
-          style={[styles.addButton, { backgroundColor: colors.primary }]}
+          style={[styles.addButton, { backgroundColor: colors.action }]}
         >
           <Text style={[styles.addButtonLabel, { color: colors.background }]}>New entry</Text>
         </Pressable>
@@ -50,7 +50,7 @@ export default function JournalScreen() {
             >
               <Text style={[styles.entryDate, { color: colors.textSecondary }]}>{formatDate(item.created_at)}</Text>
               {item.prompt ? (
-                <Text style={[styles.entryPrompt, { color: colors.accentText }]} numberOfLines={1}>
+                <Text style={[styles.entryPrompt, { color: colors.accent }]} numberOfLines={1}>
                   {item.prompt}
                 </Text>
               ) : null}
@@ -79,7 +79,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: typography.title.fontSize,
     lineHeight: typography.title.lineHeight,
-    fontWeight: typography.title.fontWeight,
+    fontFamily: typography.title.fontFamily,
   },
   description: {
     fontSize: typography.body.fontSize,

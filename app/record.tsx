@@ -144,7 +144,7 @@ export default function RecordScreen() {
   if (state === 'checking') {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <ActivityIndicator color={colors.primary} />
+        <ActivityIndicator color={colors.action} />
       </View>
     );
   }
@@ -160,7 +160,7 @@ export default function RecordScreen() {
         <Pressable
           onPress={handleRequestPermission}
           accessibilityRole="button"
-          style={[styles.primaryButton, { backgroundColor: colors.primary }]}
+          style={[styles.primaryButton, { backgroundColor: colors.action }]}
         >
           <Text style={[styles.primaryButtonLabel, { color: colors.background }]}>
             Allow microphone access
@@ -185,7 +185,7 @@ export default function RecordScreen() {
   if (state === 'saving') {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <ActivityIndicator color={colors.primary} />
+        <ActivityIndicator color={colors.action} />
       </View>
     );
   }
@@ -266,7 +266,7 @@ export default function RecordScreen() {
       <Pressable
         onPress={handleStartRecording}
         accessibilityRole="button"
-        style={[styles.primaryButton, { backgroundColor: colors.primary }]}
+        style={[styles.primaryButton, { backgroundColor: colors.action }]}
       >
         <Text style={[styles.primaryButtonLabel, { color: colors.background }]}>Tap to record</Text>
       </Pressable>
@@ -285,7 +285,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: typography.title.fontSize,
     lineHeight: typography.title.lineHeight,
-    fontWeight: typography.title.fontWeight,
+    fontFamily: typography.title.fontFamily,
     textAlign: 'center',
   },
   body: {

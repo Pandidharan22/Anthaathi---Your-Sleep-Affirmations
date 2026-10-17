@@ -99,7 +99,7 @@ export default function FoldersScreen() {
         <Pressable
           onPress={handleCreate}
           accessibilityRole="button"
-          style={[styles.createButton, { backgroundColor: colors.primary }]}
+          style={[styles.createButton, { backgroundColor: colors.action }]}
         >
           <Text style={{ color: colors.background, fontWeight: '600' }}>Create</Text>
         </Pressable>
@@ -124,7 +124,7 @@ export default function FoldersScreen() {
                   style={[styles.input, styles.editInput, { color: colors.textPrimary, borderColor: colors.border }]}
                 />
                 <Pressable onPress={saveEditing} accessibilityRole="button">
-                  <Text style={{ color: colors.primary }}>Save</Text>
+                  <Text style={{ color: colors.accent }}>Save</Text>
                 </Pressable>
               </View>
             ) : (
@@ -136,7 +136,7 @@ export default function FoldersScreen() {
                 <Text style={[styles.folderName, { color: colors.textPrimary }]}>{item.name}</Text>
                 <View style={styles.actions}>
                   <Pressable onPress={() => startEditing(item)} accessibilityRole="button">
-                    <Text style={{ color: colors.primary }}>Rename</Text>
+                    <Text style={{ color: colors.accent }}>Rename</Text>
                   </Pressable>
                   <Pressable onPress={() => confirmDelete(item)} accessibilityRole="button">
                     <Text style={{ color: colors.error }}>Delete</Text>

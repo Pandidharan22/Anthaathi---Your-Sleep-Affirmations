@@ -31,7 +31,7 @@ export default function FolderDetailScreen() {
   if (folder === undefined) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <ActivityIndicator color={colors.primary} />
+        <ActivityIndicator color={colors.action} />
       </View>
     );
   }
@@ -75,7 +75,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: typography.title.fontSize,
     lineHeight: typography.title.lineHeight,
-    fontWeight: typography.title.fontWeight,
+    fontFamily: typography.title.fontFamily,
   },
   description: {
     fontSize: typography.body.fontSize,

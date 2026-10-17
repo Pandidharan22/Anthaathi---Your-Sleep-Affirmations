@@ -76,7 +76,7 @@ export default function RecordAiGuidedScreen() {
   if (generating) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <ActivityIndicator color={colors.primary} />
+        <ActivityIndicator color={colors.action} />
         <Text style={[styles.body, { color: colors.textSecondary }]}>Generating… this can take a moment.</Text>
       </View>
     );
@@ -120,7 +120,7 @@ export default function RecordAiGuidedScreen() {
       <Pressable
         onPress={handleGenerate}
         accessibilityRole="button"
-        style={[styles.generateButton, { backgroundColor: colors.primary }]}
+        style={[styles.generateButton, { backgroundColor: colors.action }]}
       >
         <Text style={[styles.generateButtonLabel, { color: colors.background }]}>Generate</Text>
       </Pressable>
@@ -138,7 +138,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: typography.title.fontSize,
     lineHeight: typography.title.lineHeight,
-    fontWeight: typography.title.fontWeight,
+    fontFamily: typography.title.fontFamily,
     textAlign: 'center',
   },
   body: {

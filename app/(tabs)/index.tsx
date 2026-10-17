@@ -38,18 +38,18 @@ export default function LibraryScreen() {
         <Text style={[styles.title, { color: colors.textPrimary }]}>Library</Text>
         <View style={styles.headerActions}>
           <Pressable onPress={() => router.push('/folders')} accessibilityRole="button">
-            <Text style={{ color: colors.primary }}>Folders</Text>
+            <Text style={{ color: colors.accent }}>Folders</Text>
           </Pressable>
           <Pressable
             onPress={() => router.push('/record-ai-guided')}
             accessibilityRole="button"
           >
-            <Text style={{ color: colors.primary }}>AI Guided</Text>
+            <Text style={{ color: colors.accent }}>AI Guided</Text>
           </Pressable>
           <Pressable
             onPress={() => router.push('/record')}
             accessibilityRole="button"
-            style={[styles.recordButton, { backgroundColor: colors.primary }]}
+            style={[styles.recordButton, { backgroundColor: colors.action }]}
           >
             <Text style={[styles.recordButtonLabel, { color: colors.background }]}>Record</Text>
           </Pressable>
@@ -99,7 +99,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: typography.title.fontSize,
     lineHeight: typography.title.lineHeight,
-    fontWeight: typography.title.fontWeight,
+    fontFamily: typography.title.fontFamily,
   },
   description: {
     fontSize: typography.body.fontSize,

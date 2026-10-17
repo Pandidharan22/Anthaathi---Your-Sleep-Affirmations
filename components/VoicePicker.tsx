@@ -41,8 +41,8 @@ export function VoicePicker({ value, onChange }: Props) {
         style={[
           styles.chip,
           {
-            borderColor: isSelected ? colors.primary : colors.border,
-            backgroundColor: isSelected ? colors.primary : 'transparent',
+            borderColor: isSelected ? colors.selected : colors.border,
+            backgroundColor: isSelected ? colors.selected : 'transparent',
             opacity: enabled ? 1 : 0.5,
           },
         ]}
@@ -65,7 +65,7 @@ export function VoicePicker({ value, onChange }: Props) {
           hitSlop={8}
         >
           <Text
-            style={[styles.hint, { color: selectedUnavailable ? colors.error : colors.primary }]}
+            style={[styles.hint, { color: selectedUnavailable ? colors.error : colors.accent }]}
           >
             {selectedUnavailable
               ? 'This voice needs the natural voices. Download them in Settings, or pick a basic voice.'

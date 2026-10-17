@@ -11,5 +11,5 @@ import { useThemeColors } from '@/hooks/useThemeColors';
 export function ThemedLink({ style, ...props }: LinkProps) {
   const colors = useThemeColors();
 
-  return <Link {...props} style={[{ color: colors.primary }, style]} />;
+  return <Link {...props} style={[{ color: colors.accent }, style]} />;
 }

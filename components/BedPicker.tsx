@@ -51,8 +51,8 @@ export function BedPicker({ bedId, mix, onBedChange, onMixChange, onMixCommit }:
               style={[
                 styles.chip,
                 {
-                  borderColor: selected ? colors.primary : colors.border,
-                  backgroundColor: selected ? colors.primary : 'transparent',
+                  borderColor: selected ? colors.selected : colors.border,
+                  backgroundColor: selected ? colors.selected : 'transparent',
                 },
               ]}
             >
@@ -84,7 +84,7 @@ export function BedPicker({ bedId, mix, onBedChange, onMixChange, onMixCommit }:
             onSlidingComplete={onMixCommit}
             minimumTrackTintColor={colors.textSecondary}
             maximumTrackTintColor={colors.textSecondary}
-            thumbTintColor={colors.controlAccent}
+            thumbTintColor={colors.accent}
             accessibilityLabel="Voice and ambience balance"
             accessibilityValue={{
               text: `Voice ${percent(gains.voice)} percent, ambience ${percent(gains.bed)} percent`,

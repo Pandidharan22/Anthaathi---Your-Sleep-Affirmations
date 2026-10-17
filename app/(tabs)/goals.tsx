@@ -34,7 +34,7 @@ export default function GoalsScreen() {
         <Pressable
           onPress={() => router.push('/goal/new')}
           accessibilityRole="button"
-          style={[styles.addButton, { backgroundColor: colors.primary }]}
+          style={[styles.addButton, { backgroundColor: colors.action }]}
         >
           <Text style={[styles.addButtonLabel, { color: colors.background }]}>Add goal</Text>
         </Pressable>
@@ -75,7 +75,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: typography.title.fontSize,
     lineHeight: typography.title.lineHeight,
-    fontWeight: typography.title.fontWeight,
+    fontFamily: typography.title.fontFamily,
   },
   description: {
     fontSize: typography.body.fontSize,

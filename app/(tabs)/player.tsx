@@ -319,7 +319,7 @@ export default function PlayerScreen() {
             }
           }}
           accessibilityRole="button"
-          style={[styles.primaryButton, { backgroundColor: colors.primary }]}
+          style={[styles.primaryButton, { backgroundColor: colors.action }]}
         >
           <Text style={[styles.primaryButtonLabel, { color: colors.background }]}>
             {isPaused ? 'Resume' : 'Pause'}
@@ -363,12 +363,12 @@ export default function PlayerScreen() {
                 accessibilityState={{ selected }}
                 style={[
                   styles.row,
-                  { borderColor: selected ? colors.primary : colors.border },
+                  { borderColor: selected ? colors.selected : colors.border },
                   selected && { backgroundColor: colors.surface },
                 ]}
               >
                 <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>{item.title}</Text>
-                <Text style={{ color: colors.primary }}>{selected ? '✓' : ''}</Text>
+                <Text style={{ color: colors.selected }}>{selected ? '✓' : ''}</Text>
               </Pressable>
             );
           }}
@@ -395,8 +395,8 @@ export default function PlayerScreen() {
                 style={[
                   styles.chip,
                   {
-                    borderColor: selected ? colors.primary : colors.border,
-                    backgroundColor: selected ? colors.primary : 'transparent',
+                    borderColor: selected ? colors.selected : colors.border,
+                    backgroundColor: selected ? colors.selected : 'transparent',
                   },
                 ]}
               >
@@ -417,7 +417,7 @@ export default function PlayerScreen() {
         accessibilityRole="button"
         style={[
           styles.primaryButton,
-          { backgroundColor: colors.primary, opacity: selectedIds.size === 0 ? 0.5 : 1 },
+          { backgroundColor: colors.action, opacity: selectedIds.size === 0 ? 0.5 : 1 },
         ]}
       >
         <Text style={[styles.primaryButtonLabel, { color: colors.background }]}>
@@ -439,7 +439,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: typography.title.fontSize,
     lineHeight: typography.title.lineHeight,
-    fontWeight: typography.title.fontWeight,
+    fontFamily: typography.title.fontFamily,
     textAlign: 'center',
   },
   description: {

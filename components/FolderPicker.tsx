@@ -23,8 +23,8 @@ function Chip({ label, selected, onPress }: ChipProps) {
       style={[
         styles.chip,
         {
-          borderColor: selected ? colors.primary : colors.border,
-          backgroundColor: selected ? colors.primary : 'transparent',
+          borderColor: selected ? colors.selected : colors.border,
+          backgroundColor: selected ? colors.selected : 'transparent',
         },
       ]}
     >

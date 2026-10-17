@@ -109,7 +109,7 @@ export function NaturalVoicesSection() {
 
       {status.state === 'installing' ? (
         <View style={styles.row}>
-          <ActivityIndicator color={colors.primary} />
+          <ActivityIndicator color={colors.action} />
           <View style={styles.rowText}>
             <Text style={{ color: colors.textPrimary }}>{describeProgress(status.progress)}</Text>
             <Text style={[styles.caption, { color: colors.textSecondary }]}>
@@ -154,7 +154,7 @@ export function NaturalVoicesSection() {
             accessibilityRole="button"
             style={[
               styles.button,
-              { backgroundColor: colors.primary, opacity: checking ? 0.5 : 1 },
+              { backgroundColor: colors.action, opacity: checking ? 0.5 : 1 },
             ]}
           >
             <Text style={[styles.primaryLabel, { color: colors.background }]}>
@@ -180,7 +180,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: typography.subtitle.fontSize,
-    fontWeight: typography.subtitle.fontWeight,
+    fontFamily: typography.subtitle.fontFamily,
   },
   description: {
     fontSize: typography.body.fontSize,

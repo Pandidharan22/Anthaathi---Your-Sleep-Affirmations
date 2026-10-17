@@ -121,7 +121,7 @@ export default function AffirmationTrimScreen() {
   if (affirmation === undefined) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <ActivityIndicator color={colors.primary} />
+        <ActivityIndicator color={colors.action} />
       </View>
     );
   }
@@ -176,12 +176,12 @@ export default function AffirmationTrimScreen() {
             onPress={handleRegenerate}
             disabled={regenerating}
             accessibilityRole="button"
-            style={[styles.regenerateButton, { borderColor: colors.primary, opacity: regenerating ? 0.5 : 1 }]}
+            style={[styles.regenerateButton, { borderColor: colors.action, opacity: regenerating ? 0.5 : 1 }]}
           >
             {regenerating ? (
-              <ActivityIndicator color={colors.primary} />
+              <ActivityIndicator color={colors.action} />
             ) : (
-              <Text style={{ color: colors.primary }}>Regenerate</Text>
+              <Text style={{ color: colors.accent }}>Regenerate</Text>
             )}
           </Pressable>
         </View>
@@ -220,7 +220,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: typography.title.fontSize,
     lineHeight: typography.title.lineHeight,
-    fontWeight: typography.title.fontWeight,
+    fontFamily: typography.title.fontFamily,
     textAlign: 'center',
   },
   titleInput: {

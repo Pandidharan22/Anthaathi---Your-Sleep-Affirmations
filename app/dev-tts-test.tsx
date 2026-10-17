@@ -58,8 +58,8 @@ function StyleChips<T extends number>({
               style={[
                 styles.chip,
                 {
-                  borderColor: selected ? colors.primary : colors.border,
-                  backgroundColor: selected ? colors.primary : 'transparent',
+                  borderColor: selected ? colors.selected : colors.border,
+                  backgroundColor: selected ? colors.selected : 'transparent',
                 },
               ]}
             >
@@ -147,12 +147,12 @@ export default function DevTtsTestScreen() {
         onPress={handleCreateAiGuidedAffirmation}
         disabled={pipelineStatus === 'running' || !user}
         accessibilityRole="button"
-        style={[styles.playButton, { borderColor: colors.primary, alignSelf: 'center' }]}
+        style={[styles.playButton, { borderColor: colors.action, alignSelf: 'center' }]}
       >
         {pipelineStatus === 'running' ? (
-          <ActivityIndicator color={colors.primary} />
+          <ActivityIndicator color={colors.action} />
         ) : (
-          <Text style={{ color: colors.primary }}>Create AI Guided affirmation (real pipeline)</Text>
+          <Text style={{ color: colors.accent }}>Create AI Guided affirmation (real pipeline)</Text>
         )}
       </Pressable>
       {pipelineResult ? (
@@ -193,7 +193,7 @@ export default function DevTtsTestScreen() {
       </Text>
 
       {voicesError ? <Text style={[styles.body, { color: colors.error }]}>{voicesError}</Text> : null}
-      {!voices && !voicesError ? <ActivityIndicator color={colors.primary} /> : null}
+      {!voices && !voicesError ? <ActivityIndicator color={colors.action} /> : null}
 
       {voices ? (
         <>
@@ -219,14 +219,14 @@ export default function DevTtsTestScreen() {
                     {option?.label} · {item.locale} · quality {item.quality} ·{' '}
                     {item.isNetworkConnectionRequired ? 'network' : 'offline'}
                   </Text>
-                  {isActive && status === 'synthesizing' ? <ActivityIndicator color={colors.primary} /> : null}
+                  {isActive && status === 'synthesizing' ? <ActivityIndicator color={colors.action} /> : null}
                   {isActive && status === 'ready' && resultPath ? (
                     <Pressable
                       onPress={() => player.play()}
                       accessibilityRole="button"
-                      style={[styles.playButton, { borderColor: colors.primary }]}
+                      style={[styles.playButton, { borderColor: colors.action }]}
                     >
-                      <Text style={{ color: colors.primary }}>Play</Text>
+                      <Text style={{ color: colors.accent }}>Play</Text>
                     </Pressable>
                   ) : null}
                   {isActive && status === 'error' ? (
@@ -252,7 +252,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: typography.title.fontSize,
     lineHeight: typography.title.lineHeight,
-    fontWeight: typography.title.fontWeight,
+    fontFamily: typography.title.fontFamily,
     textAlign: 'center',
   },
   body: {

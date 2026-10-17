@@ -126,7 +126,7 @@ export default function GoalDetailScreen() {
   if (goal === undefined) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <ActivityIndicator color={colors.primary} />
+        <ActivityIndicator color={colors.action} />
       </View>
     );
   }
@@ -174,7 +174,7 @@ export default function GoalDetailScreen() {
           <Image source={{ uri: goal.image_local_uri }} style={styles.imagePreview} accessibilityLabel="Goal image" />
           <View style={styles.imageActions}>
             <Pressable onPress={handlePickImage} accessibilityRole="button" hitSlop={8}>
-              <Text style={{ color: colors.primary }}>Replace image</Text>
+              <Text style={{ color: colors.accent }}>Replace image</Text>
             </Pressable>
             <Pressable onPress={handleRemoveImage} accessibilityRole="button" hitSlop={8}>
               <Text style={{ color: colors.error }}>Remove image</Text>
@@ -194,7 +194,7 @@ export default function GoalDetailScreen() {
       <Pressable
         onPress={() => router.push({ pathname: '/goal/draft', params: { goalId: goal.id } })}
         accessibilityRole="button"
-        style={[styles.primaryButton, { backgroundColor: colors.primary }]}
+        style={[styles.primaryButton, { backgroundColor: colors.action }]}
       >
         <Text style={[styles.primaryButtonLabel, { color: colors.background }]}>Draft affirmation</Text>
       </Pressable>
@@ -229,7 +229,7 @@ const styles = StyleSheet.create({
   heading: {
     fontSize: typography.title.fontSize,
     lineHeight: typography.title.lineHeight,
-    fontWeight: typography.title.fontWeight,
+    fontFamily: typography.title.fontFamily,
   },
   error: {
     fontSize: typography.caption.fontSize,

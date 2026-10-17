@@ -80,7 +80,7 @@ export default function NewGoalScreen() {
   if (saving) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <ActivityIndicator color={colors.primary} />
+        <ActivityIndicator color={colors.action} />
       </View>
     );
   }
@@ -133,7 +133,7 @@ export default function NewGoalScreen() {
       <Pressable
         onPress={handleSave}
         accessibilityRole="button"
-        style={[styles.primaryButton, { backgroundColor: colors.primary }]}
+        style={[styles.primaryButton, { backgroundColor: colors.action }]}
       >
         <Text style={[styles.primaryButtonLabel, { color: colors.background }]}>Save</Text>
       </Pressable>
@@ -150,7 +150,7 @@ const styles = StyleSheet.create({
   heading: {
     fontSize: typography.title.fontSize,
     lineHeight: typography.title.lineHeight,
-    fontWeight: typography.title.fontWeight,
+    fontFamily: typography.title.fontFamily,
   },
   error: {
     fontSize: typography.caption.fontSize,

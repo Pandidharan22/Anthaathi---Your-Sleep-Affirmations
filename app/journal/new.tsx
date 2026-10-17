@@ -43,7 +43,7 @@ export default function NewJournalEntryScreen() {
   if (saving) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <ActivityIndicator color={colors.primary} />
+        <ActivityIndicator color={colors.action} />
       </View>
     );
   }
@@ -55,18 +55,18 @@ export default function NewJournalEntryScreen() {
 
       {usePrompt ? (
         <View style={styles.promptRow}>
-          <Text style={[styles.prompt, { color: colors.accentText }]}>{dailyPrompt}</Text>
+          <Text style={[styles.prompt, { color: colors.accent }]}>{dailyPrompt}</Text>
           <Pressable
             onPress={() => setUsePrompt(false)}
             accessibilityRole="button"
             hitSlop={8}
           >
-            <Text style={{ color: colors.primary }}>Write freeform instead</Text>
+            <Text style={{ color: colors.accent }}>Write freeform instead</Text>
           </Pressable>
         </View>
       ) : (
         <Pressable onPress={() => setUsePrompt(true)} accessibilityRole="button" hitSlop={8}>
-          <Text style={{ color: colors.primary }}>Use today&apos;s prompt instead</Text>
+          <Text style={{ color: colors.accent }}>Use today&apos;s prompt instead</Text>
         </Pressable>
       )}
 
@@ -86,7 +86,7 @@ export default function NewJournalEntryScreen() {
       <Pressable
         onPress={handleSave}
         accessibilityRole="button"
-        style={[styles.primaryButton, { backgroundColor: colors.primary }]}
+        style={[styles.primaryButton, { backgroundColor: colors.action }]}
       >
         <Text style={[styles.primaryButtonLabel, { color: colors.background }]}>Save</Text>
       </Pressable>
@@ -103,7 +103,7 @@ const styles = StyleSheet.create({
   heading: {
     fontSize: typography.title.fontSize,
     lineHeight: typography.title.lineHeight,
-    fontWeight: typography.title.fontWeight,
+    fontFamily: typography.title.fontFamily,
   },
   error: {
     fontSize: typography.caption.fontSize,

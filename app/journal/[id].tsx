@@ -37,7 +37,7 @@ export default function JournalEntryDetailScreen() {
   if (entry === undefined) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <ActivityIndicator color={colors.primary} />
+        <ActivityIndicator color={colors.action} />
       </View>
     );
   }
@@ -53,7 +53,7 @@ export default function JournalEntryDetailScreen() {
   return (
     <ScrollView contentContainerStyle={[styles.container, { backgroundColor: colors.background }]}>
       <Text style={[styles.date, { color: colors.textSecondary }]}>{formatDate(entry.created_at)}</Text>
-      {entry.prompt ? <Text style={[styles.prompt, { color: colors.accentText }]}>{entry.prompt}</Text> : null}
+      {entry.prompt ? <Text style={[styles.prompt, { color: colors.accent }]}>{entry.prompt}</Text> : null}
       <Text style={[styles.body, { color: colors.textPrimary }]}>{entry.body}</Text>
 
       <Pressable
@@ -76,7 +76,7 @@ const styles = StyleSheet.create({
   heading: {
     fontSize: typography.title.fontSize,
     lineHeight: typography.title.lineHeight,
-    fontWeight: typography.title.fontWeight,
+    fontFamily: typography.title.fontFamily,
   },
   date: {
     fontSize: typography.caption.fontSize,

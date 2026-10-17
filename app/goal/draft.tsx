@@ -74,7 +74,7 @@ export default function DraftAffirmationScreen() {
   if (state === 'loading' || state === 'drafting') {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <ActivityIndicator color={colors.primary} />
+        <ActivityIndicator color={colors.action} />
         <Text style={[styles.body, { color: colors.textSecondary }]}>
           {state === 'loading' ? 'Loading goal…' : 'Drafting your affirmation…'}
         </Text>
@@ -99,7 +99,7 @@ export default function DraftAffirmationScreen() {
             <Pressable
               onPress={() => requestDraft(goal)}
               accessibilityRole="button"
-              style={[styles.primaryButton, { backgroundColor: colors.primary }]}
+              style={[styles.primaryButton, { backgroundColor: colors.action }]}
             >
               <Text style={[styles.primaryButtonLabel, { color: colors.background }]}>Try again</Text>
             </Pressable>
@@ -132,7 +132,7 @@ export default function DraftAffirmationScreen() {
           onPress={() => handleAccept('/record')}
           disabled={!draftText.trim()}
           accessibilityRole="button"
-          style={[styles.primaryButton, { backgroundColor: colors.primary }]}
+          style={[styles.primaryButton, { backgroundColor: colors.action }]}
         >
           <Text style={[styles.primaryButtonLabel, { color: colors.background }]}>Record in my voice</Text>
         </Pressable>
@@ -140,7 +140,7 @@ export default function DraftAffirmationScreen() {
           onPress={() => handleAccept('/record-ai-guided')}
           disabled={!draftText.trim()}
           accessibilityRole="button"
-          style={[styles.primaryButton, { backgroundColor: colors.primary }]}
+          style={[styles.primaryButton, { backgroundColor: colors.action }]}
         >
           <Text style={[styles.primaryButtonLabel, { color: colors.background }]}>AI Guided voice</Text>
         </Pressable>
@@ -163,7 +163,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: typography.title.fontSize,
     lineHeight: typography.title.lineHeight,
-    fontWeight: typography.title.fontWeight,
+    fontFamily: typography.title.fontFamily,
   },
   body: {
     fontSize: typography.body.fontSize,
