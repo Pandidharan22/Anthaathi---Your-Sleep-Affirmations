@@ -184,11 +184,11 @@ export default function SettingsScreen() {
       ) : null}
       {__DEV__ ? (
         <Pressable
-          onPress={() => router.push('/dev-design-check')}
+          onPress={() => router.push('/dev-components')}
           accessibilityRole="button"
           style={[styles.button, { borderColor: colors.border }]}
         >
-          <Text style={{ color: colors.textPrimary }}>Dev: design check (R.1)</Text>
+          <Text style={{ color: colors.textPrimary }}>Dev: component gallery (R.2)</Text>
         </Pressable>
       ) : null}
 
