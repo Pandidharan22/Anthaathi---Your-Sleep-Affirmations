@@ -34,9 +34,11 @@ const RECORDING_OPTIONS = { ...RecordingPresets.HIGH_QUALITY, directory: 'docume
 export default function RecordScreen() {
   const colors = useThemeColors();
   const { user } = useAuth();
-  const { scriptText, suggestedTitle } = useLocalSearchParams<{
+  const { scriptText, suggestedTitle, folderId } = useLocalSearchParams<{
     scriptText?: string;
     suggestedTitle?: string;
+    /** Preselects the folder when started from inside one (Mode Choice passes it on). */
+    folderId?: string;
   }>();
 
   const [state, setState] = useState<ScreenState>('checking');
@@ -45,7 +47,7 @@ export default function RecordScreen() {
   const [error, setError] = useState<string | null>(null);
   const [title, setTitle] = useState(suggestedTitle ?? '');
   const [folders, setFolders] = useState<LocalFolder[]>([]);
-  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(folderId ?? null);
 
   const recorder = useAudioRecorder(RECORDING_OPTIONS);
   const recorderState = useAudioRecorderState(recorder);

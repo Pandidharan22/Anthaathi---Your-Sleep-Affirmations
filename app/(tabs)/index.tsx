@@ -1,120 +1,231 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AffirmationRow } from '@/components/AffirmationRow';
+import { FolderNameSheet } from '@/components/FolderNameSheet';
 import { StreakBadge } from '@/components/StreakBadge';
-import { radii, spacing, typography } from '@/constants/theme';
+import { Card } from '@/components/ui/Card';
+import { GlowButton } from '@/components/ui/GlowButton';
+import { gradientBackground } from '@/components/ui/gradient';
+import { Icon, type IconName } from '@/components/ui/Icon';
+import { IconButton } from '@/components/ui/IconButton';
+import { ScreenTitle } from '@/components/ui/ScreenTitle';
+import { colors, fonts, gradients, radii, typography } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
-import { useThemeColors } from '@/hooks/useThemeColors';
-import { listLocalAffirmations, type LocalAffirmation } from '@/lib/affirmations.local';
-import { listLocalFolders, type LocalFolder } from '@/lib/folders.local';
+import { listLocalAffirmations } from '@/lib/affirmations.local';
+import {
+  describeFolderStats,
+  summarizeByFolder,
+  UNFILED_FOLDER_ID,
+  type FolderStats,
+} from '@/lib/folderStats';
+import { createLocalFolder, listLocalFolders, type LocalFolder } from '@/lib/folders.local';
+import { greeting } from '@/lib/greeting';
 import { listLocalPlaybackSessions } from '@/lib/playbackSessions.local';
 import { computeStreak } from '@/lib/streak';
 
+/**
+ * The Library mockup: a gradient title with a greeting, one card per folder (count and
+ * total length), an "Unfiled" card when some recordings have no folder, and a dashed
+ * card to create a folder. The glowing mic starts a new affirmation (Mode Choice).
+ */
 export default function LibraryScreen() {
-  const colors = useThemeColors();
+  const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  const [affirmations, setAffirmations] = useState<LocalAffirmation[]>([]);
   const [folders, setFolders] = useState<LocalFolder[]>([]);
+  const [stats, setStats] = useState<Map<string | null, FolderStats>>(new Map());
   const [streak, setStreak] = useState(0);
+  const [creatingFolder, setCreatingFolder] = useState(false);
 
-  useFocusEffect(
-    useCallback(() => {
-      if (!user) return;
-      listLocalAffirmations(user.id).then(setAffirmations);
-      listLocalFolders(user.id).then(setFolders);
-      listLocalPlaybackSessions(user.id).then((sessions) =>
-        setStreak(computeStreak(sessions.map((s) => s.played_at))),
-      );
-    }, [user]),
-  );
+  const refresh = useCallback(() => {
+    if (!user) return;
+    listLocalFolders(user.id).then(setFolders);
+    listLocalAffirmations(user.id).then((all) => setStats(summarizeByFolder(all)));
+    listLocalPlaybackSessions(user.id).then((sessions) =>
+      setStreak(computeStreak(sessions.map((s) => s.played_at))),
+    );
+  }, [user]);
 
-  const folderNameById = new Map(folders.map((folder) => [folder.id, folder.name]));
+  useFocusEffect(refresh);
+
+  async function handleCreateFolder(name: string) {
+    if (!user) return;
+    await createLocalFolder(user.id, name);
+    setCreatingFolder(false);
+    refresh();
+  }
+
+  const unfiled = stats.get(null);
+  const name = user?.user_metadata?.display_name as string | undefined;
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={styles.header}>
-        <Text style={[styles.title, { color: colors.textPrimary }]}>Library</Text>
-        <View style={styles.headerActions}>
-          <Pressable onPress={() => router.push('/folders')} accessibilityRole="button">
-            <Text style={{ color: colors.accent }}>Folders</Text>
-          </Pressable>
+    <View style={[styles.root, { paddingTop: insets.top }]}>
+      <ScrollView contentContainerStyle={styles.content}>
+        <ScreenTitle
+          title="Library"
+          subtitle={greeting(new Date(), name)}
+          action={
+            <IconButton
+              icon="plus"
+              accessibilityLabel="New folder"
+              onPress={() => setCreatingFolder(true)}
+            />
+          }
+        />
+
+        <View style={styles.streak}>
+          <StreakBadge streak={streak} />
+        </View>
+
+        <View style={styles.cards}>
+          {folders.map((folder) => (
+            <FolderCard
+              key={folder.id}
+              name={folder.name}
+              meta={describeFolderStats(stats.get(folder.id))}
+              onPress={() => router.push(`/folder/${folder.id}`)}
+            />
+          ))}
+          {unfiled ? (
+            <FolderCard
+              name="Unfiled"
+              meta={describeFolderStats(unfiled)}
+              onPress={() => router.push(`/folder/${UNFILED_FOLDER_ID}`)}
+            />
+          ) : null}
+
           <Pressable
-            onPress={() => router.push('/record-ai-guided')}
+            onPress={() => setCreatingFolder(true)}
             accessibilityRole="button"
+            accessibilityLabel="Create a new folder"
+            style={({ pressed }) => [styles.createCard, { opacity: pressed ? 0.7 : 1 }]}
           >
-            <Text style={{ color: colors.accent }}>AI Guided</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => router.push('/record')}
-            accessibilityRole="button"
-            style={[styles.recordButton, { backgroundColor: colors.action }]}
-          >
-            <Text style={[styles.recordButtonLabel, { color: colors.background }]}>Record</Text>
+            <View style={styles.createIcon}>
+              <Icon name="plus" color={colors.accent} size={20} />
+            </View>
+            <Text style={styles.createText}>Create a new folder</Text>
           </Pressable>
         </View>
+      </ScrollView>
+
+      <View style={styles.fab}>
+        <GlowButton
+          icon="mic"
+          size={64}
+          accessibilityLabel="New affirmation"
+          onPress={() => router.push('/new-affirmation')}
+        />
       </View>
 
-      <StreakBadge streak={streak} />
-
-      {affirmations.length === 0 ? (
-        <Text style={[styles.description, { color: colors.textSecondary }]}>
-          No recordings yet — tap Record to make your first affirmation.
-        </Text>
-      ) : (
-        <FlatList
-          data={affirmations}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.list}
-          renderItem={({ item }) => (
-            <AffirmationRow
-              affirmation={item}
-              folderName={item.folder_id ? folderNameById.get(item.folder_id) : null}
-              onPress={() => router.push(`/affirmation/${item.id}/trim`)}
-            />
-          )}
-        />
-      )}
+      <FolderNameSheet
+        visible={creatingFolder}
+        title="New folder"
+        confirmLabel="Create"
+        onSubmit={handleCreateFolder}
+        onClose={() => setCreatingFolder(false)}
+      />
     </View>
   );
 }
 
+function FolderCard({
+  name,
+  meta,
+  icon = 'folder',
+  onPress,
+}: {
+  name: string;
+  meta: string;
+  icon?: IconName;
+  onPress: () => void;
+}) {
+  return (
+    <Card mesh onPress={onPress} accessibilityLabel={`${name}, ${meta}`} style={styles.folderCard}>
+      <View style={[styles.folderIcon, gradientBackground(gradients.actionFill)]}>
+        <Icon name={icon} color={colors.background} size={22} />
+      </View>
+      <View style={styles.folderText}>
+        <Text style={styles.folderName} numberOfLines={1}>
+          {name}
+        </Text>
+        <Text style={styles.folderMeta}>{meta}</Text>
+      </View>
+      <Icon name="chevronRight" color={colors.textSecondary} size={20} />
+    </Card>
+  );
+}
+
 const styles = StyleSheet.create({
-  container: {
+  root: {
     flex: 1,
-    padding: spacing.lg,
-    gap: spacing.md,
+    backgroundColor: colors.background,
   },
-  header: {
+  content: {
+    paddingHorizontal: 24,
+    // Room for the floating mic so the last card can scroll clear of it.
+    paddingBottom: 120,
+  },
+  streak: {
+    marginTop: 12,
+  },
+  cards: {
+    marginTop: 28,
+    gap: 12,
+  },
+  folderCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 14,
   },
-  headerActions: {
-    flexDirection: 'row',
+  folderIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
     alignItems: 'center',
-    gap: spacing.md,
+    justifyContent: 'center',
   },
-  title: {
-    fontSize: typography.title.fontSize,
-    lineHeight: typography.title.lineHeight,
-    fontFamily: typography.title.fontFamily,
+  folderText: {
+    flex: 1,
   },
-  description: {
-    fontSize: typography.body.fontSize,
-    lineHeight: typography.body.lineHeight,
+  folderName: {
+    fontFamily: fonts.serifSemiBold,
+    fontSize: 16,
+    lineHeight: 20,
+    color: colors.textPrimary,
   },
-  recordButton: {
-    borderRadius: radii.md,
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.md,
+  folderMeta: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: 3,
   },
-  recordButtonLabel: {
-    fontSize: typography.body.fontSize,
-    fontWeight: '600',
+  createCard: {
+    marginTop: 6,
+    borderRadius: radii.lg,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: colors.border,
+    paddingVertical: 24,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    gap: 10,
   },
-  list: {
-    gap: spacing.sm,
+  createIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: radii.full,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  createText: {
+    ...typography.quote,
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  fab: {
+    position: 'absolute',
+    right: 24,
+    bottom: 24,
   },
 });

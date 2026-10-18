@@ -7,6 +7,7 @@ import { spacing, typography } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { listLocalAffirmations, type LocalAffirmation } from '@/lib/affirmations.local';
+import { UNFILED_FOLDER_ID } from '@/lib/folderStats';
 import { getLocalFolder, type LocalFolder } from '@/lib/folders.local';
 
 export default function FolderDetailScreen() {
@@ -19,10 +20,20 @@ export default function FolderDetailScreen() {
   useFocusEffect(
     useCallback(() => {
       if (!id) return;
-      getLocalFolder(id).then(setFolder);
+      // "Unfiled" isn't a real folder: it's the recordings with no folder (Library card).
+      const unfiled = id === UNFILED_FOLDER_ID;
+      if (unfiled) {
+        setFolder({ id, name: 'Unfiled' } as LocalFolder);
+      } else {
+        getLocalFolder(id).then(setFolder);
+      }
       if (user) {
         listLocalAffirmations(user.id).then((all) =>
-          setAffirmations(all.filter((affirmation) => affirmation.folder_id === id)),
+          setAffirmations(
+            all.filter((affirmation) =>
+              unfiled ? affirmation.folder_id === null : affirmation.folder_id === id,
+            ),
+          ),
         );
       }
     }, [id, user]),
@@ -58,7 +69,10 @@ export default function FolderDetailScreen() {
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
           renderItem={({ item }) => (
-            <AffirmationRow affirmation={item} onPress={() => router.push(`/affirmation/${item.id}/trim`)} />
+            <AffirmationRow
+              affirmation={item}
+              onPress={() => router.push(`/affirmation/${item.id}/trim`)}
+            />
           )}
         />
       )}

@@ -17,9 +17,11 @@ import { getNeuralVoiceStatus, NeuralModelMissingError } from '@/lib/neuralVoice
 export default function RecordAiGuidedScreen() {
   const colors = useThemeColors();
   const { user } = useAuth();
-  const { scriptText: initialScriptText, suggestedTitle } = useLocalSearchParams<{
+  const { scriptText: initialScriptText, suggestedTitle, folderId } = useLocalSearchParams<{
     scriptText?: string;
     suggestedTitle?: string;
+    /** Preselects the folder when started from inside one (Mode Choice passes it on). */
+    folderId?: string;
   }>();
 
   const [title, setTitle] = useState(suggestedTitle ?? '');
@@ -28,7 +30,7 @@ export default function RecordAiGuidedScreen() {
     getDefaultVoiceId(getNeuralVoiceStatus().state === 'installed'),
   );
   const [folders, setFolders] = useState<LocalFolder[]>([]);
-  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(folderId ?? null);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

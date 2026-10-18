@@ -24,5 +24,21 @@ export function getEffectiveDurationMs(affirmation: LocalAffirmation): number {
  * rather than silently varying by device (e.g. "23 Sept 2026" elsewhere).
  */
 export function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return new Date(iso).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+/**
+ * A spoken-style length for summaries, e.g. "32s" or "6m 24s" (the Library mockup's
+ * folder cards). Whole seconds; under a minute drops the minutes.
+ */
+export function formatLength(ms: number): string {
+  const totalSeconds = Math.max(0, Math.round(ms / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (minutes === 0) return `${seconds}s`;
+  return `${minutes}m ${seconds.toString().padStart(2, '0')}s`;
 }

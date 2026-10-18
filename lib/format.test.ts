@@ -1,5 +1,5 @@
 import type { LocalAffirmation } from './affirmations.local';
-import { formatDate, formatDuration, getEffectiveDurationMs } from './format';
+import { formatDate, formatDuration, formatLength, getEffectiveDurationMs } from './format';
 
 function makeAffirmation(overrides: Partial<LocalAffirmation> = {}): LocalAffirmation {
   return {
@@ -57,5 +57,17 @@ describe('formatDate', () => {
     // holds regardless of the machine's timezone running the test.
     const localNoon = new Date(2026, 8, 23, 12, 0, 0);
     expect(formatDate(localNoon.toISOString())).toBe('Sep 23, 2026');
+  });
+});
+
+describe('formatLength', () => {
+  it.each([
+    [0, '0s'],
+    [32000, '32s'],
+    [59400, '59s'],
+    [60000, '1m 00s'],
+    [384000, '6m 24s'],
+  ])('%i ms → %s', (ms, expected) => {
+    expect(formatLength(ms)).toBe(expected);
   });
 });

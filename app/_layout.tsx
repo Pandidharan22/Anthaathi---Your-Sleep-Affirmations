@@ -87,6 +87,7 @@ function NavigationStack() {
               name="affirmation/[id]/trim"
               options={{ title: 'Recording', presentation: 'modal' }}
             />
+            <Stack.Screen name="new-affirmation" options={{ headerShown: false }} />
             <Stack.Screen name="folders" options={{ title: 'Folders' }} />
             <Stack.Screen name="goal/new" options={{ title: 'New Goal', presentation: 'modal' }} />
             <Stack.Screen name="goal/[id]" options={{ title: 'Goal' }} />

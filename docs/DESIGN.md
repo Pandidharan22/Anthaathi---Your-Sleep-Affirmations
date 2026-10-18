@@ -55,7 +55,7 @@ One rule: **mauve means "do something", terracotta means "this is chosen or on".
 
 It appears in two ways:
 
-1. **Fill or border on selected/on states**: the active tab, selected chips and filters, Settings toggles that are on, the chosen card on Mode Choice and its checkmark, the chosen voice on Voice Picker, the selected goal cover, the current step indicator, the Player loop toggle when on, the streak badge, and the "● Recording" label.
+1. **Fill or border on selected/on states**: the active tab, selected chips and filters, Settings toggles that are on, the chosen card on Mode Choice and its checkmark, the chosen voice on Voice Picker, the selected goal cover, the current step indicator, the Player loop toggle when on, and the "● Recording" label. (The streak badge was terracotta on the board; the user changed it to the mauve gradient with a soft mauve glow on 2026-10-18, during R.4a.)
 2. **A soft glow around the big round "voice" controls**: the mic buttons (Onboarding, Folder Detail, Record, Mode Choice), the play buttons on Preview and Trim, the Player pause button, the Generating orb, the trim handles, and the app icon on Splash.
 
 Not on: text buttons ("Done", "Save recording", "Sign in", "Continue"), small utility icons (back, close, more), or progress bars. **No terracotta ring around buttons or round controls** — it was tried and removed; the glow alone carries the warmth. (Borders on selected cards are fine.)
