@@ -4,6 +4,26 @@ One entry per committed step, newest first. Each entry: what was done, why, how 
 
 ---
 
+## 2026-10-18 — Forgot password with an emailed code (redesign step R.3c); app email via Resend
+
+**What**: Sign In now has the mockup's right-aligned "Forgot password?" link. It opens `app/forgot-password.tsx` (email, prefilled from Sign In, and Send Code), then `app/reset-password.tsx` (the emailed code plus a new password, Set New Password, and "Didn't get it? Send a new code"). `useAuth` gained `requestPasswordReset`, `resetPassword` (check the code, then save the password), `cancelPasswordReset` and a `recovering` flag. The reset email template lives in `supabase/templates/recovery.html`: the local stack uses it via `config.toml`, and the user pasted it into the live project. The live project's auth email now goes through **Resend** on the user's domain (`no-reply@mail.pandidharan.dev`), which completes plan step 5.4a early. R.3 is now complete.
+
+**Why**: forgot password is one of the mockup-only extras the user chose to build. Without it, a user who forgets their password is locked out of their own recordings.
+
+**Decisions with reasons**:
+- **A code typed into the app, not a tap-the-link email** (user's choice after I laid out both). A link has to reopen the app on the right screen. That breaks in email apps that block app links and when the email is read on a computer, and it needs a deep-link scheme in Supabase's redirect allowlist. A code works on any device, needs no routing, and could be tested end-to-end locally.
+- **Holding the user on the reset screen until the password is saved.** A correct code creates a real session, and the root layout routes anyone with a session into the tabs. Without a guard, the user would land in the app before choosing a new password. While `recovering` is true, the layout treats the user as signed out. If saving fails (for example, the same password as before), the screen stays up, and a retry skips the code check because a used code can't be reused. Leaving with Back signs out cleanly.
+- **No account probing**: the send screen says "If there's an account for … we've sent it a code" whether or not the account exists. Supabase answers the same way too (checked locally).
+- **Code length 6–10 digits**: Supabase's email code length is a project setting. The live project sends **8** (seen in the user's real email), the local stack 6. The app doesn't hardcode either.
+- **Resend + the user's domain over the built-in sender or Gmail SMTP**: Supabase's built-in sender only delivers to the project team, about 2 an hour, and its default reset template has no code. Gmail SMTP would send from a personal address and is against Gmail's terms for app traffic. Resend's free tier (3,000/month) on a verified subdomain keeps NFR-601's $0 budget and makes the emails look legitimate to spam filters. I sent Resend's onboarding test email at the user's request with the key they shared. The user is rotating that key, and the key used for SMTP is stored only in the Supabase dashboard, never in the repo (checked: no Resend key anywhere in tracked files).
+- **Confirm-email isn't touched**: confirmations are still off. Now that real email delivery works, turning them on is a separate decision.
+
+**Verification**: Against the local Supabase stack, a 12-check script: our template's subject and a numeric code in the email (read from the local mail catcher), wrong code rejected (`otp_expired`), right code signs in, same password rejected (`same_password`), new password saved, used code can't be reused, old password fails and new one works, unknown email answered the same. Then through the real screens on a temporary web server pointed at the local stack (removed afterwards): send code → enter code with the old password → stayed on the screen with "Please choose a password different from your old one." → a new password → landed in Library; confirmed afterwards that the old password fails and the new one signs in. 17 new tests (reset logic incl. retry-without-reuse and cancel, both screens, the Sign In link). Full suite 415/415, typecheck, lint and Prettier clean. **On the user's phone against the live project**: the email arrived from `Anthaathi <no-reply@mail.pandidharan.dev>` with an 8-digit code, the password changed, and the user was signed in.
+
+**Commit**: `2c208d6` — Add forgot password with an emailed reset code (redesign step R.3c)
+
+---
+
 ## 2026-10-17 — Sign Up and Sign In screens (redesign step R.3b)
 
 **What**: The old combined `/auth` screen (a mode toggle between two forms) is replaced by two screens built from their mockups. `app/sign-up.tsx`: Name, Email, Password, the "At least 8 characters" helper, Create Account, and an "Already have an account? Sign In" link. `app/sign-in.tsx`: Email, Password, Sign in. Both sit on a shared `components/AuthLayout.tsx` (back button, large serif title and subtitle, the form scrolling above the keyboard). Sign Up uses the dusk mesh, Sign In the plain background, as in the mockups. `lib/authErrors.ts` turns Supabase failures into copy shown under the right field. `useAuth` now takes the name at sign-up and passes Supabase's error code through. Welcome's buttons go straight to `/sign-up` and `/sign-in`.
