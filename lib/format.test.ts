@@ -1,5 +1,11 @@
 import type { LocalAffirmation } from './affirmations.local';
-import { formatDate, formatDuration, formatLength, getEffectiveDurationMs } from './format';
+import {
+  formatDate,
+  formatDuration,
+  formatLength,
+  formatNightsAgo,
+  getEffectiveDurationMs,
+} from './format';
 
 function makeAffirmation(overrides: Partial<LocalAffirmation> = {}): LocalAffirmation {
   return {
@@ -41,12 +47,20 @@ describe('formatDuration', () => {
 
 describe('getEffectiveDurationMs', () => {
   it('returns the full duration when untrimmed', () => {
-    const affirmation = makeAffirmation({ duration_ms: 10000, trim_start_ms: null, trim_end_ms: null });
+    const affirmation = makeAffirmation({
+      duration_ms: 10000,
+      trim_start_ms: null,
+      trim_end_ms: null,
+    });
     expect(getEffectiveDurationMs(affirmation)).toBe(10000);
   });
 
   it('returns the trimmed span, not the original duration, when trimmed', () => {
-    const affirmation = makeAffirmation({ duration_ms: 10000, trim_start_ms: 2000, trim_end_ms: 5000 });
+    const affirmation = makeAffirmation({
+      duration_ms: 10000,
+      trim_start_ms: 2000,
+      trim_end_ms: 5000,
+    });
     expect(getEffectiveDurationMs(affirmation)).toBe(3000);
   });
 });
@@ -69,5 +83,32 @@ describe('formatLength', () => {
     [384000, '6m 24s'],
   ])('%i ms → %s', (ms, expected) => {
     expect(formatLength(ms)).toBe(expected);
+  });
+});
+
+describe('formatNightsAgo', () => {
+  const now = new Date(2026, 9, 18, 1, 0);
+  const daysBefore = (days: number, hour = 22) =>
+    new Date(2026, 9, 18 - days, hour, 0).toISOString();
+
+  it.each([
+    [0, 'Today'],
+    [1, 'Last night'],
+    [2, '2 nights ago'],
+    [6, '6 nights ago'],
+    [7, 'Last week'],
+    [13, 'Last week'],
+    [14, '2 weeks ago'],
+    [59, '8 weeks ago'],
+  ])('%i days before → %s', (days, expected) => {
+    expect(formatNightsAgo(daysBefore(days), now)).toBe(expected);
+  });
+
+  it('counts calendar days, so 11 pm yesterday is "Last night" at 1 am', () => {
+    expect(formatNightsAgo(daysBefore(1, 23), now)).toBe('Last night');
+  });
+
+  it('falls back to the date after about two months', () => {
+    expect(formatNightsAgo(daysBefore(90), now)).toMatch(/2026/);
   });
 });

@@ -42,3 +42,20 @@ export function formatLength(ms: number): string {
   if (minutes === 0) return `${seconds}s`;
   return `${minutes}m ${seconds.toString().padStart(2, '0')}s`;
 }
+
+/**
+ * How long ago something was recorded, in the app's bedtime voice: "Today",
+ * "Last night", "3 nights ago", "Last week", "2 weeks ago", then the date. Counts local
+ * calendar days, so a recording from 11 pm yesterday is "Last night" at 1 am.
+ */
+export function formatNightsAgo(iso: string, now: Date = new Date()): string {
+  const then = new Date(iso);
+  const startOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const days = Math.round((startOf(now) - startOf(then)) / 86_400_000);
+  if (days <= 0) return 'Today';
+  if (days === 1) return 'Last night';
+  if (days < 7) return `${days} nights ago`;
+  if (days < 14) return 'Last week';
+  if (days < 60) return `${Math.floor(days / 7)} weeks ago`;
+  return formatDate(iso);
+}
