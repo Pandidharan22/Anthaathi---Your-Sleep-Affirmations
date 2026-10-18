@@ -4,6 +4,26 @@ One entry per committed step, newest first. Each entry: what was done, why, how 
 
 ---
 
+## 2026-10-18 — Preview with real waveforms and Trim silence (redesign step R.5b)
+
+**What**: after Done, `app/record.tsx` shows the Preview mockup in place of the old review step: a "Preview" header (Back asks "Discard this recording?" before throwing the take away), a Title field, a waveform card, a folder chip that opens the folder picker inline, a "Trim silence" chip, then Save recording, Discard (rose ghost) and Re-record. New pieces: `components/Waveform.tsx` (rounded bars from the levels saved in R.5a, the played part in the mauve gradient, trimmed-away bars dimmed), `components/PlaybackCard.tsx` (elapsed / length, waveform, back and forward 5 s, glowing play/pause), `findSilenceTrim` in `lib/waveform.ts`, and a `tone="danger"` option on `Button`. The old `TrimEditor` is no longer used by this screen; precise trimming moves to R.5c's Trim screen.
+
+**Why**: the mockup's Preview is a calm check of the take before it's saved, and "Trim silence" removes the most common edit (dead air while reaching for and putting down the phone) without dragging handles.
+
+**Decisions with reasons**:
+- **The silence threshold is relative to each take.** The first version treated anything under about -42 dBFS as quiet. On the user's phone the chip never appeared: a room's hum sat above that, so every level read as speech. Now the threshold sits 30% of the way from the take's quiet level (10th percentile) to its voice level (90th), never below 0.15. A take with less than 0.12 of contrast between the two has no clear silence. Speech is padded by 300 ms each side so a soft first or last syllable isn't clipped, and less than 300 ms of quiet in total isn't worth trimming.
+- **The chip is always there** (user's report: they couldn't find it). When there's no quiet to cut, tapping it says "There's no quiet at the start or end to trim." instead of hiding the option. When on, a note says how much it cuts ("Trims 0.7 s of quiet at the start and 0.5 s at the end.") and the waveform dims the cut bars.
+- **Trim silence saves as the same non-destructive trim** (`trim_start_ms`/`trim_end_ms`) as step 1.5, so the file is untouched and the Player, previews and later edits all respect it.
+- **Playback stays inside the trim**: Play starts at the trim start when outside the range and pauses at the trim end; the time shows elapsed / length of the kept part. `PlaybackCard` is built to be reused by R.5d's edit screen.
+- **Smooth motion** (user's report: progress and halo felt like about 10 fps). The player reports its position a few times a second and the recorder its level every 100 ms, so drawing straight from them steps. The waveform's played part is now an animated clip that glides at playback speed between reports and snaps back only if it drifts more than 200 ms. The Record halo eases toward each new level over 140 ms on the native driver (slightly longer than the reading interval, so it never stops between readings).
+- Back from Preview confirms, because the take isn't saved yet; Discard and Re-record behave as before.
+
+**Verification**: new tests for silence detection (quiet ends, a noisy room, one flat level, too little to trim), 5 for `PlaybackCard` (time display, trim-aware play/pause, skips), and Preview tests (Trim silence saves 700/1500, the nothing-to-trim note, the Back confirm, waveform saved). Full suite 483/483, typecheck clean, lint 0 errors. **On the user's phone**: Trim silence shows and cuts the quiet (or says there's nothing to trim), the waveform progress is smooth, and the halo moves smoothly.
+
+**Commit**: `06a4dee` — Add the Preview step with real waveforms and Trim silence (redesign step R.5b)
+
+---
+
 ## 2026-10-18 — Record screen and real waveforms (redesign step R.5a)
 
 **What**: `app/record.tsx`'s recording states follow the Record mockup: a dusk background, a quiet header with the folder name, a terracotta "● Recording" (or "Paused") label, the script as a quote when it came from an AI draft (otherwise a gentle "Speak slowly and softly…" cue), the glowing mic with its mauve/terracotta halo, a big gradient timer, the hint "Tap to pause · hold to stop", and Cancel / Done ✓. The permission states use the same calm layout. New: loudness is captured while recording and saved per recording, for the waveforms and "Trim silence" in R.5b–R.5d. R.5 is split into R.5a Record, R.5b Preview, R.5c Trim and R.5d the recording edit screen.
