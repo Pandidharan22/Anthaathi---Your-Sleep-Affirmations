@@ -4,6 +4,26 @@ One entry per committed step, newest first. Each entry: what was done, why, how 
 
 ---
 
+## 2026-10-18 — Folder Detail with previews and folder actions (redesign step R.4b)
+
+**What**: `app/folder/[id].tsx` is rebuilt from its mockup. The header shows the folder name with back and ⋯ buttons, then the total ("2 recordings · 6m 24s total"). The rows (`components/AffirmationRow.tsx`, rewritten) each have a round play button, a mic or speaker glyph for the source, the title, "Self-Recorded · 32s · 2 nights ago" or "AI Guided · Nicole · 48s · …", and the length. The glowing mic opens Mode Choice with this folder preselected. The ⋯ menu offers Rename (the folder-name sheet from R.4a) and Delete (with a confirm). `/folder/unfiled` lists recordings with no folder and has no ⋯ menu. The old Folders screen from step 1.6 (`app/folders.tsx` and its test) is removed, since everything it did now lives on Library and Folder Detail. New: `hooks/usePreviewPlayer.ts` and `formatNightsAgo` in `lib/format.ts`. **R.4 complete.**
+
+**Why**: the mockup's Folder Detail is where a user listens back and manages a folder. Removing the Folders screen leaves one place for each job instead of two.
+
+**Decisions with reasons**:
+- **The play button previews in place** (user's choice in R.4a): a play icon that just opens another screen would look broken. The play button and the rest of the row are two separate buttons, each with its own screen-reader name ("Play …" / "… , Self-Recorded · 32s · Today").
+- **One shared preview player** (`usePreviewPlayer`): one `expo-audio` player per screen, created once and released on unmount. It plays the **trimmed** range (seek to trim start, stop at trim end) so a preview matches what the Player plays at night. Tapping the same row stops it, another row switches, and leaving the screen stops it (a focus-effect cleanup). While playing, the button turns terracotta with a pause icon, the "this is on" color, with the icon change as the non-color cue.
+- **⋯ menu and delete confirm use `Alert`**, like step 1.6. Native and accessible on Android; it can't be driven in the web preview, so it's covered by tests that press the alert's buttons, and checked on the phone.
+- **Delete copy says recordings "will move to Unfiled"**, which is what now happens (the remote FK sets `folder_id` to null and Library shows them under Unfiled), not "become unfiled".
+- **Relative dates**: "Today", "Last night", "N nights ago", "Last week", "N weeks ago", then the date after about two months. Counted in local calendar days, so 11 pm yesterday reads "Last night" at 1 am. Day 0 was "Tonight" at first; changed to "Today" because a recording made in the morning would read oddly.
+- **The voice name comes from the screen** (`getVoiceOption(voice_id)?.label`) and is passed to the row, so the row stays free of the native voice modules.
+
+**Verification**: 21 new or rewritten tests: Folder Detail (name and total, rows with source/voice/length/date, only this folder's recordings, preview vs. open, Stop label while playing, mic passes the folder, rename through the ⋯ menu and sheet, delete with its confirm copy, Unfiled with no menu, missing folder), `usePreviewPlayer` (starts at the trim, stops at the trim end, stops on finish, toggle off, switching, released on unmount), `formatNightsAgo`. One test-only bug found and fixed: the `useAuth` mock made a new user object per render, which re-ran the focus effect forever; the real provider's user is stable. Full suite 456/456, typecheck and lint clean. Web preview at phone width against the local Supabase stack: the folder screen matched the mockup, the mic routed to `/new-affirmation?folderId=…`, and Unfiled showed only the unfiled recording with no ⋯ menu. The local setup was removed afterwards. On the user's phone: the folder screens work. The recording edit screen it opens still has the old layout; that's R.5's.
+
+**Commit**: `05b6e93` — Rebuild Folder Detail with previews and folder actions (redesign step R.4b)
+
+---
+
 ## 2026-10-18 — Microphone permission restored; Open Settings on the recorder (bug from step 2.1)
 
 **What**: `app.json`'s `expo-image-picker` plugin config had `"microphonePermission": false`, which removed Android's `RECORD_AUDIO` permission from the **whole app**. It now uses the same microphone wording as `expo-audio`'s config, while `cameraPermission: false` still blocks the camera. The recorder's "Microphone access needed" state gained an **Open Settings** button and copy that names the exact taps ("Permissions → Microphone → Allow"), and it re-checks the permission when the app comes back to the foreground. New dev-client build `294aedee`.
