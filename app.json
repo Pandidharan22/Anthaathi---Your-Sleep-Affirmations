@@ -44,7 +44,7 @@
         {
           "photosPermission": "Anthaathi needs photo library access so you can add an image to a goal.",
           "cameraPermission": false,
-          "microphonePermission": false
+          "microphonePermission": "Anthaathi needs microphone access so you can record affirmations in your own voice."
         }
       ],
       "expo-notifications"

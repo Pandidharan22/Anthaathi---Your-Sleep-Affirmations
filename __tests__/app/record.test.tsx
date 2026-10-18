@@ -1,4 +1,5 @@
-import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
+import { AppState, Linking } from 'react-native';
 
 import RecordScreen from '@/app/record';
 
@@ -91,6 +92,38 @@ describe('RecordScreen', () => {
     const { getByText } = await render(<RecordScreen />);
 
     await waitFor(() => expect(getByText('Microphone access needed')).toBeTruthy());
+  });
+
+  it('Open Settings opens the app page in system Settings', async () => {
+    mockGetRecordingPermissionsAsync.mockResolvedValue({ granted: false, canAskAgain: false });
+    const openSettings = jest.spyOn(Linking, 'openSettings').mockResolvedValue(undefined);
+
+    const { getByText } = await render(<RecordScreen />);
+    await waitFor(() => expect(getByText('Open Settings')).toBeTruthy());
+    await fireEvent.press(getByText('Open Settings'));
+
+    expect(openSettings).toHaveBeenCalled();
+    openSettings.mockRestore();
+  });
+
+  it('unlocks recording when the user returns from Settings with the mic allowed', async () => {
+    mockGetRecordingPermissionsAsync.mockResolvedValue({ granted: false, canAskAgain: false });
+    let onAppStateChange: ((state: string) => void) | undefined;
+    const appState = jest.spyOn(AppState, 'addEventListener').mockImplementation((_type, listener) => {
+      onAppStateChange = listener as (state: string) => void;
+      return { remove: jest.fn() } as unknown as ReturnType<typeof AppState.addEventListener>;
+    });
+
+    const { getByText } = await render(<RecordScreen />);
+    await waitFor(() => expect(getByText('Open Settings')).toBeTruthy());
+
+    mockGetRecordingPermissionsAsync.mockResolvedValue({ granted: true, canAskAgain: true });
+    await act(async () => {
+      onAppStateChange?.('active');
+    });
+
+    await waitFor(() => expect(getByText('Tap to record')).toBeTruthy());
+    appState.mockRestore();
   });
 
   it('goes ready -> recording -> reviewing, and Save persists the affirmation', async () => {

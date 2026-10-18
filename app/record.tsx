@@ -9,10 +9,20 @@ import {
 import { File } from 'expo-file-system';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  AppState,
+  Linking,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 
 import { FolderPicker } from '@/components/FolderPicker';
 import { TrimEditor } from '@/components/TrimEditor';
+import { Button } from '@/components/ui/Button';
 import { radii, spacing, typography } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { useThemeColors } from '@/hooks/useThemeColors';
@@ -57,6 +67,20 @@ export default function RecordScreen() {
       setState(granted ? 'ready' : canAskAgain ? 'permission-needed' : 'permission-denied');
     });
   }, []);
+
+  // After "Open Settings", the user comes back to the app: re-check, so turning the
+  // microphone on there unlocks this screen without leaving and reopening it.
+  useEffect(() => {
+    if (state !== 'permission-denied' && state !== 'permission-needed') return;
+    const subscription = AppState.addEventListener('change', (next) => {
+      if (next !== 'active') return;
+      getRecordingPermissionsAsync().then(({ granted, canAskAgain }) => {
+        if (granted) setState('ready');
+        else if (!canAskAgain) setState('permission-denied');
+      });
+    });
+    return () => subscription.remove();
+  }, [state]);
 
   useEffect(() => {
     if (user) listLocalFolders(user.id).then(setFolders);
@@ -177,9 +201,12 @@ export default function RecordScreen() {
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <Text style={[styles.title, { color: colors.textPrimary }]}>Microphone access needed</Text>
         <Text style={[styles.body, { color: colors.textSecondary }]}>
-          Recording is unavailable without microphone access. Enable it for Anthaathi in your
-          device Settings, then come back here.
+          Recording needs microphone access. Tap Open Settings, then Permissions →
+          Microphone → Allow, and come back here.
         </Text>
+        {/* Android won't show the permission prompt again once it's been refused, so the
+            only way forward is the app's page in system Settings. */}
+        <Button label="Open Settings" onPress={() => Linking.openSettings()} />
       </View>
     );
   }
