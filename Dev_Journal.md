@@ -4,6 +4,26 @@ One entry per committed step, newest first. Each entry: what was done, why, how 
 
 ---
 
+## 2026-10-18 — Microphone permission restored; Open Settings on the recorder (bug from step 2.1)
+
+**What**: `app.json`'s `expo-image-picker` plugin config had `"microphonePermission": false`, which removed Android's `RECORD_AUDIO` permission from the **whole app**. It now uses the same microphone wording as `expo-audio`'s config, while `cameraPermission: false` still blocks the camera. The recorder's "Microphone access needed" state gained an **Open Settings** button and copy that names the exact taps ("Permissions → Microphone → Allow"), and it re-checks the permission when the app comes back to the foreground. New dev-client build `294aedee`.
+
+**Why**: on the user's phone, Self-Recorded went straight to "Microphone access needed". Open Settings showed Anthaathi's permissions with **no Microphone entry at all**, which meant the manifest never declared it.
+
+**Root cause, confirmed rather than guessed**: `expo-image-picker`'s config plugin source turns `microphonePermission === false` into `withBlockedPermissions(['android.permission.RECORD_AUDIO'])`, which writes `tools:node="remove"` into the merged manifest. `npx expo config --type introspect` showed `RECORD_AUDIO [remove]` before the fix and `RECORD_AUDIO` declared after it (with `CAMERA [remove]` kept). The setting was added in step 2.1 to stop the *photo picker* asking for the mic, without realising the plugin applies it app-wide. Expo Go ships its own manifest, so recording kept working there. Every dev-client build since step 3.5 has silently shipped without a microphone, and this was the first time Self-Recorded was tried on one.
+- **Lesson**: a config plugin's "disable" option can act on the whole app's manifest. After changing plugin config, check the introspected manifest (`expo config --type introspect`), not just `app.json`.
+
+**Decisions with reasons**:
+- **Same wording for both plugins**, not just deleting the line: on iOS both write `NSMicrophoneUsageDescription`, and two different strings would fight over it.
+- **Open Settings goes to the app's main settings page**: Android gives apps no supported way to open the Permissions sub-page directly, so the copy tells the user the two taps from there.
+- **Re-checking on return to the foreground** (an `AppState` listener, only while in a needs/denied state) means allowing the mic in Settings unlocks recording without leaving and reopening the screen.
+
+**Verification**: 2 new tests: Open Settings calls `Linking.openSettings`, and returning to the app with the mic allowed moves to the ready-to-record state. Record suite 8/8; full suite 445/445. Manifest checked with `expo config --type introspect` before and after. **On the user's phone with build `294aedee`**: Android's "Allow microphone?" prompt appeared, recording worked, and Settings → Permissions now lists Microphone.
+
+**Commit**: `265dedf` — Restore the microphone permission and add Open Settings to the recorder
+
+---
+
 ## 2026-10-18 — Library and Mode Choice (redesign step R.4a)
 
 **What**: The Library tab is rebuilt from its mockup. It has the gradient "Library" title (with no duplicate native header now), the greeting "Good evening, {name}." (`lib/greeting.ts`: time of day, plus the name from sign-up), and one card per folder showing "12 recordings · 6m 24s" (`lib/folderStats.ts`, using each recording's trimmed length). An "Unfiled" card appears only when some recordings have no folder. A dashed "Create a new folder" card and the header "+" both open a new folder-name sheet (`components/FolderNameSheet.tsx`), and the glowing mic sits bottom-right. The mic opens the new **Mode Choice** screen (`app/new-affirmation.tsx`): Self-Recorded / AI Guided cards, and Continue opens the matching record screen with the folder you started from already selected (both record screens now take a `folderId` param). `lib/format.ts` gained `formatLength` ("6m 24s"). R.4 is split into R.4a (this) and R.4b (Folder Detail).
