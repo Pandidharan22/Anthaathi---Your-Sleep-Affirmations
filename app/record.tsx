@@ -11,30 +11,31 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   AppState,
   Linking,
-  Pressable,
+  ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { FolderPicker } from '@/components/FolderPicker';
-import { TrimEditor } from '@/components/TrimEditor';
+import { PlaybackCard } from '@/components/PlaybackCard';
 import { Button } from '@/components/ui/Button';
+import { Chip } from '@/components/ui/Chip';
 import { DuskBackground } from '@/components/ui/DuskBackground';
 import { GlowButton } from '@/components/ui/GlowButton';
 import { GradientText } from '@/components/ui/GradientText';
 import { NavHeader } from '@/components/ui/NavHeader';
-import { colors as palette, fonts, radii, spacing, typography } from '@/constants/theme';
+import { TextField } from '@/components/ui/TextField';
+import { colors as palette, fonts, typography } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
-import { useThemeColors } from '@/hooks/useThemeColors';
 import { createLocalAffirmation } from '@/lib/affirmations.local';
 import { formatDuration } from '@/lib/format';
 import { listLocalFolders, type LocalFolder } from '@/lib/folders.local';
-import { levelFromDb, METER_INTERVAL_MS } from '@/lib/waveform';
+import { findSilenceTrim, levelFromDb, METER_INTERVAL_MS, type SilenceTrim } from '@/lib/waveform';
 import { saveWaveform } from '@/lib/waveforms.local';
 
 type ScreenState =
@@ -56,7 +57,6 @@ const RECORDING_OPTIONS = {
 };
 
 export default function RecordScreen() {
-  const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const { scriptText, suggestedTitle, folderId } = useLocalSearchParams<{
@@ -75,6 +75,13 @@ export default function RecordScreen() {
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(folderId ?? null);
   // Loudness samples for the take in progress (0–1), saved with the recording.
   const levelsRef = useRef<number[]>([]);
+  // Preview (after Done): the take's levels, its quiet start/end, and the user's choices.
+  const [recordedLevels, setRecordedLevels] = useState<number[]>([]);
+  const [silenceTrim, setSilenceTrim] = useState<SilenceTrim | null>(null);
+  const [trimSilence, setTrimSilence] = useState(false);
+  // Shown after tapping Trim silence on a take with no quiet ends to cut.
+  const [nothingToTrim, setNothingToTrim] = useState(false);
+  const [choosingFolder, setChoosingFolder] = useState(false);
 
   const recorder = useAudioRecorder(RECORDING_OPTIONS);
   const recorderState = useAudioRecorderState(recorder, METER_INTERVAL_MS);
@@ -146,8 +153,13 @@ export default function RecordScreen() {
       await recorder.stop();
       const uri = recorder.uri;
       if (!uri) throw new Error('Recording finished with no file');
+      const levels = [...levelsRef.current];
       setRecordedUri(uri);
       setRecordedDurationMs(durationMs);
+      setRecordedLevels(levels);
+      setSilenceTrim(findSilenceTrim(levels, durationMs));
+      setTrimSilence(false);
+      setNothingToTrim(false);
       setTitle((current) => current || `Recording — ${new Date().toLocaleString()}`);
       setState('reviewing');
     } catch {
@@ -189,8 +201,19 @@ export default function RecordScreen() {
     await handleStartRecording();
   }
 
-  async function handleSave(trimStartMs: number | null, trimEndMs: number | null) {
+  /** Back from Preview: the take isn't saved yet, so confirm before throwing it away. */
+  function confirmDiscard() {
+    Alert.alert('Discard this recording?', "It hasn't been saved yet.", [
+      { text: 'Keep it', style: 'cancel' },
+      { text: 'Discard', style: 'destructive', onPress: handleDiscard },
+    ]);
+  }
+
+  async function handleSave() {
     if (!user || !recordedUri) return;
+    const trim = trimSilence ? silenceTrim : null;
+    const trimStartMs = trim ? trim.startMs : null;
+    const trimEndMs = trim ? trim.endMs : null;
     const trimmedTitle = title.trim();
     if (!trimmedTitle) {
       setError('Give this recording a title before saving.');
@@ -213,7 +236,7 @@ export default function RecordScreen() {
       try {
         await saveWaveform(created.id, {
           intervalMs: METER_INTERVAL_MS,
-          levels: levelsRef.current,
+          levels: recordedLevels,
         });
       } catch {
         // The recording is saved; without a waveform it just draws as a flat line.
@@ -260,56 +283,89 @@ export default function RecordScreen() {
   }
 
   if (state === 'reviewing' && recordedUri) {
-    // Restyled in step R.5b (Preview mockup).
+    const folderName = folders.find((f) => f.id === selectedFolderId)?.name ?? 'No folder';
+    const activeTrim = trimSilence ? silenceTrim : null;
     return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <Text style={[styles.title, { color: colors.textPrimary }]}>Review your recording</Text>
+      <View style={styles.root}>
+        <NavHeader title="Preview" leading="back" onLeadingPress={confirmDiscard} />
+        <ScrollView contentContainerStyle={styles.preview} keyboardShouldPersistTaps="handled">
+          <TextField label="Title" value={title} onChangeText={setTitle} maxLength={80} />
 
-        {error ? <Text style={[styles.error, { color: colors.error }]}>{error}</Text> : null}
+          <PlaybackCard
+            uri={recordedUri}
+            durationMs={recordedDurationMs}
+            levels={recordedLevels}
+            trimStartMs={activeTrim?.startMs ?? null}
+            trimEndMs={activeTrim?.endMs ?? null}
+          />
 
-        <View style={styles.row}>
-          <Pressable
-            onPress={handleDiscard}
-            accessibilityRole="button"
-            style={[styles.secondaryButton, { borderColor: colors.error }]}
-          >
-            <Text style={{ color: colors.error }}>Discard</Text>
-          </Pressable>
-          <Pressable
-            onPress={handleReRecord}
-            accessibilityRole="button"
-            style={[styles.secondaryButton, { borderColor: colors.border }]}
-          >
-            <Text style={{ color: colors.textPrimary }}>Re-record</Text>
-          </Pressable>
+          <View style={styles.chips}>
+            <Chip
+              icon="folder"
+              label={folderName}
+              selected={choosingFolder}
+              accessibilityLabel={`Folder: ${folderName}. Change folder`}
+              onPress={() => setChoosingFolder((open) => !open)}
+            />
+            <Chip
+              icon="check"
+              label="Trim silence"
+              selected={trimSilence}
+              onPress={() => {
+                if (silenceTrim) setTrimSilence((on) => !on);
+                else setNothingToTrim(true);
+              }}
+            />
+          </View>
+
+          {choosingFolder ? (
+            <FolderPicker
+              folders={folders}
+              selectedFolderId={selectedFolderId}
+              onSelect={(id) => {
+                setSelectedFolderId(id);
+                setChoosingFolder(false);
+              }}
+            />
+          ) : null}
+
+          {nothingToTrim ? (
+            <Text accessibilityLiveRegion="polite" style={styles.trimNote}>
+              There&apos;s no quiet at the start or end to trim.
+            </Text>
+          ) : null}
+
+          {activeTrim ? (
+            <Text style={styles.trimNote}>
+              {describeSilenceTrim(activeTrim, recordedDurationMs)}
+            </Text>
+          ) : null}
+
+          {error ? (
+            <Text accessibilityLiveRegion="polite" style={styles.errorText}>
+              {error}
+            </Text>
+          ) : null}
+        </ScrollView>
+
+        <View style={[styles.previewActions, { paddingBottom: insets.bottom + 24 }]}>
+          <Button label="Save recording" onPress={handleSave} />
+          <View style={styles.previewRow}>
+            <Button
+              label="Discard"
+              variant="ghost"
+              tone="danger"
+              onPress={handleDiscard}
+              style={styles.flexButton}
+            />
+            <Button
+              label="Re-record"
+              variant="secondary"
+              onPress={handleReRecord}
+              style={styles.flexButton}
+            />
+          </View>
         </View>
-
-        <TextInput
-          value={title}
-          onChangeText={setTitle}
-          placeholder="Title"
-          placeholderTextColor={colors.textSecondary}
-          style={[
-            styles.titleInput,
-            {
-              color: colors.textPrimary,
-              borderColor: colors.border,
-              backgroundColor: colors.surface,
-            },
-          ]}
-        />
-        <FolderPicker
-          folders={folders}
-          selectedFolderId={selectedFolderId}
-          onSelect={setSelectedFolderId}
-        />
-
-        <TrimEditor
-          uri={recordedUri}
-          durationMs={recordedDurationMs}
-          onSave={handleSave}
-          saveLabel="Save"
-        />
       </View>
     );
   }
@@ -474,42 +530,47 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 32,
   },
-  // Styles for the review step until R.5b restyles it.
-  container: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.lg,
-    padding: spacing.lg,
+  preview: {
+    paddingHorizontal: 24,
+    paddingTop: 8,
+    paddingBottom: 24,
+    gap: 18,
   },
-  title: {
-    fontSize: typography.title.fontSize,
-    lineHeight: typography.title.lineHeight,
-    fontFamily: typography.title.fontFamily,
-    textAlign: 'center',
-  },
-  error: {
-    fontSize: typography.caption.fontSize,
-    textAlign: 'center',
-  },
-  secondaryButton: {
-    borderWidth: 1,
-    borderRadius: radii.md,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  row: {
+  chips: {
     flexDirection: 'row',
-    gap: spacing.md,
+    flexWrap: 'wrap',
+    gap: 8,
+    // Room for the chips' extended touch area (hit slop can't reach past the parent).
+    paddingVertical: 10,
+    marginVertical: -10,
   },
-  titleInput: {
-    width: '100%',
-    borderWidth: 1,
-    borderRadius: radii.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    fontSize: typography.body.fontSize,
+  trimNote: {
+    ...typography.caption,
+    color: palette.textSecondary,
+  },
+  previewActions: {
+    paddingHorizontal: 24,
+    paddingTop: 12,
+    gap: 12,
+  },
+  previewRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  flexButton: {
+    flex: 1,
   },
 });
+
+/** "Trims 1.2 s of quiet at the start and 0.8 s at the end." */
+function describeSilenceTrim(trim: SilenceTrim, durationMs: number): string {
+  const seconds = (ms: number) => `${(ms / 1000).toFixed(1)} s`;
+  const head = trim.startMs;
+  const tail = durationMs - trim.endMs;
+  if (head > 0 && tail > 0) {
+    return `Trims ${seconds(head)} of quiet at the start and ${seconds(tail)} at the end.`;
+  }
+  return head > 0
+    ? `Trims ${seconds(head)} of quiet at the start.`
+    : `Trims ${seconds(tail)} of quiet at the end.`;
+}

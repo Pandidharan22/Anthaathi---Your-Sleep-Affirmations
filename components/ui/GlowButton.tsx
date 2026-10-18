@@ -1,4 +1,5 @@
-import { Pressable, StyleSheet, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Animated, Easing, Pressable, StyleSheet, View } from 'react-native';
 
 import { colors, glows, gradients } from '@/constants/theme';
 
@@ -46,6 +47,19 @@ export function GlowButton({
   iconFilled = false,
   disabled = false,
 }: GlowButtonProps) {
+  // The halo eases toward each new scale on the UI thread (native driver). Each glide
+  // lasts a little longer than the Record screen's 100 ms level readings, so it never
+  // stops between them: a smooth breath instead of 10 jumps a second.
+  const [scale] = useState(() => new Animated.Value(haloScale));
+  useEffect(() => {
+    Animated.timing(scale, {
+      toValue: haloScale,
+      duration: 140,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: true,
+    }).start();
+  }, [scale, haloScale]);
+
   const button = (
     <Pressable
       onPress={onPress}
@@ -83,7 +97,7 @@ export function GlowButton({
   const innerHalo = Math.round(haloSize * 0.7);
   return (
     <View style={[styles.center, { width: haloSize, height: haloSize }]}>
-      <View
+      <Animated.View
         pointerEvents="none"
         style={[
           styles.halo,
@@ -91,14 +105,14 @@ export function GlowButton({
             width: haloSize,
             height: haloSize,
             borderRadius: haloSize / 2,
-            transform: [{ scale: haloScale }],
+            transform: [{ scale }],
           },
           gradientBackground(
             'radial-gradient(closest-side, rgba(169, 143, 196, 0.38) 0%, rgba(169, 143, 196, 0) 70%)',
           ),
         ]}
       />
-      <View
+      <Animated.View
         pointerEvents="none"
         style={[
           styles.halo,
@@ -106,7 +120,7 @@ export function GlowButton({
             width: innerHalo,
             height: innerHalo,
             borderRadius: innerHalo / 2,
-            transform: [{ scale: haloScale }],
+            transform: [{ scale }],
           },
           gradientBackground(
             'radial-gradient(closest-side, rgba(227, 148, 110, 0.55) 0%, rgba(227, 148, 110, 0) 68%)',

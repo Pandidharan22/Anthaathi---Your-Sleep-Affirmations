@@ -1,5 +1,5 @@
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
-import { AppState, Linking } from 'react-native';
+import { Alert, AppState, Linking, type AlertButton } from 'react-native';
 
 import RecordScreen from '@/app/record';
 
@@ -169,7 +169,7 @@ describe('RecordScreen', () => {
   it('goes ready -> recording -> reviewing, and Save persists the affirmation', async () => {
     mockGetRecordingPermissionsAsync.mockResolvedValue({ granted: true, canAskAgain: true });
 
-    const { getByText, getByRole, getByPlaceholderText, rerender } = await render(<RecordScreen />);
+    const { getByText, getByRole, getByLabelText, rerender } = await render(<RecordScreen />);
     await waitFor(() => expect(getByRole('button', { name: 'Start recording' })).toBeTruthy());
 
     await fireEvent.press(getByRole('button', { name: 'Start recording' }));
@@ -185,11 +185,12 @@ describe('RecordScreen', () => {
     await fireEvent.press(getByRole('button', { name: 'Done ✓' }));
 
     expect(mockStop).toHaveBeenCalled();
-    await waitFor(() => expect(getByText('Save')).toBeTruthy());
+    await waitFor(() => expect(getByText('Save recording')).toBeTruthy());
 
-    await fireEvent.changeText(getByPlaceholderText('Title'), 'My affirmation');
+    await fireEvent.changeText(getByLabelText('Title'), 'My affirmation');
+    await fireEvent.press(getByRole('button', { name: 'Folder: No folder. Change folder' }));
     await fireEvent.press(getByText('Sleep'));
-    await fireEvent.press(getByText('Save'));
+    await fireEvent.press(getByText('Save recording'));
 
     await waitFor(() =>
       expect(mockCreateLocalAffirmation).toHaveBeenCalledWith(
@@ -209,7 +210,7 @@ describe('RecordScreen', () => {
   it('blocks saving with an empty title', async () => {
     mockGetRecordingPermissionsAsync.mockResolvedValue({ granted: true, canAskAgain: true });
 
-    const { getByText, getByRole, getByPlaceholderText, rerender } = await render(<RecordScreen />);
+    const { getByText, getByRole, getByLabelText, rerender } = await render(<RecordScreen />);
     await waitFor(() => expect(getByRole('button', { name: 'Start recording' })).toBeTruthy());
     await fireEvent.press(getByRole('button', { name: 'Start recording' }));
     await waitFor(() => expect(getByRole('button', { name: 'Pause recording' })).toBeTruthy());
@@ -218,10 +219,10 @@ describe('RecordScreen', () => {
     mockRecorderState = { ...mockRecorderState, durationMillis: 4200 };
     await rerender(<RecordScreen />);
     await fireEvent.press(getByRole('button', { name: 'Done ✓' }));
-    await waitFor(() => expect(getByText('Save')).toBeTruthy());
+    await waitFor(() => expect(getByText('Save recording')).toBeTruthy());
 
-    await fireEvent.changeText(getByPlaceholderText('Title'), '   ');
-    await fireEvent.press(getByText('Save'));
+    await fireEvent.changeText(getByLabelText('Title'), '   ');
+    await fireEvent.press(getByText('Save recording'));
 
     await waitFor(() =>
       expect(getByText('Give this recording a title before saving.')).toBeTruthy(),
@@ -246,11 +247,11 @@ describe('RecordScreen', () => {
     mockRecorderState = { ...mockRecorderState, durationMillis: 4200 };
     await rerender(<RecordScreen />);
     await fireEvent.press(getByRole('button', { name: 'Done ✓' }));
-    await waitFor(() => expect(getByText('Save')).toBeTruthy());
+    await waitFor(() => expect(getByText('Save recording')).toBeTruthy());
 
     // The suggested title survived the stop -> reviewing transition unstomped.
     expect(getByDisplayValue('Run a marathon')).toBeTruthy();
-    await fireEvent.press(getByText('Save'));
+    await fireEvent.press(getByText('Save recording'));
 
     await waitFor(() =>
       expect(mockCreateLocalAffirmation).toHaveBeenCalledWith(
@@ -295,7 +296,7 @@ describe('RecordScreen', () => {
     mockRecorderObj.uri = 'file:///doc/rec.m4a';
     await fireEvent(getByRole('button', { name: 'Pause recording' }), 'longPress');
     expect(mockStop).toHaveBeenCalled();
-    await waitFor(() => expect(getByText('Review your recording')).toBeTruthy());
+    await waitFor(() => expect(getByText('Save recording')).toBeTruthy());
   });
 
   it('Done is disabled until recording starts', async () => {
@@ -339,8 +340,8 @@ describe('RecordScreen', () => {
     }
     mockRecorderObj.uri = 'file:///doc/rec.m4a';
     await fireEvent.press(getByRole('button', { name: 'Done ✓' }));
-    await waitFor(() => expect(getByText('Save')).toBeTruthy());
-    await fireEvent.press(getByText('Save'));
+    await waitFor(() => expect(getByText('Save recording')).toBeTruthy());
+    await fireEvent.press(getByText('Save recording'));
 
     await waitFor(() => expect(mockCreateLocalAffirmation).toHaveBeenCalled());
     await waitFor(() =>
@@ -349,5 +350,72 @@ describe('RecordScreen', () => {
         levels: [0.5, 0, 1],
       }),
     );
+  });
+  it('offers Trim silence when the take has quiet ends, and saves the trim', async () => {
+    mockGetRecordingPermissionsAsync.mockResolvedValue({ granted: true, canAskAgain: true });
+    const { getByRole, getByText, rerender } = await render(<RecordScreen />);
+    await fireEvent.press(await waitFor(() => getByRole('button', { name: 'Start recording' })));
+
+    // 20 samples over 2 s: 1 s of quiet, 0.2 s of speech, then quiet.
+    const take = [...Array(10).fill(-60), -10, -10, ...Array(8).fill(-60)];
+    for (const metering of take) {
+      mockRecorderState = {
+        ...mockRecorderState,
+        isRecording: true,
+        durationMillis: 2000,
+        metering,
+      };
+      await rerender(<RecordScreen />);
+    }
+    mockRecorderObj.uri = 'file:///doc/rec.m4a';
+    await fireEvent.press(getByRole('button', { name: 'Done ✓' }));
+
+    const chip = await waitFor(() => getByRole('button', { name: 'Trim silence' }));
+    expect(chip.props.accessibilityState).toMatchObject({ selected: false });
+    await fireEvent.press(chip);
+    expect(getByText('Trims 0.7 s of quiet at the start and 0.5 s at the end.')).toBeTruthy();
+
+    await fireEvent.press(getByText('Save recording'));
+    await waitFor(() =>
+      expect(mockCreateLocalAffirmation).toHaveBeenCalledWith(
+        expect.objectContaining({ trimStartMs: 700, trimEndMs: 1500 }),
+      ),
+    );
+  });
+
+  it('Trim silence says so when there is no quiet to cut', async () => {
+    mockGetRecordingPermissionsAsync.mockResolvedValue({ granted: true, canAskAgain: true });
+    const { getByRole, getByText } = await render(<RecordScreen />);
+    await fireEvent.press(await waitFor(() => getByRole('button', { name: 'Start recording' })));
+
+    mockRecorderObj.uri = 'file:///doc/rec.m4a';
+    mockRecorderState = { ...mockRecorderState, durationMillis: 4200 };
+    await fireEvent.press(getByRole('button', { name: 'Done ✓' }));
+
+    await fireEvent.press(await waitFor(() => getByRole('button', { name: 'Trim silence' })));
+    expect(getByText("There's no quiet at the start or end to trim.")).toBeTruthy();
+    expect(getByRole('button', { name: 'Trim silence' }).props.accessibilityState).toMatchObject({
+      selected: false,
+    });
+  });
+
+  it('Back from Preview asks before discarding the unsaved take', async () => {
+    mockGetRecordingPermissionsAsync.mockResolvedValue({ granted: true, canAskAgain: true });
+    const alert = jest.spyOn(Alert, 'alert');
+    const { getByRole, getByText } = await render(<RecordScreen />);
+    await fireEvent.press(await waitFor(() => getByRole('button', { name: 'Start recording' })));
+    mockRecorderObj.uri = 'file:///doc/rec.m4a';
+    mockRecorderState = { ...mockRecorderState, durationMillis: 4200 };
+    await fireEvent.press(getByRole('button', { name: 'Done ✓' }));
+    await waitFor(() => expect(getByText('Save recording')).toBeTruthy());
+
+    await fireEvent.press(getByRole('button', { name: 'Back' }));
+
+    expect(alert.mock.calls[0][0]).toBe('Discard this recording?');
+    expect(mockFileDelete).not.toHaveBeenCalled();
+    const buttons = alert.mock.calls[0][2] as AlertButton[];
+    await act(async () => buttons.find((b) => b.text === 'Discard')?.onPress?.());
+    expect(mockFileDelete).toHaveBeenCalled();
+    alert.mockRestore();
   });
 });

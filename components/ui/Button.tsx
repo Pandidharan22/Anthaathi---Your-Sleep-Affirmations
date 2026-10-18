@@ -25,6 +25,8 @@ type ButtonProps = {
    * ghost: plain cream text, for low-emphasis actions like "Cancel".
    */
   variant?: ButtonVariant;
+  /** `danger` turns a ghost button's text rose, for destructive actions like Discard. */
+  tone?: 'default' | 'danger';
   icon?: IconName;
   disabled?: boolean;
   /** Shows a spinner in place of the label and blocks presses. */
@@ -40,6 +42,7 @@ export function Button({
   label,
   onPress,
   variant = 'primary',
+  tone = 'default',
   icon,
   disabled = false,
   loading = false,
@@ -68,10 +71,10 @@ export function Button({
       {variant === 'secondary' ? (
         // The gradient ring is the 2px of the outer pill left showing around this one.
         <View style={[styles.base, styles.secondaryInner]}>
-          <Content label={label} variant={variant} icon={icon} loading={loading} />
+          <Content label={label} variant={variant} tone={tone} icon={icon} loading={loading} />
         </View>
       ) : (
-        <Content label={label} variant={variant} icon={icon} loading={loading} />
+        <Content label={label} variant={variant} tone={tone} icon={icon} loading={loading} />
       )}
     </Pressable>
   );
@@ -80,11 +83,13 @@ export function Button({
 function Content({
   label,
   variant,
+  tone,
   icon,
   loading,
 }: {
   label: string;
   variant: ButtonVariant;
+  tone: 'default' | 'danger';
   icon?: IconName;
   loading: boolean;
 }) {
@@ -93,7 +98,9 @@ function Content({
       ? colors.background
       : variant === 'secondary'
         ? colors.accent
-        : colors.textPrimary;
+        : tone === 'danger'
+          ? colors.error
+          : colors.textPrimary;
 
   if (loading) return <ActivityIndicator color={color} />;
 
