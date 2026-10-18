@@ -4,6 +4,27 @@ One entry per committed step, newest first. Each entry: what was done, why, how 
 
 ---
 
+## 2026-10-18 — Record screen and real waveforms (redesign step R.5a)
+
+**What**: `app/record.tsx`'s recording states follow the Record mockup: a dusk background, a quiet header with the folder name, a terracotta "● Recording" (or "Paused") label, the script as a quote when it came from an AI draft (otherwise a gentle "Speak slowly and softly…" cue), the glowing mic with its mauve/terracotta halo, a big gradient timer, the hint "Tap to pause · hold to stop", and Cancel / Done ✓. The permission states use the same calm layout. New: loudness is captured while recording and saved per recording, for the waveforms and "Trim silence" in R.5b–R.5d. R.5 is split into R.5a Record, R.5b Preview, R.5c Trim and R.5d the recording edit screen.
+
+**Why**: the user chose **real waveforms** over decorative bars. A trim screen that shows made-up bars would mislead exactly where it matters, at the silence at the start and end. The capture has to start here, at recording time.
+
+**Decisions with reasons**:
+- **Loudness comes from the recorder's own metering.** `isMeteringEnabled: true`, polled every 100 ms (`useAudioRecorderState(recorder, 100)`). On Android this is `MediaRecorder.maxAmplitude`, the peak since the last poll, as dBFS (checked in expo-audio's Kotlin source), so each sample is the loudest moment in its 100 ms. `lib/waveform.ts` maps -50…0 dBFS to 0–1 levels: quieter than -50 counts as silence, and speech peaks sit around -25…-5.
+- **Samples only while actually recording**, not while paused, so the waveform lines up with the audio file, which also leaves out the paused stretches.
+- **Device-only storage**: a new `affirmation_waveforms` SQLite table (recording id, interval, levels as JSON rounded to 2 decimals), never synced and with no Postgres column. The audio itself never leaves the device, so a waveform on the server would describe a file the server doesn't have. Deleting a recording or the account removes its waveform; the account cleanup deletes waveforms first, while the recordings that identify them still exist. A separate table (rather than a column on `affirmations`) keeps the waveform out of the sync payloads entirely.
+- **Recordings made before this have no waveform** and will draw as a flat line (user's call; there's no cheap way to decode old m4a files in JS).
+- **Tap to pause, hold to stop** (as the mockup says): the mic toggles pause/resume and a 0.5 s long-press stops. Done ✓ also stops and stays disabled until recording starts. Cancel during a take stops it and deletes the file. The mic's screen-reader name follows its action ("Start/Pause/Resume recording"), with "Hold to stop recording" as its hint.
+- **The halo breathes with the voice**: its scale follows the live level (0.88–1.16). A small addition to the mockup's static halo, and visible proof the mic is hearing you. `GlowButton` gained `onLongPress`, `accessibilityHint` and `haloScale`.
+- Kept the review step (after Done) unchanged on purpose; it's R.5b. Prettier wanted to reformat unrelated lines in `lib/account.ts`, so that edit was reapplied by hand to stay minimal.
+
+**Verification**: 6 new tests: dBFS→level mapping, bucketing for drawing, pause/resume and hold-to-stop, Done disabled before recording, Cancel deleting the take, and loudness samples saved as the waveform with the new recording. Existing recorder tests were updated for the new controls. Full suite 469/469, typecheck and lint clean. **On the user's phone** (no rebuild needed; metering is in the installed build): pause/resume, hold to stop, Done and Cancel work, and the halo reacts to their voice.
+
+**Commit**: `ea024c3` — Rebuild the Record screen and capture real waveforms (redesign step R.5a)
+
+---
+
 ## 2026-10-18 — Folder Detail with previews and folder actions (redesign step R.4b)
 
 **What**: `app/folder/[id].tsx` is rebuilt from its mockup. The header shows the folder name with back and ⋯ buttons, then the total ("2 recordings · 6m 24s total"). The rows (`components/AffirmationRow.tsx`, rewritten) each have a round play button, a mic or speaker glyph for the source, the title, "Self-Recorded · 32s · 2 nights ago" or "AI Guided · Nicole · 48s · …", and the length. The glowing mic opens Mode Choice with this folder preselected. The ⋯ menu offers Rename (the folder-name sheet from R.4a) and Delete (with a confirm). `/folder/unfiled` lists recordings with no folder and has no ⋯ menu. The old Folders screen from step 1.6 (`app/folders.tsx` and its test) is removed, since everything it did now lives on Library and Folder Detail. New: `hooks/usePreviewPlayer.ts` and `formatNightsAgo` in `lib/format.ts`. **R.4 complete.**
