@@ -185,6 +185,7 @@ export async function deleteLocalAffirmation(id: string): Promise<void> {
   const affirmation = await getLocalAffirmation(id);
 
   await database.runAsync(`DELETE FROM affirmations WHERE id = ?`, [id]);
+  await database.runAsync(`DELETE FROM affirmation_waveforms WHERE affirmation_id = ?`, [id]);
   // user_id carried in the payload so account deletion can still attribute
   // this queue entry to its user even after the local row itself is gone.
   await enqueue('affirmations', 'delete', id, affirmation ? { user_id: affirmation.user_id } : undefined);

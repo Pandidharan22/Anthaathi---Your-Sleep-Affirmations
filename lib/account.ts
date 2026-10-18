@@ -71,6 +71,12 @@ export async function deleteAccount(userId: string): Promise<void> {
     }
   }
 
+  // Waveforms are keyed by recording, so they go first, while the recordings still exist.
+  await database.runAsync(
+    `DELETE FROM affirmation_waveforms WHERE affirmation_id IN (SELECT id FROM affirmations WHERE user_id = ?)`,
+    [userId],
+  );
+
   await Promise.all([
     database.runAsync(`DELETE FROM affirmations WHERE user_id = ?`, [userId]),
     database.runAsync(`DELETE FROM folders WHERE user_id = ?`, [userId]),

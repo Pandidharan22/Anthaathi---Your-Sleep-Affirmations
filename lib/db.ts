@@ -66,6 +66,15 @@ async function initSchema(database: SQLite.SQLiteDatabase) {
       synced_at TEXT
     );
 
+    -- Loudness over time per recording, for waveforms and "Trim silence" (step R.5).
+    -- Device-only on purpose: the audio itself never leaves the device, so neither does
+    -- this, and it's never synced (no Postgres column).
+    CREATE TABLE IF NOT EXISTS affirmation_waveforms (
+      affirmation_id TEXT PRIMARY KEY NOT NULL,
+      interval_ms INTEGER NOT NULL,
+      levels TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS sync_queue (
       queue_id INTEGER PRIMARY KEY AUTOINCREMENT,
       table_name TEXT NOT NULL,

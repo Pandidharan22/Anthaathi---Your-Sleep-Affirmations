@@ -10,6 +10,9 @@ type GlowButtonProps = {
   /** Required: an icon alone has no name for a screen reader. */
   accessibilityLabel: string;
   onPress: () => void;
+  /** E.g. the Record screen's "hold to stop". */
+  onLongPress?: () => void;
+  accessibilityHint?: string;
   /** Diameter of the gradient button itself. */
   size?: number;
   /** `hero` is the slightly stronger glow of the Player pause and the Generating orb. */
@@ -19,6 +22,8 @@ type GlowButtonProps = {
    * screens' mauve halo with a terracotta core). Omit for no halo.
    */
   haloSize?: number;
+  /** Grows or shrinks the halo, e.g. with the live recording level (1 = as drawn). */
+  haloScale?: number;
   /** Draws the icon solid, as the board does for play and pause. */
   iconFilled?: boolean;
   disabled?: boolean;
@@ -32,18 +37,24 @@ export function GlowButton({
   icon,
   accessibilityLabel,
   onPress,
+  onLongPress,
+  accessibilityHint,
   size = 72,
   glow = 'control',
   haloSize,
+  haloScale = 1,
   iconFilled = false,
   disabled = false,
 }: GlowButtonProps) {
   const button = (
     <Pressable
       onPress={onPress}
+      onLongPress={onLongPress}
+      delayLongPress={500}
       disabled={disabled}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
+      accessibilityHint={accessibilityHint}
       accessibilityState={{ disabled }}
       style={({ pressed }) => [
         styles.center,
@@ -76,7 +87,12 @@ export function GlowButton({
         pointerEvents="none"
         style={[
           styles.halo,
-          { width: haloSize, height: haloSize, borderRadius: haloSize / 2 },
+          {
+            width: haloSize,
+            height: haloSize,
+            borderRadius: haloSize / 2,
+            transform: [{ scale: haloScale }],
+          },
           gradientBackground(
             'radial-gradient(closest-side, rgba(169, 143, 196, 0.38) 0%, rgba(169, 143, 196, 0) 70%)',
           ),
@@ -86,7 +102,12 @@ export function GlowButton({
         pointerEvents="none"
         style={[
           styles.halo,
-          { width: innerHalo, height: innerHalo, borderRadius: innerHalo / 2 },
+          {
+            width: innerHalo,
+            height: innerHalo,
+            borderRadius: innerHalo / 2,
+            transform: [{ scale: haloScale }],
+          },
           gradientBackground(
             'radial-gradient(closest-side, rgba(227, 148, 110, 0.55) 0%, rgba(227, 148, 110, 0) 68%)',
           ),

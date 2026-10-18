@@ -79,10 +79,7 @@ function NavigationStack() {
         <Stack>
           <Stack.Protected guard={signedIn}>
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen
-              name="record"
-              options={{ title: 'New Recording', presentation: 'modal', headerBackVisible: false }}
-            />
+            <Stack.Screen name="record" options={{ headerShown: false, presentation: 'modal' }} />
             <Stack.Screen
               name="affirmation/[id]/trim"
               options={{ title: 'Recording', presentation: 'modal' }}
