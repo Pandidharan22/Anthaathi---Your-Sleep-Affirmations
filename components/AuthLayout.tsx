@@ -14,6 +14,8 @@ type AuthLayoutProps = {
   subtitleItalic?: boolean;
   /** Sign Up sits on the dusk mesh; Sign In is the plain background (as in the mockups). */
   mesh?: boolean;
+  /** Runs before going back, e.g. to leave a half-finished password reset cleanly. */
+  onBack?: () => void;
   children: ReactNode;
 };
 
@@ -27,13 +29,26 @@ function goBack() {
  * The shared frame of the Sign Up and Sign In mockups: a back button, a large serif
  * title with a subtitle, then the form, scrolling above the keyboard.
  */
-export function AuthLayout({ title, subtitle, subtitleItalic, mesh, children }: AuthLayoutProps) {
+export function AuthLayout({
+  title,
+  subtitle,
+  subtitleItalic,
+  mesh,
+  onBack,
+  children,
+}: AuthLayoutProps) {
   const insets = useSafeAreaInsets();
 
   return (
     <View style={styles.root}>
       {mesh ? <DuskBackground /> : null}
-      <NavHeader leading="back" onLeadingPress={goBack} />
+      <NavHeader
+        leading="back"
+        onLeadingPress={() => {
+          onBack?.();
+          goBack();
+        }}
+      />
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}

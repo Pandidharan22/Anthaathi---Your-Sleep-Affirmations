@@ -242,6 +242,14 @@ otp_expiry = 3600
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
 
+# Password reset sends a one-time code the user types into the app (step R.3c), not a link.
+# (6 digits here via otp_length; the live project is set to 8 — the app accepts 6–10.)
+# The live project needs the same template pasted into Dashboard → Authentication → Email
+# Templates → Reset Password; this file is the source of truth for both.
+[auth.email.template.recovery]
+subject = "Your Anthaathi password reset code"
+content_path = "./supabase/templates/recovery.html"
+
 # Uncomment to customize email template
 # [auth.email.template.invite]
 # subject = "You have been invited"

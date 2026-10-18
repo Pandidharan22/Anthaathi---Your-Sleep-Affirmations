@@ -1,10 +1,11 @@
+import { router } from 'expo-router';
 import { useRef, useState } from 'react';
-import { StyleSheet, Text, View, type TextInput } from 'react-native';
+import { Pressable, StyleSheet, Text, View, type TextInput } from 'react-native';
 
 import { AuthLayout } from '@/components/AuthLayout';
 import { Button } from '@/components/ui/Button';
 import { TextField } from '@/components/ui/TextField';
-import { colors, typography } from '@/constants/theme';
+import { colors, fonts, typography } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { describeAuthError, looksLikeEmail, type AuthErrorField } from '@/lib/authErrors';
 
@@ -14,8 +15,8 @@ type FieldErrors = Partial<Record<AuthErrorField, string>>;
  * The Sign In mockup. A successful sign-in needs no navigation here: the session
  * arriving flips the root stack's guard, which takes the user into the app.
  *
- * Left out for now: "Forgot password?" (step R.3c) and "Continue with Apple" (needs a
- * paid Apple developer account, like step 3.7).
+ * Left out for now: "Continue with Apple" (needs a paid Apple developer account, like
+ * step 3.7).
  */
 export default function SignInScreen() {
   const { signIn } = useAuth();
@@ -75,6 +76,19 @@ export default function SignInScreen() {
         />
       </View>
 
+      <Pressable
+        onPress={() =>
+          router.push({
+            pathname: '/forgot-password',
+            params: email.trim() ? { email: email.trim() } : {},
+          })
+        }
+        accessibilityRole="button"
+        style={styles.forgot}
+      >
+        <Text style={styles.forgotText}>Forgot password?</Text>
+      </Pressable>
+
       {errors.form ? (
         <Text accessibilityLiveRegion="polite" style={styles.formError}>
           {errors.form}
@@ -96,7 +110,19 @@ const styles = StyleSheet.create({
     color: colors.error,
     marginTop: 16,
   },
+  // The mockup's right-aligned caption link, with a 44pt-tall touch area.
+  forgot: {
+    alignSelf: 'flex-end',
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingLeft: 16,
+  },
+  forgotText: {
+    ...typography.caption,
+    fontFamily: fonts.sansSemiBold,
+    color: colors.accent,
+  },
   submit: {
-    marginTop: 32,
+    marginTop: 20,
   },
 });

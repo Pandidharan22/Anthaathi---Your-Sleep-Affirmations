@@ -9,11 +9,13 @@ jest.mock(
 
 const mockBack = jest.fn();
 const mockReplace = jest.fn();
+const mockPush = jest.fn();
 let mockCanGoBack = true;
 jest.mock('expo-router', () => ({
   router: {
     back: () => mockBack(),
     replace: (...args: unknown[]) => mockReplace(...args),
+    push: (...args: unknown[]) => mockPush(...args),
     canGoBack: () => mockCanGoBack,
   },
 }));
@@ -27,6 +29,7 @@ beforeEach(() => {
   mockSignIn.mockReset();
   mockBack.mockReset();
   mockReplace.mockReset();
+  mockPush.mockReset();
   mockCanGoBack = true;
 });
 
@@ -77,6 +80,18 @@ describe('SignInScreen', () => {
     await fillAndSubmit('maya@example.com', 'pw');
 
     expect(await screen.findByText(/check your connection/)).toBeTruthy();
+  });
+
+  it('Forgot password? opens the reset flow with the typed email', async () => {
+    await render(<SignInScreen />);
+
+    await fireEvent.changeText(screen.getByLabelText('Email'), ' maya@example.com ');
+    await fireEvent.press(screen.getByRole('button', { name: 'Forgot password?' }));
+
+    expect(mockPush).toHaveBeenCalledWith({
+      pathname: '/forgot-password',
+      params: { email: 'maya@example.com' },
+    });
   });
 
   it('back returns to Welcome when there is no history', async () => {

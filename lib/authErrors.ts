@@ -4,7 +4,7 @@
  * errors under the field, not in a banner). Keyed by Supabase's stable `error.code`, not
  * its English message.
  */
-export type AuthErrorField = 'email' | 'password' | 'form';
+export type AuthErrorField = 'email' | 'password' | 'code' | 'form';
 
 export type AuthErrorDisplay = { field: AuthErrorField; message: string };
 
@@ -31,6 +31,15 @@ const BY_CODE: Record<string, AuthErrorDisplay> = {
   },
   email_address_invalid: { field: 'email', message: "That email address doesn't look right." },
   weak_password: { field: 'password', message: 'Please choose a stronger password.' },
+  // Supabase reports a wrong code and an expired one the same way.
+  otp_expired: {
+    field: 'code',
+    message: "That code didn't work. It may have expired — check the email or send a new one.",
+  },
+  same_password: {
+    field: 'password',
+    message: 'Please choose a password different from your old one.',
+  },
   over_email_send_rate_limit: {
     field: 'form',
     message: 'Too many tries for now. Please wait a minute and try again.',

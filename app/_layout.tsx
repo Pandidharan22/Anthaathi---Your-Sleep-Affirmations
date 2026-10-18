@@ -53,8 +53,11 @@ const navigationTheme = {
 } satisfies typeof DarkTheme;
 
 function NavigationStack() {
-  const { session, loading, user } = useAuth();
-  useSyncQueue(!!session);
+  const { session, loading, user, recovering } = useAuth();
+  // During a password reset the user already has a session (the code signed them in),
+  // but stays on the signed-out screens until the new password is saved.
+  const signedIn = !!session && !recovering;
+  useSyncQueue(signedIn);
 
   useEffect(() => {
     if (__DEV__) installDebugTools(user?.id ?? null);
@@ -74,7 +77,7 @@ function NavigationStack() {
     <>
       {loading ? null : (
         <Stack>
-          <Stack.Protected guard={!!session}>
+          <Stack.Protected guard={signedIn}>
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen
               name="record"
@@ -93,10 +96,12 @@ function NavigationStack() {
             />
             <Stack.Screen name="journal/[id]" options={{ title: 'Journal Entry' }} />
           </Stack.Protected>
-          <Stack.Protected guard={!session}>
+          <Stack.Protected guard={!signedIn}>
             <Stack.Screen name="welcome" options={{ headerShown: false }} />
             <Stack.Screen name="sign-up" options={{ headerShown: false }} />
             <Stack.Screen name="sign-in" options={{ headerShown: false }} />
+            <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
+            <Stack.Screen name="reset-password" options={{ headerShown: false }} />
           </Stack.Protected>
           {/* Dev-only component gallery (R.2): needs no account or data, so it sits outside
               both guards. It must stay last: a blocked route redirects to the first

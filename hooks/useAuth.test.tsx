@@ -15,6 +15,9 @@ jest.mock('@/lib/supabase', () => ({
       signUp: jest.fn(),
       signInWithPassword: jest.fn(),
       signOut: jest.fn(),
+      resetPasswordForEmail: jest.fn(),
+      verifyOtp: jest.fn(),
+      updateUser: jest.fn(),
     },
   },
 }));
@@ -130,6 +133,110 @@ describe('useAuth', () => {
 
     expect(supabase.auth.signOut).toHaveBeenCalled();
     expect(outcome).toEqual({ error: null });
+  });
+
+  describe('password reset', () => {
+    async function ready() {
+      const rendered = await renderUseAuth();
+      await waitFor(() => expect(rendered.result.current.loading).toBe(false));
+      return rendered;
+    }
+
+    it('requests a reset code for the email', async () => {
+      supabase.auth.resetPasswordForEmail.mockResolvedValue({ data: {}, error: null });
+      const { result } = await ready();
+
+      const outcome = await act(() => result.current.requestPasswordReset('alice@example.com'));
+
+      expect(supabase.auth.resetPasswordForEmail).toHaveBeenCalledWith('alice@example.com');
+      expect(outcome).toEqual({ error: null });
+    });
+
+    it('checks the code, saves the password, and ends recovery', async () => {
+      supabase.auth.verifyOtp.mockResolvedValue({ data: {}, error: null });
+      supabase.auth.updateUser.mockResolvedValue({ data: {}, error: null });
+      const { result } = await ready();
+
+      const outcome = await act(() =>
+        result.current.resetPassword('alice@example.com', '123456', 'new-password'),
+      );
+
+      expect(supabase.auth.verifyOtp).toHaveBeenCalledWith({
+        email: 'alice@example.com',
+        token: '123456',
+        type: 'recovery',
+      });
+      expect(supabase.auth.updateUser).toHaveBeenCalledWith({ password: 'new-password' });
+      expect(outcome).toEqual({ error: null });
+      expect(result.current.recovering).toBe(false);
+    });
+
+    it('a wrong code ends recovery and never touches the password', async () => {
+      supabase.auth.verifyOtp.mockResolvedValue({
+        data: {},
+        error: { message: 'Token has expired or is invalid', code: 'otp_expired' },
+      });
+      const { result } = await ready();
+
+      const outcome = await act(() =>
+        result.current.resetPassword('alice@example.com', '000000', 'new-password'),
+      );
+
+      expect(outcome).toEqual({
+        error: 'Token has expired or is invalid',
+        errorCode: 'otp_expired',
+      });
+      expect(supabase.auth.updateUser).not.toHaveBeenCalled();
+      expect(result.current.recovering).toBe(false);
+    });
+
+    it('stays in recovery when saving fails, and a retry skips the used code', async () => {
+      supabase.auth.verifyOtp.mockResolvedValue({ data: {}, error: null });
+      supabase.auth.updateUser
+        .mockResolvedValueOnce({
+          data: {},
+          error: { message: 'New password should be different', code: 'same_password' },
+        })
+        .mockResolvedValueOnce({ data: {}, error: null });
+      const { result } = await ready();
+
+      const first = await act(() =>
+        result.current.resetPassword('alice@example.com', '123456', 'old-password'),
+      );
+      expect(first.errorCode).toBe('same_password');
+      expect(result.current.recovering).toBe(true);
+
+      const second = await act(() =>
+        result.current.resetPassword('alice@example.com', '123456', 'new-password'),
+      );
+      expect(second).toEqual({ error: null });
+      expect(supabase.auth.verifyOtp).toHaveBeenCalledTimes(1);
+      expect(result.current.recovering).toBe(false);
+    });
+
+    it('cancelling after the code was accepted signs out', async () => {
+      supabase.auth.verifyOtp.mockResolvedValue({ data: {}, error: null });
+      supabase.auth.updateUser.mockResolvedValue({
+        data: {},
+        error: { message: 'weak', code: 'weak_password' },
+      });
+      supabase.auth.signOut.mockResolvedValue({ error: null });
+      const { result } = await ready();
+      await act(() => result.current.resetPassword('alice@example.com', '123456', 'short'));
+
+      await act(() => result.current.cancelPasswordReset());
+
+      expect(supabase.auth.signOut).toHaveBeenCalled();
+      expect(result.current.recovering).toBe(false);
+    });
+
+    it('cancelling before any code was accepted does not sign out', async () => {
+      const { result } = await ready();
+
+      await act(() => result.current.cancelPasswordReset());
+
+      expect(supabase.auth.signOut).not.toHaveBeenCalled();
+    });
   });
 
   it('throws when useAuth is used outside an AuthProvider', async () => {
