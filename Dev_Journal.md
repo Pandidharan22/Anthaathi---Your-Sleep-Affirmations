@@ -4,6 +4,26 @@ One entry per committed step, newest first. Each entry: what was done, why, how 
 
 ---
 
+## 2026-10-19 — Trim screen with draggable handles (redesign step R.5c)
+
+**What**: `components/TrimScreen.tsx` follows the Trim mockup: Cancel / Trim / Done at the top, the kept range in big gradient numbers between "Start" and "End", a large 60-bar waveform with two glowing handles, a ruler (0, ¼, ½, ¾, full length), "◀ Preview", a glowing play button, "Preview ▶", and an info note saying what will be cut. Preview gains a "Trim" chip (new scissors icon) that opens it. New: `hooks/usePlaybackProgress.ts` (the smooth progress from R.5b, now shared), and `moveTrimHandle` / `normalizeTrim` / `describeTrim` in `lib/waveform.ts`. Small additions: Button `tone="accent"` and `compact`, NavHeader `leadingContent` (for the text "Cancel"), GradientText `accessibilityLabel`, and a Waveform look (`highlightKept`) that lights the kept bars and dims the cut ones, as in the mockup.
+
+**Why**: Trim silence handles the common case. The Trim screen is for precise cuts, like a cough at the end or a false start. The mockup's Preview had no way to reach it, so the Trim chip sits next to Trim silence (and R.5d's edit screen uses the same chip).
+
+**Decisions with reasons**:
+- **A full-screen modal, not a route.** The take isn't saved yet while in Preview, so there's no id to route to, and its levels are too big for route params. A `Modal` keeps it in the Preview screen's state, and its `onRequestClose` makes Android's back gesture Cancel. R.5d reuses it the same way.
+- **One touch area for both handles.** The handles are drawn 4 pt wide, far below the 44 pt touch minimum (NFR-401). The whole waveform takes the touch, picks the nearer handle (or the one on the side you touched outside the kept part), and moves it by the drag distance, so it never jumps under the finger. Built on the View's responder props rather than `PanResponder`: the React lint rule rejects refs inside `PanResponder.create`, and the plain props are simpler anyway.
+- **Steps and limits**: handles snap to 0.1 s (fine enough for a breath) and keep at least 1 s between them. Near the end they snap to the file's real length, which is rarely a whole step. Leaving both at the ends saves as "no trim" (`null`), not as a trim that covers everything (the 1.9 lesson).
+- **Screen readers**: each handle is an adjustable control ("Trim start", "0:04"), moved 0.5 s per swipe. The range reads "Keeping 0:04 to 0:44" instead of the dash.
+- **Previews**: "◀ Preview" plays 3 s from the start handle and "Preview ▶" the last 3 s up to the end handle, so each cut can be heard without sitting through the middle. Play runs the whole kept part with a playhead. The playhead moves with a transform on the native driver, smooth like R.5b's fixes. Starting a drag pauses playback.
+- **Trim silence and a hand-set trim replace each other**, so only one is ever active: Done turns Trim silence off, and turning Trim silence on clears the hand-set trim. Trim opens from whichever trim is active. While Trim is open, Preview's own card is unmounted (and its player with it), so two players never play at once.
+
+**Verification**: 15 new tests: handle moves (steps, limits, end snap, the 1 s gap, sub-second takes), `normalizeTrim`, `describeTrim`, 8 for TrimScreen (start state, existing trim, drag picks the nearer handle and moves by distance, screen-reader nudges, both previews, the preview stopping after 3 s, play, Cancel), and Preview → Trim → Done → Save saving 1000/4200. Full suite 501/501, typecheck clean, lint 0 new findings (the 2 errors are the known Deno imports). **On the user's phone**: the chip opens Trim, the handles drag smoothly, the previews and play work, and Done keeps the cut in Preview.
+
+**Commit**: `f8bedb9` — Add the Trim screen with draggable handles (redesign step R.5c)
+
+---
+
 ## 2026-10-18 — Preview with real waveforms and Trim silence (redesign step R.5b)
 
 **What**: after Done, `app/record.tsx` shows the Preview mockup in place of the old review step: a "Preview" header (Back asks "Discard this recording?" before throwing the take away), a Title field, a waveform card, a folder chip that opens the folder picker inline, a "Trim silence" chip, then Save recording, Discard (rose ghost) and Re-record. New pieces: `components/Waveform.tsx` (rounded bars from the levels saved in R.5a, the played part in the mauve gradient, trimmed-away bars dimmed), `components/PlaybackCard.tsx` (elapsed / length, waveform, back and forward 5 s, glowing play/pause), `findSilenceTrim` in `lib/waveform.ts`, and a `tone="danger"` option on `Button`. The old `TrimEditor` is no longer used by this screen; precise trimming moves to R.5c's Trim screen.
