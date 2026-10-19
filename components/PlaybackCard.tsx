@@ -1,17 +1,16 @@
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
-import { useEffect, useState } from 'react';
-import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
+import { useEffect } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { Waveform } from '@/components/Waveform';
 import { Card } from '@/components/ui/Card';
 import { GlowButton } from '@/components/ui/GlowButton';
 import { IconButton } from '@/components/ui/IconButton';
 import { colors, typography } from '@/constants/theme';
+import { usePlaybackProgress } from '@/hooks/usePlaybackProgress';
 import { formatDuration } from '@/lib/format';
 
 const SKIP_MS = 5000;
-/** Snap the animated position to the player's only if they drift further apart. */
-const RESYNC_MS = 200;
 
 type PlaybackCardProps = {
   uri: string;
@@ -41,27 +40,13 @@ export function PlaybackCard({
   const endMs = trimEndMs ?? durationMs;
   const positionMs = Math.min(Math.max(status.currentTime * 1000, startMs), endMs);
 
-  // The waveform's played part as an Animated.Value (0–1 of the full length). The player
-  // reports its position a few times a second; between reports the value glides at
-  // playback speed, so progress moves every frame instead of in steps.
-  const [progress] = useState(() => new Animated.Value(0));
-  useEffect(() => {
-    if (durationMs <= 0) return;
-    const at = positionMs / durationMs;
-    progress.stopAnimation((current) => {
-      if (Math.abs(current - at) * durationMs > RESYNC_MS || !status.playing) {
-        progress.setValue(at);
-      }
-      if (!status.playing) return;
-      Animated.timing(progress, {
-        toValue: endMs / durationMs,
-        duration: Math.max(0, endMs - positionMs),
-        easing: Easing.linear,
-        // Width can't use the native driver; a single clip view is cheap on the JS side.
-        useNativeDriver: false,
-      }).start();
-    });
-  }, [progress, status.playing, positionMs, endMs, durationMs]);
+  // Width can't use the native driver; a single clip view is cheap on the JS side.
+  const progress = usePlaybackProgress({
+    playing: status.playing,
+    positionMs,
+    stopMs: endMs,
+    durationMs,
+  });
 
   // Stop at the trim end; the next Play starts again from the trim start.
   useEffect(() => {

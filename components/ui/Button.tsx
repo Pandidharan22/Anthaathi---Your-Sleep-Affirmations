@@ -15,6 +15,7 @@ import { GradientText } from './GradientText';
 import { Icon, type IconName } from './Icon';
 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost';
+type ButtonTone = 'default' | 'danger' | 'accent';
 
 type ButtonProps = {
   label: string;
@@ -25,9 +26,14 @@ type ButtonProps = {
    * ghost: plain cream text, for low-emphasis actions like "Cancel".
    */
   variant?: ButtonVariant;
-  /** `danger` turns a ghost button's text rose, for destructive actions like Discard. */
-  tone?: 'default' | 'danger';
+  /**
+   * Ghost text only: `danger` is rose, for destructive actions like Discard; `accent` is
+   * light mauve, for a header's confirming action like Trim's "Done".
+   */
+  tone?: ButtonTone;
   icon?: IconName;
+  /** Less side padding, for buttons that share a row with others (Trim's previews). */
+  compact?: boolean;
   disabled?: boolean;
   /** Shows a spinner in place of the label and blocks presses. */
   loading?: boolean;
@@ -44,6 +50,7 @@ export function Button({
   variant = 'primary',
   tone = 'default',
   icon,
+  compact = false,
   disabled = false,
   loading = false,
   accessibilityLabel,
@@ -63,6 +70,7 @@ export function Button({
       style={({ pressed }) => [
         styles.base,
         variant === 'primary' && [styles.primary, gradientBackground(gradients.actionFill)],
+        variant === 'primary' && compact && styles.compact,
         variant === 'secondary' && [styles.secondaryRing, gradientBackground(gradients.actionFill)],
         { opacity: disabled ? 0.5 : pressed ? 0.85 : 1 },
         style,
@@ -70,7 +78,7 @@ export function Button({
     >
       {variant === 'secondary' ? (
         // The gradient ring is the 2px of the outer pill left showing around this one.
-        <View style={[styles.base, styles.secondaryInner]}>
+        <View style={[styles.base, styles.secondaryInner, compact && styles.compact]}>
           <Content label={label} variant={variant} tone={tone} icon={icon} loading={loading} />
         </View>
       ) : (
@@ -89,7 +97,7 @@ function Content({
 }: {
   label: string;
   variant: ButtonVariant;
-  tone: 'default' | 'danger';
+  tone: ButtonTone;
   icon?: IconName;
   loading: boolean;
 }) {
@@ -100,7 +108,9 @@ function Content({
         ? colors.accent
         : tone === 'danger'
           ? colors.error
-          : colors.textPrimary;
+          : tone === 'accent'
+            ? colors.accent
+            : colors.textPrimary;
 
   if (loading) return <ActivityIndicator color={color} />;
 
@@ -140,6 +150,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     paddingVertical: 12,
     paddingHorizontal: 24,
+  },
+  compact: {
+    paddingHorizontal: 14,
   },
   ghostText: {
     fontFamily: fonts.sansSemiBold,

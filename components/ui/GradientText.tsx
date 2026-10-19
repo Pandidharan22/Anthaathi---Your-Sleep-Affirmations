@@ -16,6 +16,8 @@ type GradientTextProps = {
   style?: StyleProp<TextStyle>;
   children: string;
   accessibilityRole?: AccessibilityRole;
+  /** What a screen reader says, when the drawn text reads badly (e.g. "0:04 — 0:44"). */
+  accessibilityLabel?: string;
 };
 
 /**
@@ -26,17 +28,26 @@ type GradientTextProps = {
  * masked-view's web build ignores the mask (it would show a gradient block), so the web
  * preview gets solid light mauve instead.
  */
-export function GradientText({ style, children, accessibilityRole }: GradientTextProps) {
+export function GradientText({
+  style,
+  children,
+  accessibilityRole,
+  accessibilityLabel = children,
+}: GradientTextProps) {
   if (Platform.OS === 'web') {
     return (
-      <Text accessibilityRole={accessibilityRole} style={[style, { color: colors.accent }]}>
+      <Text
+        accessibilityRole={accessibilityRole}
+        accessibilityLabel={accessibilityLabel}
+        style={[style, { color: colors.accent }]}
+      >
         {children}
       </Text>
     );
   }
 
   return (
-    <View accessible accessibilityLabel={children} accessibilityRole={accessibilityRole}>
+    <View accessible accessibilityLabel={accessibilityLabel} accessibilityRole={accessibilityRole}>
       <MaskedView
         importantForAccessibility="no-hide-descendants"
         maskElement={<Text style={style}>{children}</Text>}

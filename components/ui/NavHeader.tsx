@@ -11,6 +11,8 @@ type NavHeaderProps = {
   /** `back` for pushed screens, `close` for modals. */
   leading?: 'back' | 'close';
   onLeadingPress?: () => void;
+  /** A text button in place of the icon, like Trim's "Cancel". */
+  leadingContent?: ReactNode;
   /** Usually an IconButton (e.g. "more") or a text Button. */
   trailing?: ReactNode;
   /**
@@ -29,6 +31,7 @@ export function NavHeader({
   title,
   leading,
   onLeadingPress,
+  leadingContent,
   trailing,
   titleStyle = 'serif',
 }: NavHeaderProps) {
@@ -43,7 +46,9 @@ export function NavHeader({
             accessibilityLabel={leading === 'back' ? 'Back' : 'Close'}
             onPress={onLeadingPress}
           />
-        ) : null}
+        ) : (
+          leadingContent
+        )}
       </View>
       {title ? (
         <Text

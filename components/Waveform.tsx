@@ -14,6 +14,8 @@ type WaveformProps = {
   levels: number[] | null;
   bars?: number;
   height?: number;
+  /** Space between bars. */
+  gap?: number;
   /**
    * 0–1 position over the full length. An Animated.Value, so the played part can glide
    * smoothly between the player's position updates (a few per second) instead of
@@ -23,6 +25,11 @@ type WaveformProps = {
   /** 0–1 fractions of the full length kept by the trim; bars outside are dimmed. */
   keepFrom?: number;
   keepTo?: number;
+  /**
+   * The Trim screen's look: kept bars always in the gradient, cut bars in the border
+   * color. Without it, kept bars are dim until played.
+   */
+  highlightKept?: boolean;
 };
 
 /**
@@ -35,9 +42,11 @@ export function Waveform({
   levels,
   bars = 40,
   height = 72,
+  gap = 3,
   progress,
   keepFrom = 0,
   keepTo = 1,
+  highlightKept = false,
 }: WaveformProps) {
   const [width, setWidth] = useState(0);
   const heights = useMemo(() => {
@@ -55,14 +64,18 @@ export function Waveform({
 
   return (
     <View aria-hidden style={{ height }} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
-      <View style={[styles.row, StyleSheet.absoluteFill]}>
+      <View style={[styles.row, StyleSheet.absoluteFill, { gap }]}>
         {heights.map((h, i) => (
           <View
             key={i}
             style={[
               styles.bar,
               { height: `${Math.round(h * 100)}%` },
-              { backgroundColor: isKept(i) ? colors.border : colors.elevated },
+              highlightKept
+                ? isKept(i)
+                  ? PLAYED_BAR
+                  : { backgroundColor: colors.border }
+                : { backgroundColor: isKept(i) ? colors.border : colors.elevated },
             ]}
           />
         ))}
@@ -74,7 +87,7 @@ export function Waveform({
             { width: progress.interpolate({ inputRange: [0, 1], outputRange: [0, width] }) },
           ]}
         >
-          <View style={[styles.row, { width, height }]}>
+          <View style={[styles.row, { width, height, gap }]}>
             {heights.map((h, i) => (
               <View
                 key={i}
@@ -96,7 +109,6 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
   },
   bar: {
     flex: 1,

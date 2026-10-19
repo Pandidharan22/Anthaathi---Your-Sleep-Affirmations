@@ -399,6 +399,45 @@ describe('RecordScreen', () => {
     });
   });
 
+  it('Trim opens the Trim screen and saves the range set there', async () => {
+    mockGetRecordingPermissionsAsync.mockResolvedValue({ granted: true, canAskAgain: true });
+    const { getByRole, getByLabelText, getByTestId, getByText, queryByLabelText, rerender } =
+      await render(<RecordScreen />);
+    await fireEvent.press(await waitFor(() => getByRole('button', { name: 'Start recording' })));
+
+    mockRecorderObj.uri = 'file:///doc/rec.m4a';
+    mockRecorderState = { ...mockRecorderState, isRecording: true, durationMillis: 4200 };
+    await rerender(<RecordScreen />);
+    await fireEvent.press(getByRole('button', { name: 'Done ✓' }));
+
+    await fireEvent.press(
+      await waitFor(() => getByRole('button', { name: 'Trim the start and end' })),
+    );
+    await fireEvent(getByTestId('trim-waveform'), 'layout', {
+      nativeEvent: { layout: { x: 0, y: 0, width: 300, height: 120 } },
+    });
+    // Two screen-reader swipes move the start handle to 1 s.
+    for (let i = 0; i < 2; i++) {
+      await fireEvent(getByLabelText('Trim start'), 'accessibilityAction', {
+        nativeEvent: { actionName: 'increment' },
+      });
+    }
+    await fireEvent.press(getByRole('button', { name: 'Done' }));
+
+    expect(queryByLabelText('Trim start')).toBeNull();
+    expect(getByText('Cuts 1.0 s from the start.')).toBeTruthy();
+    expect(
+      getByRole('button', { name: 'Trim the start and end' }).props.accessibilityState,
+    ).toMatchObject({ selected: true });
+
+    await fireEvent.press(getByText('Save recording'));
+    await waitFor(() =>
+      expect(mockCreateLocalAffirmation).toHaveBeenCalledWith(
+        expect.objectContaining({ trimStartMs: 1000, trimEndMs: 4200 }),
+      ),
+    );
+  });
+
   it('Back from Preview asks before discarding the unsaved take', async () => {
     mockGetRecordingPermissionsAsync.mockResolvedValue({ granted: true, canAskAgain: true });
     const alert = jest.spyOn(Alert, 'alert');

@@ -23,6 +23,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { FolderPicker } from '@/components/FolderPicker';
 import { PlaybackCard } from '@/components/PlaybackCard';
+import { TrimScreen } from '@/components/TrimScreen';
 import { Button } from '@/components/ui/Button';
 import { Chip } from '@/components/ui/Chip';
 import { DuskBackground } from '@/components/ui/DuskBackground';
@@ -35,7 +36,13 @@ import { useAuth } from '@/hooks/useAuth';
 import { createLocalAffirmation } from '@/lib/affirmations.local';
 import { formatDuration } from '@/lib/format';
 import { listLocalFolders, type LocalFolder } from '@/lib/folders.local';
-import { findSilenceTrim, levelFromDb, METER_INTERVAL_MS, type SilenceTrim } from '@/lib/waveform';
+import {
+  describeTrim,
+  findSilenceTrim,
+  levelFromDb,
+  METER_INTERVAL_MS,
+  type TrimRange,
+} from '@/lib/waveform';
 import { saveWaveform } from '@/lib/waveforms.local';
 
 type ScreenState =
@@ -77,10 +84,13 @@ export default function RecordScreen() {
   const levelsRef = useRef<number[]>([]);
   // Preview (after Done): the take's levels, its quiet start/end, and the user's choices.
   const [recordedLevels, setRecordedLevels] = useState<number[]>([]);
-  const [silenceTrim, setSilenceTrim] = useState<SilenceTrim | null>(null);
+  const [silenceTrim, setSilenceTrim] = useState<TrimRange | null>(null);
   const [trimSilence, setTrimSilence] = useState(false);
   // Shown after tapping Trim silence on a take with no quiet ends to cut.
   const [nothingToTrim, setNothingToTrim] = useState(false);
+  // A trim set by hand on the Trim screen; it replaces Trim silence, and vice versa.
+  const [manualTrim, setManualTrim] = useState<TrimRange | null>(null);
+  const [trimming, setTrimming] = useState(false);
   const [choosingFolder, setChoosingFolder] = useState(false);
 
   const recorder = useAudioRecorder(RECORDING_OPTIONS);
@@ -160,6 +170,7 @@ export default function RecordScreen() {
       setSilenceTrim(findSilenceTrim(levels, durationMs));
       setTrimSilence(false);
       setNothingToTrim(false);
+      setManualTrim(null);
       setTitle((current) => current || `Recording — ${new Date().toLocaleString()}`);
       setState('reviewing');
     } catch {
@@ -211,7 +222,7 @@ export default function RecordScreen() {
 
   async function handleSave() {
     if (!user || !recordedUri) return;
-    const trim = trimSilence ? silenceTrim : null;
+    const trim = manualTrim ?? (trimSilence ? silenceTrim : null);
     const trimStartMs = trim ? trim.startMs : null;
     const trimEndMs = trim ? trim.endMs : null;
     const trimmedTitle = title.trim();
@@ -284,20 +295,23 @@ export default function RecordScreen() {
 
   if (state === 'reviewing' && recordedUri) {
     const folderName = folders.find((f) => f.id === selectedFolderId)?.name ?? 'No folder';
-    const activeTrim = trimSilence ? silenceTrim : null;
+    const activeTrim = manualTrim ?? (trimSilence ? silenceTrim : null);
     return (
       <View style={styles.root}>
         <NavHeader title="Preview" leading="back" onLeadingPress={confirmDiscard} />
         <ScrollView contentContainerStyle={styles.preview} keyboardShouldPersistTaps="handled">
           <TextField label="Title" value={title} onChangeText={setTitle} maxLength={80} />
 
-          <PlaybackCard
-            uri={recordedUri}
-            durationMs={recordedDurationMs}
-            levels={recordedLevels}
-            trimStartMs={activeTrim?.startMs ?? null}
-            trimEndMs={activeTrim?.endMs ?? null}
-          />
+          {/* Unmounted while Trim is open (its player goes with it), so only one plays. */}
+          {trimming ? null : (
+            <PlaybackCard
+              uri={recordedUri}
+              durationMs={recordedDurationMs}
+              levels={recordedLevels}
+              trimStartMs={activeTrim?.startMs ?? null}
+              trimEndMs={activeTrim?.endMs ?? null}
+            />
+          )}
 
           <View style={styles.chips}>
             <Chip
@@ -312,8 +326,22 @@ export default function RecordScreen() {
               label="Trim silence"
               selected={trimSilence}
               onPress={() => {
-                if (silenceTrim) setTrimSilence((on) => !on);
-                else setNothingToTrim(true);
+                if (!silenceTrim) {
+                  setNothingToTrim(true);
+                  return;
+                }
+                setManualTrim(null);
+                setTrimSilence((on) => !on);
+              }}
+            />
+            <Chip
+              icon="scissors"
+              label="Trim"
+              selected={manualTrim !== null}
+              accessibilityLabel="Trim the start and end"
+              onPress={() => {
+                setNothingToTrim(false);
+                setTrimming(true);
               }}
             />
           </View>
@@ -337,7 +365,7 @@ export default function RecordScreen() {
 
           {activeTrim ? (
             <Text style={styles.trimNote}>
-              {describeSilenceTrim(activeTrim, recordedDurationMs)}
+              {describeTrim(activeTrim, recordedDurationMs, manualTrim ? 'manual' : 'silence')}
             </Text>
           ) : null}
 
@@ -347,6 +375,21 @@ export default function RecordScreen() {
             </Text>
           ) : null}
         </ScrollView>
+
+        {trimming ? (
+          <TrimScreen
+            uri={recordedUri}
+            durationMs={recordedDurationMs}
+            levels={recordedLevels}
+            initialTrim={activeTrim}
+            onCancel={() => setTrimming(false)}
+            onDone={(trim) => {
+              setManualTrim(trim);
+              setTrimSilence(false);
+              setTrimming(false);
+            }}
+          />
+        ) : null}
 
         <View style={[styles.previewActions, { paddingBottom: insets.bottom + 24 }]}>
           <Button label="Save recording" onPress={handleSave} />
@@ -561,16 +604,3 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 });
-
-/** "Trims 1.2 s of quiet at the start and 0.8 s at the end." */
-function describeSilenceTrim(trim: SilenceTrim, durationMs: number): string {
-  const seconds = (ms: number) => `${(ms / 1000).toFixed(1)} s`;
-  const head = trim.startMs;
-  const tail = durationMs - trim.endMs;
-  if (head > 0 && tail > 0) {
-    return `Trims ${seconds(head)} of quiet at the start and ${seconds(tail)} at the end.`;
-  }
-  return head > 0
-    ? `Trims ${seconds(head)} of quiet at the start.`
-    : `Trims ${seconds(tail)} of quiet at the end.`;
-}

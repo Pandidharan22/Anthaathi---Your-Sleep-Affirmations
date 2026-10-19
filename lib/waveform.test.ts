@@ -1,4 +1,11 @@
-import { bucketLevels, findSilenceTrim, levelFromDb } from './waveform';
+import {
+  bucketLevels,
+  describeTrim,
+  findSilenceTrim,
+  levelFromDb,
+  moveTrimHandle,
+  normalizeTrim,
+} from './waveform';
 
 describe('levelFromDb', () => {
   it.each([
@@ -63,5 +70,67 @@ describe('findSilenceTrim', () => {
   it('returns null with no speech or no waveform', () => {
     expect(findSilenceTrim([quiet, quiet, quiet], 3000)).toBeNull();
     expect(findSilenceTrim([], 3000)).toBeNull();
+  });
+});
+
+describe('moveTrimHandle', () => {
+  const full = { startMs: 0, endMs: 10000 };
+
+  it('snaps to 100 ms steps', () => {
+    expect(moveTrimHandle(full, 'start', 1234, 10000)).toEqual({ startMs: 1200, endMs: 10000 });
+    expect(moveTrimHandle(full, 'end', 8760, 10000)).toEqual({ startMs: 0, endMs: 8800 });
+  });
+
+  it('stays inside the recording', () => {
+    expect(moveTrimHandle(full, 'start', -500, 10000).startMs).toBe(0);
+    expect(moveTrimHandle(full, 'end', 12000, 10000).endMs).toBe(10000);
+  });
+
+  it('snaps to the real end, which is rarely a whole step', () => {
+    expect(moveTrimHandle({ startMs: 0, endMs: 3000 }, 'end', 4210, 4237).endMs).toBe(4237);
+  });
+
+  it('keeps at least a second between the handles', () => {
+    const range = { startMs: 2000, endMs: 5000 };
+    expect(moveTrimHandle(range, 'start', 4800, 10000).startMs).toBe(4000);
+    expect(moveTrimHandle(range, 'end', 2100, 10000).endMs).toBe(3000);
+  });
+
+  it('allows a recording shorter than a second to be kept whole', () => {
+    expect(moveTrimHandle({ startMs: 0, endMs: 600 }, 'start', 300, 600).startMs).toBe(0);
+  });
+});
+
+describe('normalizeTrim', () => {
+  it('is null when the whole recording is kept', () => {
+    expect(normalizeTrim({ startMs: 0, endMs: 5000 }, 5000)).toBeNull();
+    expect(normalizeTrim({ startMs: 100, endMs: 5000 }, 5000)).toEqual({
+      startMs: 100,
+      endMs: 5000,
+    });
+  });
+});
+
+describe('describeTrim', () => {
+  it('describes Trim silence', () => {
+    expect(describeTrim({ startMs: 700, endMs: 1500 }, 2000, 'silence')).toBe(
+      'Trims 0.7 s of quiet at the start and 0.5 s at the end.',
+    );
+    expect(describeTrim({ startMs: 700, endMs: 2000 }, 2000, 'silence')).toBe(
+      'Trims 0.7 s of quiet at the start.',
+    );
+  });
+
+  it('describes a trim set by hand', () => {
+    expect(describeTrim({ startMs: 4000, endMs: 44000 }, 48000, 'manual')).toBe(
+      'Cuts 4.0 s from the start and 4.0 s from the end.',
+    );
+    expect(describeTrim({ startMs: 0, endMs: 44000 }, 48000, 'manual')).toBe(
+      'Cuts 4.0 s from the end.',
+    );
+  });
+
+  it('suggests dragging when nothing is cut', () => {
+    expect(describeTrim(null, 48000, 'manual')).toBe('Drag the handles to cut the start or end.');
   });
 });

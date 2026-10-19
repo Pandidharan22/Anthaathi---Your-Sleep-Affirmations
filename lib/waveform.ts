@@ -48,7 +48,8 @@ const SILENCE_PAD_MS = 300;
 /** Below this, there's nothing worth trimming. */
 const MIN_TRIM_MS = 300;
 
-export type SilenceTrim = { startMs: number; endMs: number };
+/** The kept part of a recording, as offsets into the file (a non-destructive trim). */
+export type TrimRange = { startMs: number; endMs: number };
 
 function percentile(sorted: number[], fraction: number): number {
   return sorted[Math.min(sorted.length - 1, Math.floor(fraction * sorted.length))];
@@ -60,7 +61,7 @@ function percentile(sorted: number[], fraction: number): number {
  * are spread evenly over `durationMs` (the file's real length). Returns null when
  * there's no waveform, no clear quiet, or less than MIN_TRIM_MS of quiet to remove.
  */
-export function findSilenceTrim(levels: number[], durationMs: number): SilenceTrim | null {
+export function findSilenceTrim(levels: number[], durationMs: number): TrimRange | null {
   if (levels.length === 0 || durationMs <= 0) return null;
   const sorted = [...levels].sort((a, b) => a - b);
   const quiet = percentile(sorted, 0.1);
@@ -78,4 +79,63 @@ export function findSilenceTrim(levels: number[], durationMs: number): SilenceTr
   const endMs = Math.min(durationMs, Math.round((last + 1) * msPerLevel + SILENCE_PAD_MS));
   if (startMs + (durationMs - endMs) < MIN_TRIM_MS) return null;
   return { startMs, endMs };
+}
+
+/** The Trim screen's handles never leave less than this between them. */
+export const MIN_KEEP_MS = 1000;
+/** Handles move in steps this size: fine enough for a breath, coarse enough to settle. */
+const HANDLE_STEP_MS = 100;
+
+/**
+ * Moves one Trim handle to `toMs` (snapped to HANDLE_STEP_MS), keeping it inside the
+ * recording and at least MIN_KEEP_MS from the other handle. Near the very end it snaps
+ * to the real end, which usually isn't a whole step.
+ */
+export function moveTrimHandle(
+  range: TrimRange,
+  handle: 'start' | 'end',
+  toMs: number,
+  durationMs: number,
+): TrimRange {
+  const minKeep = Math.min(MIN_KEEP_MS, durationMs);
+  const snapped =
+    toMs >= durationMs - HANDLE_STEP_MS / 2
+      ? durationMs
+      : Math.round(toMs / HANDLE_STEP_MS) * HANDLE_STEP_MS;
+  if (handle === 'start') {
+    return { ...range, startMs: Math.min(Math.max(snapped, 0), range.endMs - minKeep) };
+  }
+  return { ...range, endMs: Math.max(Math.min(snapped, durationMs), range.startMs + minKeep) };
+}
+
+/** null when the range keeps the whole recording, which is saved as "no trim". */
+export function normalizeTrim(range: TrimRange, durationMs: number): TrimRange | null {
+  return range.startMs <= 0 && range.endMs >= durationMs ? null : range;
+}
+
+/**
+ * The note under a trim, e.g. "Trims 1.2 s of quiet at the start and 0.8 s at the end."
+ * for Trim silence, or "Cuts 4.0 s from the start." for a trim set by hand.
+ */
+export function describeTrim(
+  range: TrimRange | null,
+  durationMs: number,
+  kind: 'silence' | 'manual',
+): string {
+  const seconds = (ms: number) => `${(ms / 1000).toFixed(1)} s`;
+  const head = range ? range.startMs : 0;
+  const tail = range ? durationMs - range.endMs : 0;
+  if (head <= 0 && tail <= 0) return 'Drag the handles to cut the start or end.';
+  if (kind === 'silence') {
+    if (head > 0 && tail > 0) {
+      return `Trims ${seconds(head)} of quiet at the start and ${seconds(tail)} at the end.`;
+    }
+    return head > 0
+      ? `Trims ${seconds(head)} of quiet at the start.`
+      : `Trims ${seconds(tail)} of quiet at the end.`;
+  }
+  if (head > 0 && tail > 0) {
+    return `Cuts ${seconds(head)} from the start and ${seconds(tail)} from the end.`;
+  }
+  return head > 0 ? `Cuts ${seconds(head)} from the start.` : `Cuts ${seconds(tail)} from the end.`;
 }

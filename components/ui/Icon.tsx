@@ -102,6 +102,13 @@ const ICONS = {
       <Path d="M12 8v4M12 16h.01" />
     </>
   ),
+  scissors: (
+    <>
+      <Circle cx="6" cy="6" r="3" />
+      <Circle cx="6" cy="18" r="3" />
+      <Path d="M20 4L8.12 15.88M14.47 14.48L20 20M8.12 8.12L12 12" />
+    </>
+  ),
   warning: <Path d="M12 3v10m0 4h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />,
 } satisfies Record<string, ReactElement>;
 
