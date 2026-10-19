@@ -5,20 +5,12 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 
 import { PauseMarkHint } from '@/components/PauseMarkHint';
 import { radii, spacing, typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
-import { requestAffirmationDraft, type DraftErrorKind } from '@/lib/aiDraft';
+import { requestAffirmationDraft } from '@/lib/aiDraft';
+import { DRAFT_ERROR_MESSAGES as ERROR_MESSAGES, goalDraftText } from '@/lib/draftCopy';
 import { getLocalGoal, type LocalGoal } from '@/lib/goals.local';
 
 type ScreenState = 'loading' | 'drafting' | 'ready' | 'error';
 
-// invalid_request and unknown intentionally share copy: neither is something the
-// user did wrong or can act on differently, so there's no reason to distinguish
-// them on screen (kept distinct in DraftErrorKind for future debugging/telemetry).
-const ERROR_MESSAGES: Record<DraftErrorKind, string> = {
-  rate_limited: "You've reached the limit for AI drafts for now — try again in a little while.",
-  provider_unavailable: "Drafting isn't working right now. Please try again shortly.",
-  invalid_request: 'Something went wrong. Please try again.',
-  unknown: 'Something went wrong. Please try again.',
-};
 
 /** FR-501/FR-502: draft an affirmation from a goal, then let the user edit/accept/discard before recording. */
 export default function DraftAffirmationScreen() {
@@ -31,11 +23,8 @@ export default function DraftAffirmationScreen() {
 
   const requestDraft = useCallback(async (target: LocalGoal) => {
     setState('drafting');
-    const goalText = target.description.trim()
-      ? `${target.title}: ${target.description}`
-      : target.title;
     try {
-      const result = await requestAffirmationDraft(target.id, goalText);
+      const result = await requestAffirmationDraft(target.id, goalDraftText(target));
       if (result.ok) {
         setDraftText(result.draftText);
         setState('ready');
@@ -64,10 +53,12 @@ export default function DraftAffirmationScreen() {
     });
   }, [goalId, requestDraft]);
 
-  function handleAccept(pathname: '/record' | '/record-ai-guided') {
+  function handleAccept(pathname: '/record' | '/ai-guided/script') {
+    const params = { scriptText: draftText.trim(), suggestedTitle: goal?.title ?? '' };
     router.replace({
       pathname,
-      params: { scriptText: draftText.trim(), suggestedTitle: goal?.title ?? '' },
+      // The Script step offers Redraft from this goal (R.6a).
+      params: pathname === '/ai-guided/script' && goal ? { ...params, goalId: goal.id } : params,
     });
   }
 
@@ -137,7 +128,7 @@ export default function DraftAffirmationScreen() {
           <Text style={[styles.primaryButtonLabel, { color: colors.background }]}>Record in my voice</Text>
         </Pressable>
         <Pressable
-          onPress={() => handleAccept('/record-ai-guided')}
+          onPress={() => handleAccept('/ai-guided/script')}
           disabled={!draftText.trim()}
           accessibilityRole="button"
           style={[styles.primaryButton, { backgroundColor: colors.action }]}

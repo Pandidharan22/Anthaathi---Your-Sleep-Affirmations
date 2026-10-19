@@ -207,11 +207,33 @@ export type CreateAiGuidedAffirmationInput = {
   voiceId: string;
 };
 
-/** FR-511/FR-513: synthesizes `scriptText` to a new on-device file and saves it as an AI Guided affirmation. */
+/** Thrown when generation was cancelled while the audio was being made; nothing is saved. */
+export class GenerationCancelledError extends Error {
+  constructor() {
+    super('Generation was cancelled.');
+    this.name = 'GenerationCancelledError';
+  }
+}
+
+/**
+ * FR-511/FR-513: synthesizes `scriptText` to a new on-device file and saves it as an AI
+ * Guided affirmation. Synthesis can't be stopped part way, so `isCancelled` is checked when
+ * it finishes: a cancelled result is deleted instead of saved (the Generating screen's
+ * Cancel, R.6a).
+ */
 export async function createAiGuidedAffirmation(
   input: CreateAiGuidedAffirmationInput,
+  { isCancelled }: { isCancelled?: () => boolean } = {},
 ): Promise<LocalAffirmation> {
   const { localUri, durationMs } = await synthesizeAffirmationAudio(input.scriptText, input.voiceId);
+  if (isCancelled?.()) {
+    try {
+      new File(localUri).delete();
+    } catch {
+      // Best-effort cleanup; a stray file isn't a correctness issue.
+    }
+    throw new GenerationCancelledError();
+  }
   return createLocalAffirmation({
     userId: input.userId,
     title: input.title,

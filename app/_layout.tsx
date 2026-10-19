@@ -82,6 +82,8 @@ function NavigationStack() {
             <Stack.Screen name="record" options={{ headerShown: false, presentation: 'modal' }} />
             <Stack.Screen name="affirmation/[id]" options={{ headerShown: false }} />
             <Stack.Screen name="new-affirmation" options={{ headerShown: false }} />
+            <Stack.Screen name="ai-guided/script" options={{ headerShown: false }} />
+            <Stack.Screen name="ai-guided/voice" options={{ headerShown: false }} />
             <Stack.Screen name="folder/[id]" options={{ headerShown: false }} />
             <Stack.Screen name="goal/new" options={{ title: 'New Goal', presentation: 'modal' }} />
             <Stack.Screen name="goal/[id]" options={{ title: 'Goal' }} />

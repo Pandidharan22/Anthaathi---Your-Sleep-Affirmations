@@ -71,7 +71,7 @@ describe('DraftAffirmationScreen', () => {
     });
   });
 
-  it('"AI Guided voice" navigates to /record-ai-guided with the edited text', async () => {
+  it('"AI Guided voice" opens the Script step with the edited text and the goal', async () => {
     mockGetLocalGoal.mockResolvedValue(baseGoal);
     mockRequestAffirmationDraft.mockResolvedValue({ ok: true, draftText: 'I run with strength.' });
 
@@ -82,8 +82,12 @@ describe('DraftAffirmationScreen', () => {
     await fireEvent.press(getByText('AI Guided voice'));
 
     expect(mockRouterReplace).toHaveBeenCalledWith({
-      pathname: '/record-ai-guided',
-      params: { scriptText: 'I run with joy and strength.', suggestedTitle: 'Run a marathon' },
+      pathname: '/ai-guided/script',
+      params: {
+        scriptText: 'I run with joy and strength.',
+        suggestedTitle: 'Run a marathon',
+        goalId: baseGoal.id,
+      },
     });
   });
 

@@ -56,7 +56,7 @@ describe('NewAffirmationScreen', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Continue' }));
 
     expect(mockReplace).toHaveBeenCalledWith({
-      pathname: '/record-ai-guided',
+      pathname: '/ai-guided/script',
       params: { folderId: 'f1' },
     });
   });

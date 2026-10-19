@@ -32,7 +32,7 @@ export default function NewAffirmationScreen() {
   function handleContinue() {
     const params = folderId && folderId !== UNFILED_FOLDER_ID ? { folderId } : {};
     router.replace({
-      pathname: mode === 'recorded' ? '/record' : '/record-ai-guided',
+      pathname: mode === 'recorded' ? '/record' : '/ai-guided/script',
       params,
     });
   }

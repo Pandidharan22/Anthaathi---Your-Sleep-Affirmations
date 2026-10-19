@@ -31,7 +31,8 @@ const PAUSE_MARK_PATTERN = /\s*\/\s*/g;
 const PUNCTUATION_ONLY = /^[\s.,!?;:…'"“”‘’()[\]{}\-–—_*\/]*$/;
 const isSpeakable = (text: string) => !PUNCTUATION_ONLY.test(text);
 
-function splitSentences(script: string): string[] {
+/** Sentences as written (pause marks kept): split on newlines and after . ! ?. */
+export function splitSentences(script: string): string[] {
   return script
     .split(/\n+/)
     .flatMap((line) => line.split(/(?<=[.!?])\s+/))

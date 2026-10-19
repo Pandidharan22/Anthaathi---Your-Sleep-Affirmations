@@ -1,6 +1,7 @@
 import {
   createAiGuidedAffirmation,
   createLocalAffirmation,
+  GenerationCancelledError,
   deleteLocalAffirmation,
   getLocalAffirmation,
   listLocalAffirmations,
@@ -264,6 +265,26 @@ describe('affirmations.local', () => {
       voice_id: 'en-gb-x-gbd-local',
       script_text: 'I am calm and capable.',
     });
+  });
+
+  it('createAiGuidedAffirmation saves nothing and deletes the audio when cancelled meanwhile', async () => {
+    const db = makeFakeDatabase();
+    getDatabase.mockResolvedValue(db);
+    mockSynthesizeAffirmationAudio.mockResolvedValue({
+      localUri: 'file:///doc/ai-affirmation-fixed-uuid.wav',
+      durationMs: 4200,
+    });
+
+    await expect(
+      createAiGuidedAffirmation(
+        { userId: 'user-1', title: 'Calm', scriptText: 'I am calm.', voiceId: 'en-gb-x-gbd-local' },
+        { isCancelled: () => true },
+      ),
+    ).rejects.toBeInstanceOf(GenerationCancelledError);
+
+    expect(mockFileDelete).toHaveBeenCalled();
+    expect(db.runAsync).not.toHaveBeenCalled();
+    expect(enqueue).not.toHaveBeenCalled();
   });
 
   it('updateAiGuidedAffirmationScript re-synthesizes and resets trim when the script changed', async () => {

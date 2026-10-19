@@ -22,6 +22,8 @@ export type SystemVoiceOption = {
   id: string;
   gender: VoiceGender;
   label: string;
+  /** A few words on how it sounds, under the name on the Choose a voice step. */
+  description: string;
   /** Pace/pitch/pause tuned by ear for this voice (they differ: the male voice reads faster). */
   style: VoiceStyle;
 };
@@ -32,6 +34,7 @@ export type NaturalVoiceOption = {
   id: string;
   gender: VoiceGender;
   label: string;
+  description: string;
   neural: NeuralVoice;
 };
 
@@ -42,6 +45,13 @@ const NATURAL_LABELS: Record<string, string> = {
   af_bella: 'Bella',
   am_michael: 'Michael',
   am_echo: 'Echo',
+};
+
+const NATURAL_DESCRIPTIONS: Record<string, string> = {
+  af_nicole: 'Soft · hushed',
+  af_bella: 'Warm · gentle',
+  am_michael: 'Low · steady',
+  am_echo: 'Clear · easy',
 };
 
 /**
@@ -60,6 +70,7 @@ export const NATURAL_VOICE_OPTIONS: NaturalVoiceOption[] = [
     id: `kokoro:${name}`,
     gender: name.startsWith('af_') ? 'female' : 'male',
     label: NATURAL_LABELS[name],
+    description: NATURAL_DESCRIPTIONS[name],
     neural,
   };
 });
@@ -81,6 +92,7 @@ export const SYSTEM_VOICE_OPTIONS: SystemVoiceOption[] = [
     id: 'en-gb-x-gbd-local',
     gender: 'male',
     label: 'Basic male',
+    description: 'Built in · plain',
     style: { rate: 0.8, pitch: 1, sentencePauseMs: 1800 },
   },
   {
@@ -88,6 +100,7 @@ export const SYSTEM_VOICE_OPTIONS: SystemVoiceOption[] = [
     id: 'en-us-x-tpc-local',
     gender: 'female',
     label: 'Basic female',
+    description: 'Built in · plain',
     style: { rate: 0.6, pitch: 1, sentencePauseMs: 1800 },
   },
 ];
