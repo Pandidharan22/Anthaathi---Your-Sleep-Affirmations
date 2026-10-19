@@ -264,6 +264,8 @@ export async function updateAiGuidedAffirmationScript(
     trim_start_ms: null,
     trim_end_ms: null,
   });
+  // The old file's waveform no longer applies; the next view builds one from the new file.
+  await database.runAsync(`DELETE FROM affirmation_waveforms WHERE affirmation_id = ?`, [id]);
 
   // Only removed after the new file is safely recorded, not before.
   try {

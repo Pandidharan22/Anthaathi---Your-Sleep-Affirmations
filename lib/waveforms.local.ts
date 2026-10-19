@@ -1,4 +1,8 @@
+import { File } from 'expo-file-system';
+
 import { getDatabase } from '@/lib/db';
+import { wavLevels } from '@/lib/wav';
+import { METER_INTERVAL_MS } from '@/lib/waveform';
 
 export type Waveform = { intervalMs: number; levels: number[] };
 
@@ -23,6 +27,28 @@ export async function getWaveform(affirmationId: string): Promise<Waveform | nul
   if (!row) return null;
   try {
     return { intervalMs: row.interval_ms, levels: JSON.parse(row.levels) as number[] };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A recording's levels, building them from the audio file the first time when it's a WAV:
+ * AI Guided audio, which has no recorder metering. Older self-recorded m4a files can't be
+ * decoded in JS, so they stay null (a flat line). Never throws: a waveform is decoration.
+ */
+export async function getOrBuildWaveform(affirmation: {
+  id: string;
+  local_uri: string;
+}): Promise<Waveform | null> {
+  try {
+    const stored = await getWaveform(affirmation.id);
+    if (stored || !affirmation.local_uri.toLowerCase().endsWith('.wav')) return stored;
+    const bytes = await new File(affirmation.local_uri).bytes();
+    const waveform = { intervalMs: METER_INTERVAL_MS, levels: wavLevels(bytes, METER_INTERVAL_MS) };
+    if (waveform.levels.length === 0) return null;
+    await saveWaveform(affirmation.id, waveform);
+    return waveform;
   } catch {
     return null;
   }

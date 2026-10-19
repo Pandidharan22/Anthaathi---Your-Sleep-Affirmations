@@ -1,7 +1,7 @@
-import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { Alert } from 'react-native';
 
-import AffirmationTrimScreen from '@/app/affirmation/[id]/trim';
+import AffirmationScreen from '@/app/affirmation/[id]';
 
 const mockGetLocalAffirmation = jest.fn();
 const mockUpdateLocalAffirmationTrim = jest.fn();
@@ -11,6 +11,7 @@ const mockUpdateAiGuidedAffirmationScript = jest.fn();
 const mockDeleteLocalAffirmation = jest.fn();
 const mockListLocalFolders = jest.fn();
 const mockRouterBack = jest.fn();
+const mockGetOrBuildWaveform = jest.fn();
 
 jest.mock('expo-router', () => ({
   useLocalSearchParams: () => ({ id: 'aff-1' }),
@@ -26,7 +27,8 @@ jest.mock('@/lib/affirmations.local', () => ({
   updateLocalAffirmationTrim: (...args: unknown[]) => mockUpdateLocalAffirmationTrim(...args),
   updateLocalAffirmationFolder: (...args: unknown[]) => mockUpdateLocalAffirmationFolder(...args),
   updateLocalAffirmationTitle: (...args: unknown[]) => mockUpdateLocalAffirmationTitle(...args),
-  updateAiGuidedAffirmationScript: (...args: unknown[]) => mockUpdateAiGuidedAffirmationScript(...args),
+  updateAiGuidedAffirmationScript: (...args: unknown[]) =>
+    mockUpdateAiGuidedAffirmationScript(...args),
   deleteLocalAffirmation: (...args: unknown[]) => mockDeleteLocalAffirmation(...args),
 }));
 
@@ -71,17 +73,19 @@ jest.mock('@/lib/folders.local', () => ({
   listLocalFolders: (...args: unknown[]) => mockListLocalFolders(...args),
 }));
 
-jest.mock('@/components/TrimEditor', () => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { Pressable, Text } = require('react-native');
-  return {
-    TrimEditor: ({ onSave }: { onSave: (start: number, end: number) => void }) => (
-      <Pressable onPress={() => onSave(1000, 5000)} accessibilityRole="button">
-        <Text>Save trim (stub)</Text>
-      </Pressable>
-    ),
-  };
-});
+jest.mock('expo-audio', () => ({
+  useAudioPlayer: () => ({ play: jest.fn(), pause: jest.fn(), seekTo: jest.fn() }),
+  useAudioPlayerStatus: () => ({ playing: false, currentTime: 0 }),
+}));
+
+jest.mock(
+  'react-native-safe-area-context',
+  () => jest.requireActual<{ default: object }>('react-native-safe-area-context/jest/mock').default,
+);
+
+jest.mock('@/lib/waveforms.local', () => ({
+  getOrBuildWaveform: (...args: unknown[]) => mockGetOrBuildWaveform(...args),
+}));
 
 const mockAlert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
 
@@ -110,16 +114,25 @@ const aiGuidedAffirmation = {
 beforeEach(() => {
   jest.clearAllMocks();
   mockNeuralState = 'not_installed';
+  mockGetOrBuildWaveform.mockResolvedValue(null);
+  mockUpdateLocalAffirmationTrim.mockResolvedValue(undefined);
   mockListLocalFolders.mockResolvedValue([
-    { id: 'folder-1', user_id: 'user-1', name: 'Sleep', created_at: '', updated_at: '', synced_at: null },
+    {
+      id: 'folder-1',
+      user_id: 'user-1',
+      name: 'Sleep',
+      created_at: '',
+      updated_at: '',
+      synced_at: null,
+    },
   ]);
 });
 
-describe('AffirmationTrimScreen', () => {
+describe('AffirmationScreen', () => {
   it('shows a loading state, then the affirmation title once loaded', async () => {
     mockGetLocalAffirmation.mockResolvedValue(baseAffirmation);
 
-    const { getByDisplayValue } = await render(<AffirmationTrimScreen />);
+    const { getByDisplayValue } = await render(<AffirmationScreen />);
 
     expect(mockGetLocalAffirmation).toHaveBeenCalledWith('aff-1');
     await waitFor(() => expect(getByDisplayValue('Bedtime affirmation')).toBeTruthy());
@@ -129,7 +142,7 @@ describe('AffirmationTrimScreen', () => {
     mockGetLocalAffirmation.mockResolvedValue(baseAffirmation);
     mockUpdateLocalAffirmationTitle.mockResolvedValue(undefined);
 
-    const { getByDisplayValue } = await render(<AffirmationTrimScreen />);
+    const { getByDisplayValue } = await render(<AffirmationScreen />);
     const titleInput = await waitFor(() => getByDisplayValue('Bedtime affirmation'));
 
     await fireEvent.changeText(titleInput, 'New name');
@@ -143,7 +156,7 @@ describe('AffirmationTrimScreen', () => {
   it('reverts the title on blur if left empty, without saving', async () => {
     mockGetLocalAffirmation.mockResolvedValue(baseAffirmation);
 
-    const { getByDisplayValue } = await render(<AffirmationTrimScreen />);
+    const { getByDisplayValue } = await render(<AffirmationScreen />);
     const titleInput = await waitFor(() => getByDisplayValue('Bedtime affirmation'));
 
     await fireEvent.changeText(titleInput, '   ');
@@ -156,34 +169,83 @@ describe('AffirmationTrimScreen', () => {
   it('shows a not-found message when the affirmation does not exist', async () => {
     mockGetLocalAffirmation.mockResolvedValue(null);
 
-    const { getByText } = await render(<AffirmationTrimScreen />);
+    const { getByText } = await render(<AffirmationScreen />);
 
     await waitFor(() => expect(getByText('Recording not found')).toBeTruthy());
   });
 
-  it('saves the trim and navigates back', async () => {
+  it('saves a trim set on the Trim screen, without leaving', async () => {
     mockGetLocalAffirmation.mockResolvedValue(baseAffirmation);
-    mockUpdateLocalAffirmationTrim.mockResolvedValue(undefined);
 
-    const { getByText } = await render(<AffirmationTrimScreen />);
-    await waitFor(() => expect(getByText('Save trim (stub)')).toBeTruthy());
-
-    await fireEvent.press(getByText('Save trim (stub)'));
+    const { getByRole, getByLabelText, getByTestId, findByRole, findByText } = await render(
+      <AffirmationScreen />,
+    );
+    await fireEvent.press(await findByRole('button', { name: 'Trim the start and end' }));
+    await fireEvent(getByTestId('trim-waveform'), 'layout', {
+      nativeEvent: { layout: { x: 0, y: 0, width: 300, height: 120 } },
+    });
+    for (let i = 0; i < 2; i++) {
+      await fireEvent(getByLabelText('Trim start'), 'accessibilityAction', {
+        nativeEvent: { actionName: 'increment' },
+      });
+    }
+    await fireEvent.press(getByRole('button', { name: 'Done' }));
 
     await waitFor(() =>
-      expect(mockUpdateLocalAffirmationTrim).toHaveBeenCalledWith('aff-1', 1000, 5000),
+      expect(mockUpdateLocalAffirmationTrim).toHaveBeenCalledWith('aff-1', 1000, 10000),
     );
-    await waitFor(() => expect(mockRouterBack).toHaveBeenCalled());
+    expect(await findByText('Cuts 1.0 s from the start.')).toBeTruthy();
+    expect(
+      getByRole('button', { name: 'Trim the start and end' }).props.accessibilityState,
+    ).toMatchObject({ selected: true });
+    expect(mockRouterBack).not.toHaveBeenCalled();
+  });
+
+  it('Trim silence cuts the quiet ends from the waveform, and a second tap undoes it', async () => {
+    mockGetLocalAffirmation.mockResolvedValue(baseAffirmation);
+    // 20 levels over 10 s: speech only in levels 10–11 (5–6 s).
+    mockGetOrBuildWaveform.mockResolvedValue({
+      intervalMs: 100,
+      levels: [...Array(10).fill(0), 0.8, 0.8, ...Array(8).fill(0)],
+    });
+
+    const { getByRole, findByText } = await render(<AffirmationScreen />);
+    await waitFor(() => expect(mockGetOrBuildWaveform).toHaveBeenCalled());
+    await fireEvent.press(getByRole('button', { name: 'Trim silence' }));
+
+    await waitFor(() =>
+      expect(mockUpdateLocalAffirmationTrim).toHaveBeenCalledWith('aff-1', 4700, 6300),
+    );
+    expect(
+      await findByText('Trims 4.7 s of quiet at the start and 3.7 s at the end.'),
+    ).toBeTruthy();
+    expect(getByRole('button', { name: 'Trim silence' }).props.accessibilityState).toMatchObject({
+      selected: true,
+    });
+
+    await fireEvent.press(getByRole('button', { name: 'Trim silence' }));
+    await waitFor(() =>
+      expect(mockUpdateLocalAffirmationTrim).toHaveBeenLastCalledWith('aff-1', null, null),
+    );
+  });
+
+  it('Trim silence says so when there is no waveform to find quiet in', async () => {
+    mockGetLocalAffirmation.mockResolvedValue(baseAffirmation);
+
+    const { findByRole, findByText } = await render(<AffirmationScreen />);
+    await fireEvent.press(await findByRole('button', { name: 'Trim silence' }));
+
+    expect(await findByText("There's no quiet at the start or end to trim.")).toBeTruthy();
+    expect(mockUpdateLocalAffirmationTrim).not.toHaveBeenCalled();
   });
 
   it('reassigns the folder via the folder picker', async () => {
     mockGetLocalAffirmation.mockResolvedValue(baseAffirmation);
     mockUpdateLocalAffirmationFolder.mockResolvedValue(undefined);
 
-    const { getByText } = await render(<AffirmationTrimScreen />);
-    await waitFor(() => expect(getByText('Sleep')).toBeTruthy());
-
-    await fireEvent.press(getByText('Sleep'));
+    const { findByRole, findByText } = await render(<AffirmationScreen />);
+    await fireEvent.press(await findByRole('button', { name: 'Folder: No folder. Change folder' }));
+    await fireEvent.press(await findByText('Sleep'));
 
     await waitFor(() =>
       expect(mockUpdateLocalAffirmationFolder).toHaveBeenCalledWith('aff-1', 'folder-1'),
@@ -197,7 +259,7 @@ describe('AffirmationTrimScreen', () => {
       buttons?.find((b) => b.text === 'Delete')?.onPress?.();
     });
 
-    const { getByText } = await render(<AffirmationTrimScreen />);
+    const { getByText } = await render(<AffirmationScreen />);
     await waitFor(() => expect(getByText('Delete recording')).toBeTruthy());
 
     await fireEvent.press(getByText('Delete recording'));
@@ -209,10 +271,10 @@ describe('AffirmationTrimScreen', () => {
   it('does not show the AI Guided script/voice section for a self-recorded affirmation', async () => {
     mockGetLocalAffirmation.mockResolvedValue(baseAffirmation);
 
-    const { getByDisplayValue, queryByText } = await render(<AffirmationTrimScreen />);
+    const { getByDisplayValue } = await render(<AffirmationScreen />);
     await waitFor(() => expect(getByDisplayValue('Bedtime affirmation')).toBeTruthy());
 
-    expect(queryByText('Regenerate')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Regenerate' })).toBeNull();
   });
 
   it('shows the script/voice editor and regenerates for an AI Guided affirmation', async () => {
@@ -223,12 +285,12 @@ describe('AffirmationTrimScreen', () => {
       voice_id: 'en-us-x-tpc-local',
     });
 
-    const { getByDisplayValue, getByText } = await render(<AffirmationTrimScreen />);
+    const { getByDisplayValue, getByText } = await render(<AffirmationScreen />);
     const scriptInput = await waitFor(() => getByDisplayValue('I am calm and capable.'));
 
     await fireEvent.changeText(scriptInput, 'I am calm, capable, and strong.');
     await fireEvent.press(getByText('Female'));
-    await fireEvent.press(getByText('Regenerate'));
+    await fireEvent.press(screen.getByRole('button', { name: 'Regenerate' }));
 
     await waitFor(() =>
       expect(mockUpdateAiGuidedAffirmationScript).toHaveBeenCalledWith('aff-2', {
@@ -238,18 +300,52 @@ describe('AffirmationTrimScreen', () => {
     );
   });
 
+  it('loads the waveform for the audio file, and again after Regenerate replaces it', async () => {
+    mockGetLocalAffirmation.mockResolvedValue({
+      ...aiGuidedAffirmation,
+      local_uri: 'file:///a.wav',
+    });
+    mockUpdateAiGuidedAffirmationScript.mockResolvedValue({
+      ...aiGuidedAffirmation,
+      local_uri: 'file:///b.wav',
+      script_text: 'I am calm.',
+    });
+
+    const { getByDisplayValue } = await render(<AffirmationScreen />);
+    const scriptInput = await waitFor(() => getByDisplayValue('I am calm and capable.'));
+    expect(mockGetOrBuildWaveform).toHaveBeenCalledWith({
+      id: 'aff-2',
+      local_uri: 'file:///a.wav',
+    });
+
+    await fireEvent.changeText(scriptInput, 'I am calm.');
+    await fireEvent.press(screen.getByRole('button', { name: 'Regenerate' }));
+
+    await waitFor(() =>
+      expect(mockGetOrBuildWaveform).toHaveBeenLastCalledWith({
+        id: 'aff-2',
+        local_uri: 'file:///b.wav',
+      }),
+    );
+  });
+
   it('explains when regenerating needs natural voices that are not installed', async () => {
-    mockGetLocalAffirmation.mockResolvedValue({ ...aiGuidedAffirmation, voice_id: 'kokoro:af_nicole' });
+    mockGetLocalAffirmation.mockResolvedValue({
+      ...aiGuidedAffirmation,
+      voice_id: 'kokoro:af_nicole',
+    });
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { NeuralModelMissingError } = require('@/lib/neuralVoice');
     mockUpdateAiGuidedAffirmationScript.mockRejectedValue(
-      new NeuralModelMissingError('The natural voices are not installed. Download them in Settings.'),
+      new NeuralModelMissingError(
+        'The natural voices are not installed. Download them in Settings.',
+      ),
     );
 
-    const { getByDisplayValue, getByText, findByText } = await render(<AffirmationTrimScreen />);
+    const { getByDisplayValue, getByText, findByText } = await render(<AffirmationScreen />);
     const scriptInput = await waitFor(() => getByDisplayValue('I am calm and capable.'));
     await fireEvent.changeText(scriptInput, 'I am calm.');
-    await fireEvent.press(getByText('Regenerate'));
+    await fireEvent.press(screen.getByRole('button', { name: 'Regenerate' }));
 
     expect(
       await findByText('The natural voices are not installed. Download them in Settings.'),
@@ -261,11 +357,11 @@ describe('AffirmationTrimScreen', () => {
   it('blocks regenerating with an empty script', async () => {
     mockGetLocalAffirmation.mockResolvedValue(aiGuidedAffirmation);
 
-    const { getByDisplayValue, getByText } = await render(<AffirmationTrimScreen />);
+    const { getByDisplayValue, getByText } = await render(<AffirmationScreen />);
     const scriptInput = await waitFor(() => getByDisplayValue('I am calm and capable.'));
 
     await fireEvent.changeText(scriptInput, '   ');
-    await fireEvent.press(getByText('Regenerate'));
+    await fireEvent.press(screen.getByRole('button', { name: 'Regenerate' }));
 
     await waitFor(() =>
       expect(getByText('Enter the affirmation text before regenerating.')).toBeTruthy(),

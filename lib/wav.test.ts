@@ -1,4 +1,4 @@
-import { joinWavSegments, joinWavWithSilence, parseWav } from '@/lib/wav';
+import { joinWavSegments, joinWavWithSilence, parseWav, wavLevels } from '@/lib/wav';
 
 function makeWav(samples: number[], sampleRate = 1000): Uint8Array {
   const data = new Uint8Array(samples.length * 2);
@@ -91,5 +91,21 @@ describe('joinWavSegments', () => {
     const joined = joinWavSegments([makeWav([0, 0, 0]), makeWav([400])], [2], { trimEdges: true });
     // 400 is above the ~-45 dBFS (≈184) threshold; the silent part contributes no samples.
     expect(samplesOf(joined)).toEqual([0, 0, 400]);
+  });
+});
+
+describe('wavLevels', () => {
+  it('gives one level per window: the window peak as dBFS', () => {
+    // 1000 Hz, 100 ms windows of 100 samples: silence, a full-scale peak, a -20 dBFS peak.
+    const samples = [...Array(100).fill(0), ...Array(99).fill(0), 32767, ...Array(100).fill(3277)];
+    const levels = wavLevels(makeWav(samples), 100);
+    expect(levels).toHaveLength(3);
+    expect(levels[0]).toBe(0);
+    expect(levels[1]).toBeCloseTo(1, 2);
+    expect(levels[2]).toBeCloseTo(0.6, 2); // -20 dBFS on the -50…0 scale
+  });
+
+  it('keeps a short last window', () => {
+    expect(wavLevels(makeWav(Array(150).fill(100)), 100)).toHaveLength(2);
   });
 });

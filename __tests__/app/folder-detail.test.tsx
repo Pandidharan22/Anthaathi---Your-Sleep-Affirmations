@@ -121,7 +121,7 @@ describe('FolderDetailScreen', () => {
         name: 'I release the day gently, Self-Recorded · 32s · Today',
       }),
     );
-    expect(mockPush).toHaveBeenCalledWith('/affirmation/a1/trim');
+    expect(mockPush).toHaveBeenCalledWith('/affirmation/a1');
   });
 
   it('labels the playing recording as Stop', async () => {

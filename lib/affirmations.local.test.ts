@@ -308,6 +308,11 @@ describe('affirmations.local', () => {
       trim_start_ms: null,
       trim_end_ms: null,
     });
+    // The old file's waveform is dropped, to be rebuilt from the new file.
+    expect(db.runAsync).toHaveBeenCalledWith(
+      expect.stringContaining('DELETE FROM affirmation_waveforms'),
+      ['aff-1'],
+    );
     // The old file is only removed after the new one is safely recorded.
     expect(mockFileDelete).toHaveBeenCalled();
     expect(result).toMatchObject({

@@ -1,3 +1,5 @@
+import { levelFromDb } from '@/lib/waveform';
+
 // Minimal PCM WAV helpers. Android's TextToSpeech.synthesizeToFile writes plain PCM WAV, and
 // the only thing we need is to join several of those with silence between them (the TTS
 // engine has no way to pause between sentences by itself), so this deliberately supports
@@ -160,4 +162,29 @@ export function joinWavWithSilence(parts: Uint8Array[], silenceMs: number): Uint
     parts,
     parts.map(() => silenceMs),
   );
+}
+
+/**
+ * Loudness levels (0–1) for a 16-bit PCM WAV, one per `intervalMs` window, for waveforms
+ * of AI Guided audio (R.5d). Each level is the window's peak as dBFS, the same measure the
+ * recorder's metering gives (peak since the last poll), so both kinds draw and trim alike.
+ * Returns [] for other sample formats, which then draw as a flat line.
+ */
+export function wavLevels(bytes: Uint8Array, intervalMs: number): number[] {
+  const { format, pcm } = parseWav(bytes);
+  if (format.bitsPerSample !== 16) return [];
+  const view = new DataView(pcm.buffer, pcm.byteOffset, pcm.byteLength);
+  const samples = Math.floor(pcm.length / 2);
+  const perWindow = Math.max(
+    1,
+    Math.round((intervalMs / 1000) * format.sampleRate) * format.channels,
+  );
+  const levels: number[] = [];
+  for (let start = 0; start < samples; start += perWindow) {
+    let peak = 0;
+    const end = Math.min(samples, start + perWindow);
+    for (let i = start; i < end; i++) peak = Math.max(peak, Math.abs(view.getInt16(i * 2, true)));
+    levels.push(levelFromDb(peak > 0 ? 20 * Math.log10(peak / 32768) : -Infinity));
+  }
+  return levels;
 }

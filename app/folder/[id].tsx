@@ -147,7 +147,7 @@ export default function FolderDetailScreen() {
             voiceLabel={item.voice_id ? getVoiceOption(item.voice_id)?.label : undefined}
             playing={preview.playingId === item.id}
             onTogglePlay={() => preview.toggle(item)}
-            onPress={() => router.push(`/affirmation/${item.id}/trim`)}
+            onPress={() => router.push(`/affirmation/${item.id}`)}
           />
         )}
       />
