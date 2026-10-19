@@ -4,6 +4,27 @@ One entry per committed step, newest first. Each entry: what was done, why, how 
 
 ---
 
+## 2026-10-19 — Recording screen on the Preview layout (redesign step R.5d)
+
+**What**: opening a saved recording (from Folder Detail) now shows `app/affirmation/[id].tsx`, laid out like Preview: a header ("Recording" or "AI Guided"), the Title field, the waveform card (`PlaybackCard`), folder / Trim silence / Trim chips with the note under them, and for AI Guided an "Affirmation" section (script, `/` hint, voice picker, Regenerate). Delete recording sits at the bottom. New: `wavLevels` in `lib/wav.ts` and `getOrBuildWaveform` in `lib/waveforms.local.ts`. The old `/affirmation/[id]/trim` route and `TrimEditor` (step 1.5's slider editor) are removed. **R.5 complete.**
+
+**Why**: there's no mockup for this screen; the user chose to reuse the Preview layout so a recording looks and edits the same before and after saving. The old screen was the last place still using Phase 1's trim editor.
+
+**Decisions with reasons**:
+- **Changes save as they're made**: title on blur, folder on pick, trims on Trim silence or Done, as title and folder already did. There's no Save button to forget, and Back just leaves. (The old Trim editor had its own "Save trim" that also left the screen; now you stay and can play the result.)
+- **Chip state comes from the saved trim**, since only the range is stored: Trim silence shows as on when the range is exactly what `findSilenceTrim` finds for this waveform, and Trim shows as on for any other range. Tapping Trim silence again clears the trim. No extra column to keep in sync.
+- **AI Guided waveforms come from the WAV file.** AI audio has no recorder metering, but every AI Guided file is 16-bit PCM WAV (both engines). `wavLevels` takes the peak of each 100 ms window as dBFS, the same measure the recorder's metering gives, so the two kinds draw and trim alike. It's built the first time the screen shows the recording and saved on the device, which also covers AI recordings made before R.5. Regenerate deletes the old waveform row so the new file gets its own. A failure here never blocks the screen; the waveform just draws flat.
+- **Self-recorded m4a files made before R.5a stay flat**, as decided in R.5a: decoding AAC in JS isn't worth it.
+- `PlaybackCard` is keyed by the file, so after Regenerate it loads the new audio. While Trim is open it's unmounted, as in Preview, so two players never play at once.
+- The screen is now a normal pushed screen with the app's own header (it was a native modal with the stack header), consistent with Folder Detail.
+- Regenerate notes that it "makes new audio and clears its trim", which is what `updateAiGuidedAffirmationScript` does (step 3.9: an old trim doesn't fit new audio).
+
+**Verification**: tests for `wavLevels` (window peaks as dBFS, a short last window), the waveform row dropped on regenerate, and the screen (a trim set on the Trim screen saves without leaving, Trim silence cuts and a second tap clears it, the no-waveform note, the folder chip, waveform reload after Regenerate, plus the existing title, delete and regenerate tests moved over). Full suite 498/498 (TrimEditor's own tests went with it), typecheck clean, lint has nothing new. **On the user's phone**: the new screen opens with the waveform; Trim silence and Trim save and play right; folder and title save; AI Guided shows its waveform and Regenerate works; Delete asks first.
+
+**Commit**: `26007d0` — Rebuild the recording screen on the Preview layout (redesign step R.5d)
+
+---
+
 ## 2026-10-19 — Trim screen with draggable handles (redesign step R.5c)
 
 **What**: `components/TrimScreen.tsx` follows the Trim mockup: Cancel / Trim / Done at the top, the kept range in big gradient numbers between "Start" and "End", a large 60-bar waveform with two glowing handles, a ruler (0, ¼, ½, ¾, full length), "◀ Preview", a glowing play button, "Preview ▶", and an info note saying what will be cut. Preview gains a "Trim" chip (new scissors icon) that opens it. New: `hooks/usePlaybackProgress.ts` (the smooth progress from R.5b, now shared), and `moveTrimHandle` / `normalizeTrim` / `describeTrim` in `lib/waveform.ts`. Small additions: Button `tone="accent"` and `compact`, NavHeader `leadingContent` (for the text "Cancel"), GradientText `accessibilityLabel`, and a Waveform look (`highlightKept`) that lights the kept bars and dims the cut ones, as in the mockup.
