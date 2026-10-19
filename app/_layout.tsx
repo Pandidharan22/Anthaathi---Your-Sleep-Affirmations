@@ -87,6 +87,7 @@ function NavigationStack() {
             <Stack.Screen name="folder/[id]" options={{ headerShown: false }} />
             <Stack.Screen name="goal/new" options={{ title: 'New Goal', presentation: 'modal' }} />
             <Stack.Screen name="goal/[id]" options={{ title: 'Goal' }} />
+            <Stack.Screen name="goal/draft" options={{ headerShown: false }} />
             <Stack.Screen
               name="journal/new"
               options={{ title: 'New Journal Entry', presentation: 'modal' }}

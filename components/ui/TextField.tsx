@@ -9,6 +9,10 @@ type TextFieldProps = Omit<TextInputProps, 'style' | 'placeholderTextColor'> & {
   /** Replaces the helper text and turns the border rose. */
   error?: string | null;
   helper?: string;
+  /** `script` sets an affirmation's words in `typography.script` (Fraunces italic). */
+  variant?: 'default' | 'script';
+  /** Keeps the label for screen readers only, when the screen already says what the field is. */
+  labelHidden?: boolean;
   /** Lets a form move focus to the next field (React 19 passes `ref` as a prop). */
   ref?: Ref<TextInput>;
 };
@@ -25,6 +29,8 @@ export function TextField({
   onFocus,
   onBlur,
   multiline,
+  variant = 'default',
+  labelHidden = false,
   ...inputProps
 }: TextFieldProps) {
   const [focused, setFocused] = useState(false);
@@ -32,7 +38,7 @@ export function TextField({
 
   return (
     <View style={styles.container}>
-      <Text style={[typography.label, styles.label]}>{label}</Text>
+      {labelHidden ? null : <Text style={[typography.label, styles.label]}>{label}</Text>}
       <TextInput
         {...inputProps}
         multiline={multiline}
@@ -50,6 +56,8 @@ export function TextField({
         style={[
           styles.input,
           multiline && styles.multiline,
+          variant === 'script' && styles.script,
+          variant === 'script' && multiline && styles.scriptMultiline,
           focused && styles.focused,
           error ? styles.errored : null,
         ]}
@@ -87,6 +95,12 @@ const styles = StyleSheet.create({
   multiline: {
     minHeight: 120,
     textAlignVertical: 'top',
+  },
+  script: {
+    ...typography.script,
+  },
+  scriptMultiline: {
+    minHeight: 160,
   },
   focused: {
     borderColor: 'rgba(195, 174, 218, 0.4)',

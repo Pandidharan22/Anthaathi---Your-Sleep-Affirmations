@@ -536,7 +536,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   script: {
-    ...typography.quote,
+    ...typography.script,
     fontSize: 22,
     lineHeight: 31,
     color: palette.textPrimary,

@@ -326,6 +326,7 @@ export default function AffirmationScreen() {
               </Text>
               <TextField
                 label="What it says"
+                variant="script"
                 value={scriptText}
                 onChangeText={setScriptText}
                 multiline

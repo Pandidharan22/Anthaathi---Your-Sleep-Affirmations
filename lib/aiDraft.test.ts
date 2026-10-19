@@ -27,6 +27,24 @@ describe('requestAffirmationDraft', () => {
     expect(result).toEqual({ ok: true, draftText: 'I am strong.' });
   });
 
+  it('sends a refinement with the text to rewrite', async () => {
+    mockInvoke.mockResolvedValue({ data: { draftText: 'I rest gently.' }, error: null });
+
+    await requestAffirmationDraft('goal-1', 'Sleep well', {
+      refine: 'softer',
+      currentText: 'I sleep well.',
+    });
+
+    expect(mockInvoke).toHaveBeenCalledWith('generate-affirmation', {
+      body: {
+        goalId: 'goal-1',
+        goalText: 'Sleep well',
+        refine: 'softer',
+        currentText: 'I sleep well.',
+      },
+    });
+  });
+
   it('classifies a 429 as rate_limited', async () => {
     mockInvoke.mockResolvedValue({ data: null, error: httpError(429) });
 

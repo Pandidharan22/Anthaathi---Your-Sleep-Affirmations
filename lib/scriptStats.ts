@@ -14,14 +14,19 @@ export function countSentences(script: string): number {
   return splitIntoSentences(script).length;
 }
 
+/** Words that will be read ("/" pause marks aren't words). */
+export function countWords(script: string): number {
+  return script
+    .replace(/\//g, ' ')
+    .split(/\s+/)
+    .filter((w) => /\w/.test(w)).length;
+}
+
 /** Roughly how long the script takes to read aloud, for "reads in ~14s". */
 export function estimateReadMs(script: string): number {
   const sentences = countSentences(script);
   if (sentences === 0) return 0;
-  const words = script
-    .replace(/\//g, ' ')
-    .split(/\s+/)
-    .filter((w) => /\w/.test(w)).length;
+  const words = countWords(script);
   const marks = (script.match(/\//g) ?? []).length;
   return words * MS_PER_WORD + (sentences - 1) * SENTENCE_PAUSE_MS + marks * MARK_PAUSE_MS;
 }

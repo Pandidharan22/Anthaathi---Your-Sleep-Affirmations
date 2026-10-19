@@ -1,4 +1,4 @@
-import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import DraftAffirmationScreen from '@/app/goal/draft';
 
@@ -18,6 +18,11 @@ jest.mock('expo-router', () => ({
 jest.mock('@/lib/goals.local', () => ({
   getLocalGoal: (...args: unknown[]) => mockGetLocalGoal(...args),
 }));
+
+jest.mock(
+  'react-native-safe-area-context',
+  () => jest.requireActual<{ default: object }>('react-native-safe-area-context/jest/mock').default,
+);
 
 jest.mock('@/lib/aiDraft', () => ({
   requestAffirmationDraft: (...args: unknown[]) => mockRequestAffirmationDraft(...args),
@@ -55,15 +60,77 @@ describe('DraftAffirmationScreen', () => {
     await waitFor(() => expect(getByDisplayValue('I run with strength.')).toBeTruthy());
   });
 
-  it('lets the user edit the draft, then "Record in my voice" navigates to /record with the edited text', async () => {
+  it('shows the suggestion with its length', async () => {
     mockGetLocalGoal.mockResolvedValue(baseGoal);
     mockRequestAffirmationDraft.mockResolvedValue({ ok: true, draftText: 'I run with strength.' });
 
-    const { getByDisplayValue, getByText } = await render(<DraftAffirmationScreen />);
+    await render(<DraftAffirmationScreen />);
+
+    expect(await screen.findByText('“I run with strength.”')).toBeTruthy();
+    expect(screen.getByText('4 words · reads in ~2s')).toBeTruthy();
+    expect(screen.getByText('Run a marathon')).toBeTruthy();
+  });
+
+  it('Softer rewrites the edited text, keeping the edits, and shows the result', async () => {
+    mockGetLocalGoal.mockResolvedValue(baseGoal);
+    mockRequestAffirmationDraft
+      .mockResolvedValueOnce({ ok: true, draftText: 'I run with strength.' })
+      .mockResolvedValueOnce({ ok: true, draftText: 'I run gently / and with ease.' });
+
+    await render(<DraftAffirmationScreen />);
+    const input = await screen.findByDisplayValue('I run with strength.');
+    await fireEvent.changeText(input, 'I run with joy.');
+    await fireEvent.press(screen.getByRole('button', { name: 'Softer' }));
+
+    expect(mockRequestAffirmationDraft).toHaveBeenLastCalledWith(
+      'goal-1',
+      'Run a marathon: Sub-4 hours',
+      { refine: 'softer', currentText: 'I run with joy.' },
+    );
+    expect(await screen.findByDisplayValue('I run gently / and with ease.')).toBeTruthy();
+    expect(screen.getByText('“I run gently / and with ease.”')).toBeTruthy();
+  });
+
+  it('Try another asks for a fresh draft, away from the current one', async () => {
+    mockGetLocalGoal.mockResolvedValue(baseGoal);
+    mockRequestAffirmationDraft.mockResolvedValue({ ok: true, draftText: 'I run with strength.' });
+
+    await render(<DraftAffirmationScreen />);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Try another' }));
+
+    expect(mockRequestAffirmationDraft).toHaveBeenLastCalledWith(
+      'goal-1',
+      'Run a marathon: Sub-4 hours',
+      { refine: 'another', currentText: 'I run with strength.' },
+    );
+  });
+
+  it('keeps the text when a refinement fails, and says why', async () => {
+    mockGetLocalGoal.mockResolvedValue(baseGoal);
+    mockRequestAffirmationDraft
+      .mockResolvedValueOnce({ ok: true, draftText: 'I run with strength.' })
+      .mockResolvedValueOnce({ ok: false, kind: 'rate_limited' });
+
+    await render(<DraftAffirmationScreen />);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Shorter' }));
+
+    expect(
+      await screen.findByText(
+        "You've reached the limit for AI drafts for now — try again in a little while.",
+      ),
+    ).toBeTruthy();
+    expect(screen.getByDisplayValue('I run with strength.')).toBeTruthy();
+  });
+
+  it('lets the user edit the draft, then "Record this" navigates to /record with the edited text', async () => {
+    mockGetLocalGoal.mockResolvedValue(baseGoal);
+    mockRequestAffirmationDraft.mockResolvedValue({ ok: true, draftText: 'I run with strength.' });
+
+    const { getByDisplayValue } = await render(<DraftAffirmationScreen />);
     const input = await waitFor(() => getByDisplayValue('I run with strength.'));
 
     await fireEvent.changeText(input, 'I run with joy and strength.');
-    await fireEvent.press(getByText('Record in my voice'));
+    await fireEvent.press(screen.getByRole('button', { name: 'Record this' }));
 
     expect(mockRouterReplace).toHaveBeenCalledWith({
       pathname: '/record',
@@ -71,15 +138,15 @@ describe('DraftAffirmationScreen', () => {
     });
   });
 
-  it('"AI Guided voice" opens the Script step with the edited text and the goal', async () => {
+  it('"Use an AI voice" opens the Script step with the edited text and the goal', async () => {
     mockGetLocalGoal.mockResolvedValue(baseGoal);
     mockRequestAffirmationDraft.mockResolvedValue({ ok: true, draftText: 'I run with strength.' });
 
-    const { getByDisplayValue, getByText } = await render(<DraftAffirmationScreen />);
+    const { getByDisplayValue } = await render(<DraftAffirmationScreen />);
     const input = await waitFor(() => getByDisplayValue('I run with strength.'));
 
     await fireEvent.changeText(input, 'I run with joy and strength.');
-    await fireEvent.press(getByText('AI Guided voice'));
+    await fireEvent.press(screen.getByRole('button', { name: 'Use an AI voice' }));
 
     expect(mockRouterReplace).toHaveBeenCalledWith({
       pathname: '/ai-guided/script',
@@ -91,14 +158,13 @@ describe('DraftAffirmationScreen', () => {
     });
   });
 
-  it('Discard goes back without navigating to record', async () => {
+  it('Back leaves without navigating to record', async () => {
     mockGetLocalGoal.mockResolvedValue(baseGoal);
     mockRequestAffirmationDraft.mockResolvedValue({ ok: true, draftText: 'I run with strength.' });
 
-    const { getByText } = await render(<DraftAffirmationScreen />);
-    await waitFor(() => expect(getByText('Discard')).toBeTruthy());
-
-    await fireEvent.press(getByText('Discard'));
+    await render(<DraftAffirmationScreen />);
+    await screen.findByDisplayValue('I run with strength.');
+    await fireEvent.press(screen.getByRole('button', { name: 'Back' }));
 
     expect(mockRouterBack).toHaveBeenCalled();
     expect(mockRouterReplace).not.toHaveBeenCalled();

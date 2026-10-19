@@ -28,6 +28,35 @@ const SYSTEM_PROMPT = [
   "Output only the affirmation text -- no quotes, no preamble, no markdown.",
 ].join(" ");
 
+// R.6b: the Draft screen's refinements. Softer / Shorter / More vivid rewrite the user's
+// current wording (sent as `currentText`, so their edits are kept); "another" writes a fresh
+// one from the goal, steering away from the current text when it's given. Each counts toward
+// the same daily limit as a draft.
+const REWRITES = {
+  softer: "gentler and softer in tone: tender, soothing words, with no pressure or striving",
+  shorter: "shorter: fewer and shorter sentences that keep its heart",
+  vivid: "more vivid: concrete, sensory images, while staying calm and restful",
+} as const;
+type Refine = keyof typeof REWRITES | "another";
+const REFINES: readonly Refine[] = ["softer", "shorter", "vivid", "another"];
+/** Room for a 300-character script and then some; the user's own text, not a prompt. */
+const MAX_CURRENT_TEXT = 600;
+
+function buildUserPrompt(goalText: string, refine?: Refine, currentText?: string): string {
+  const goal = `Goal: ${goalText}`;
+  if (!refine) return goal;
+  if (refine === "another") {
+    return currentText
+      ? `${goal}\n\nWrite a different affirmation from this one: "${currentText}"`
+      : goal;
+  }
+  return [
+    goal,
+    `Current affirmation: "${currentText}"`,
+    `Rewrite the current affirmation to be ${REWRITES[refine]}. Keep its meaning and follow the same style rules.`,
+  ].join("\n\n");
+}
+
 /**
  * Safety net for the model occasionally breaking its own pause-mark rules: drops a " / " next
  * to punctuation or at a line's start/end (redundant there), and normalizes the spacing.
@@ -47,7 +76,7 @@ export default {
   fetch: withSupabase({ auth: "user" }, async (req, ctx) => {
     const userId = ctx.userClaims!.id;
 
-    let body: { goalId?: unknown; goalText?: unknown };
+    let body: { goalId?: unknown; goalText?: unknown; refine?: unknown; currentText?: unknown };
     try {
       body = await req.json();
     } catch {
@@ -59,6 +88,21 @@ export default {
       return Response.json({ error: "invalid_request" }, { status: 400 });
     }
     if (typeof goalId !== "string" || goalId.trim().length === 0) {
+      return Response.json({ error: "invalid_request" }, { status: 400 });
+    }
+    // Optional (R.6b). Without `refine` the request is exactly the step 3.2 draft.
+    const { refine, currentText } = body;
+    if (refine !== undefined && !REFINES.includes(refine as Refine)) {
+      return Response.json({ error: "invalid_request" }, { status: 400 });
+    }
+    if (
+      currentText !== undefined &&
+      (typeof currentText !== "string" || currentText.length > MAX_CURRENT_TEXT)
+    ) {
+      return Response.json({ error: "invalid_request" }, { status: 400 });
+    }
+    const current = typeof currentText === "string" ? currentText.trim() : "";
+    if (refine !== undefined && refine !== "another" && current.length === 0) {
       return Response.json({ error: "invalid_request" }, { status: 400 });
     }
 
@@ -90,7 +134,7 @@ export default {
       return Response.json({ error: "provider_unavailable" }, { status: 502 });
     }
 
-    const userPrompt = `Goal: ${goalText}`;
+    const userPrompt = buildUserPrompt(goalText, refine as Refine | undefined, current || undefined);
 
     let draftText: string;
     try {
@@ -108,7 +152,8 @@ export default {
               { role: "system", content: SYSTEM_PROMPT },
               { role: "user", content: userPrompt },
             ],
-            temperature: 0.6,
+            // A little warmer for "another", so it doesn't land on the same wording.
+            temperature: refine === "another" ? 0.8 : 0.6,
             max_tokens: 300,
             reasoning_effort: "low",
           }),
@@ -165,5 +210,10 @@ export default {
     --header 'Authorization: Bearer <user-access-token>' \
     --header 'Content-Type: application/json' \
     --data '{"goalId":"<existing-goal-uuid>","goalText":"Run a half marathon by next spring"}'
+
+  A refinement (R.6b) adds "refine" ("softer" | "shorter" | "vivid" | "another") and, for all
+  but "another", the "currentText" to rewrite:
+
+    --data '{"goalId":"<uuid>","goalText":"Calm mornings","refine":"softer","currentText":"I wake up calm."}'
 
 */

@@ -94,6 +94,12 @@ export const typography = {
   title: { fontFamily: fonts.serifSemiBold, fontSize: 24, lineHeight: 32 },
   /** Subtitles and card titles. */
   subtitle: { fontFamily: fonts.serifSemiBold, fontSize: 18, lineHeight: 26 },
+  /**
+   * An affirmation's words, typed by the user or drafted by the AI, wherever they're shown
+   * or edited: the Script step, a recording's script, the goal Draft, and later the Player
+   * and Goal Detail (user's request in R.6b). Not for titles, captions or journal text.
+   */
+  script: { fontFamily: fonts.serifItalic, fontSize: 19, lineHeight: 28 },
   /** Taglines, quoted affirmations, journal prompts. */
   quote: { fontFamily: fonts.serifItalic, fontSize: 16, lineHeight: 24 },
   body: { fontFamily: fonts.sans, fontSize: 16, lineHeight: 24 },

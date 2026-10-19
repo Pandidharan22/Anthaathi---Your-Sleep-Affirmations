@@ -1,32 +1,69 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PauseMarkHint } from '@/components/PauseMarkHint';
-import { radii, spacing, typography } from '@/constants/theme';
-import { useThemeColors } from '@/hooks/useThemeColors';
-import { requestAffirmationDraft } from '@/lib/aiDraft';
+import { Button } from '@/components/ui/Button';
+import { Card } from '@/components/ui/Card';
+import { Chip } from '@/components/ui/Chip';
+import { NavHeader } from '@/components/ui/NavHeader';
+import { TextField } from '@/components/ui/TextField';
+import { gradientBackground } from '@/components/ui/gradient';
+import { colors, fonts, gradients, typography } from '@/constants/theme';
+import { requestAffirmationDraft, type DraftRefinement } from '@/lib/aiDraft';
 import { DRAFT_ERROR_MESSAGES as ERROR_MESSAGES, goalDraftText } from '@/lib/draftCopy';
 import { getLocalGoal, type LocalGoal } from '@/lib/goals.local';
+import { countWords, estimateReadMs, SCRIPT_MAX_LENGTH } from '@/lib/scriptStats';
 
 type ScreenState = 'loading' | 'drafting' | 'ready' | 'error';
 
+const REFINEMENTS: { refine: DraftRefinement; label: string }[] = [
+  { refine: 'softer', label: 'Softer' },
+  { refine: 'shorter', label: 'Shorter' },
+  { refine: 'vivid', label: 'More vivid' },
+  { refine: 'another', label: 'Try another' },
+];
 
-/** FR-501/FR-502: draft an affirmation from a goal, then let the user edit/accept/discard before recording. */
+/**
+ * FR-501/FR-502, redesigned in R.6b (mockup #15): a draft from the goal, shown as the
+ * suggestion, with Softer / Shorter / More vivid / Try another to rework it and an Edit field
+ * for the user's own changes. Refinements rewrite the Edit field's text, so edits are kept
+ * (user's choice); Try another starts fresh from the goal. Nothing is narrated until the user
+ * records it or picks an AI voice (FR-502).
+ */
 export default function DraftAffirmationScreen() {
-  const colors = useThemeColors();
+  const insets = useSafeAreaInsets();
   const { goalId } = useLocalSearchParams<{ goalId: string }>();
   const [state, setState] = useState<ScreenState>(goalId ? 'loading' : 'error');
   const [goal, setGoal] = useState<LocalGoal | null>(null);
+  // The AI's latest text, and the user's working copy of it.
+  const [suggestion, setSuggestion] = useState('');
   const [draftText, setDraftText] = useState('');
   const [errorMessage, setErrorMessage] = useState(goalId ? '' : 'Missing goal.');
+  const [refining, setRefining] = useState<DraftRefinement | null>(null);
+  const [refineError, setRefineError] = useState<string | null>(null);
+
+  const showDraft = (text: string) => {
+    const trimmed = text.trim().slice(0, SCRIPT_MAX_LENGTH);
+    setSuggestion(trimmed);
+    setDraftText(trimmed);
+  };
 
   const requestDraft = useCallback(async (target: LocalGoal) => {
     setState('drafting');
     try {
       const result = await requestAffirmationDraft(target.id, goalDraftText(target));
       if (result.ok) {
-        setDraftText(result.draftText);
+        showDraft(result.draftText);
         setState('ready');
       } else {
         setErrorMessage(ERROR_MESSAGES[result.kind]);
@@ -53,6 +90,24 @@ export default function DraftAffirmationScreen() {
     });
   }, [goalId, requestDraft]);
 
+  async function handleRefine(refine: DraftRefinement) {
+    if (!goal) return;
+    setRefining(refine);
+    setRefineError(null);
+    try {
+      const result = await requestAffirmationDraft(goal.id, goalDraftText(goal), {
+        refine,
+        currentText: draftText.trim() || suggestion,
+      });
+      if (result.ok) showDraft(result.draftText);
+      else setRefineError(ERROR_MESSAGES[result.kind]);
+    } catch {
+      setRefineError(ERROR_MESSAGES.unknown);
+    } finally {
+      setRefining(null);
+    }
+  }
+
   function handleAccept(pathname: '/record' | '/ai-guided/script') {
     const params = { scriptText: draftText.trim(), suggestedTitle: goal?.title ?? '' };
     router.replace({
@@ -64,135 +119,213 @@ export default function DraftAffirmationScreen() {
 
   if (state === 'loading' || state === 'drafting') {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <ActivityIndicator color={colors.action} />
-        <Text style={[styles.body, { color: colors.textSecondary }]}>
-          {state === 'loading' ? 'Loading goal…' : 'Drafting your affirmation…'}
-        </Text>
+      <View style={styles.root}>
+        <NavHeader title="Draft" leading="back" onLeadingPress={() => router.back()} />
+        <View style={styles.center}>
+          <ActivityIndicator color={colors.action} />
+          <Text style={styles.waiting}>
+            {state === 'loading' ? 'Loading goal…' : 'Drafting your affirmation…'}
+          </Text>
+        </View>
       </View>
     );
   }
 
   if (state === 'error') {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <Text style={[styles.title, { color: colors.textPrimary }]}>Couldn&apos;t draft an affirmation</Text>
-        <Text style={[styles.body, { color: colors.error }]}>{errorMessage}</Text>
-        <View style={styles.row}>
-          <Pressable
-            onPress={() => router.back()}
-            accessibilityRole="button"
-            style={[styles.secondaryButton, { borderColor: colors.border }]}
-          >
-            <Text style={{ color: colors.textPrimary }}>Cancel</Text>
-          </Pressable>
-          {goal ? (
-            <Pressable
-              onPress={() => requestDraft(goal)}
-              accessibilityRole="button"
-              style={[styles.primaryButton, { backgroundColor: colors.action }]}
-            >
-              <Text style={[styles.primaryButtonLabel, { color: colors.background }]}>Try again</Text>
-            </Pressable>
-          ) : null}
+      <View style={styles.root}>
+        <NavHeader title="Draft" leading="back" onLeadingPress={() => router.back()} />
+        <View style={styles.center}>
+          <Text accessibilityLiveRegion="polite" style={styles.errorBody}>
+            {errorMessage}
+          </Text>
+        </View>
+        <View style={[styles.actions, { paddingBottom: insets.bottom + 24 }]}>
+          {goal ? <Button label="Try again" onPress={() => requestDraft(goal)} /> : null}
+          <Button label="Cancel" variant="ghost" onPress={() => router.back()} />
         </View>
       </View>
     );
   }
 
+  const words = countWords(suggestion);
+  const readSeconds = Math.max(1, Math.round(estimateReadMs(suggestion) / 1000));
+  const canUse = draftText.trim().length > 0 && !refining;
+
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Text style={[styles.title, { color: colors.textPrimary }]}>Your draft affirmation</Text>
-      <Text style={[styles.body, { color: colors.textSecondary }]}>
-        Edit it until it feels right, then choose how to bring it to life.
-      </Text>
+    <View style={styles.root}>
+      <NavHeader title="Draft" leading="back" onLeadingPress={() => router.back()} />
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+          {goal ? (
+            <Card style={styles.goalCard}>
+              <View style={[styles.goalDot, gradientBackground(gradients.actionFill)]} />
+              <Text style={styles.goalText} numberOfLines={2}>
+                From your goal <Text style={styles.goalTitle}>{goal.title}</Text>
+              </Text>
+            </Card>
+          ) : null}
 
-      <TextInput
-        value={draftText}
-        onChangeText={setDraftText}
-        multiline
-        style={[
-          styles.draftInput,
-          { color: colors.textPrimary, borderColor: colors.border, backgroundColor: colors.surface },
-        ]}
-      />
-      <PauseMarkHint />
+          <View style={styles.section}>
+            <Text style={[typography.label, styles.label]}>Suggested affirmation</Text>
+            <Card mesh style={styles.suggestionCard}>
+              {refining ? (
+                <View style={styles.rewriting} accessibilityLiveRegion="polite">
+                  <ActivityIndicator color={colors.action} />
+                  <Text style={styles.meta}>Rewriting…</Text>
+                </View>
+              ) : (
+                <>
+                  <Text style={styles.suggestion}>“{suggestion}”</Text>
+                  <Text style={styles.meta}>
+                    {words} {words === 1 ? 'word' : 'words'} · reads in ~{readSeconds}s
+                  </Text>
+                </>
+              )}
+            </Card>
+          </View>
 
-      <View style={styles.row}>
-        <Pressable
-          onPress={() => handleAccept('/record')}
-          disabled={!draftText.trim()}
-          accessibilityRole="button"
-          style={[styles.primaryButton, { backgroundColor: colors.action }]}
-        >
-          <Text style={[styles.primaryButtonLabel, { color: colors.background }]}>Record in my voice</Text>
-        </Pressable>
-        <Pressable
-          onPress={() => handleAccept('/ai-guided/script')}
-          disabled={!draftText.trim()}
-          accessibilityRole="button"
-          style={[styles.primaryButton, { backgroundColor: colors.action }]}
-        >
-          <Text style={[styles.primaryButtonLabel, { color: colors.background }]}>AI Guided voice</Text>
-        </Pressable>
-      </View>
+          <View style={styles.chips}>
+            {REFINEMENTS.map(({ refine, label }) => (
+              <Chip
+                key={refine}
+                label={label}
+                selected={refining === refine}
+                onPress={refining ? undefined : () => handleRefine(refine)}
+              />
+            ))}
+          </View>
 
-      <Pressable onPress={() => router.back()} accessibilityRole="button" hitSlop={8}>
-        <Text style={{ color: colors.error }}>Discard</Text>
-      </Pressable>
+          {refineError ? (
+            <Text accessibilityLiveRegion="polite" style={styles.errorText}>
+              {refineError}
+            </Text>
+          ) : null}
+
+          <TextField
+            label="Edit"
+            variant="script"
+            value={draftText}
+            onChangeText={setDraftText}
+            maxLength={SCRIPT_MAX_LENGTH}
+            multiline
+          />
+          <PauseMarkHint />
+        </ScrollView>
+
+        <View style={[styles.actions, { paddingBottom: insets.bottom + 24 }]}>
+          <Button
+            label="Record this"
+            icon="mic"
+            disabled={!canUse}
+            onPress={() => handleAccept('/record')}
+          />
+          <Button
+            label="Use an AI voice"
+            variant="secondary"
+            disabled={!canUse}
+            onPress={() => handleAccept('/ai-guided/script')}
+          />
+        </View>
+      </KeyboardAvoidingView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  root: {
     flex: 1,
-    gap: spacing.lg,
-    padding: spacing.lg,
+    backgroundColor: colors.background,
+  },
+  flex: {
+    flex: 1,
+  },
+  center: {
+    flex: 1,
+    alignItems: 'center',
     justifyContent: 'center',
+    gap: 12,
+    paddingHorizontal: 32,
   },
-  title: {
-    fontSize: typography.title.fontSize,
-    lineHeight: typography.title.lineHeight,
-    fontFamily: typography.title.fontFamily,
+  waiting: {
+    ...typography.quote,
+    color: colors.textSecondary,
   },
-  body: {
-    fontSize: typography.body.fontSize,
-    lineHeight: typography.body.lineHeight,
+  errorBody: {
+    ...typography.body,
+    color: colors.textSecondary,
+    textAlign: 'center',
   },
-  draftInput: {
-    width: '100%',
-    minHeight: 140,
-    borderWidth: 1,
-    borderRadius: radii.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    fontSize: typography.body.fontSize,
-    textAlignVertical: 'top',
+  content: {
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 24,
+    gap: 18,
   },
-  row: {
+  goalCard: {
     flexDirection: 'row',
-    gap: spacing.md,
-  },
-  secondaryButton: {
-    borderWidth: 1,
-    borderRadius: radii.md,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.lg,
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 10,
   },
-  primaryButton: {
+  goalDot: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+  },
+  goalText: {
+    ...typography.caption,
     flex: 1,
-    borderRadius: radii.md,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.xl,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 44,
+    color: colors.textSecondary,
   },
-  primaryButtonLabel: {
-    fontSize: typography.body.fontSize,
-    fontWeight: '600',
+  goalTitle: {
+    fontFamily: fonts.sansSemiBold,
+    color: colors.textPrimary,
+  },
+  section: {
+    gap: 8,
+  },
+  label: {
+    color: colors.textSecondary,
+  },
+  suggestionCard: {
+    padding: 20,
+    gap: 14,
+  },
+  suggestion: {
+    ...typography.script,
+    fontSize: 20,
+    lineHeight: 29,
+    color: colors.textPrimary,
+  },
+  rewriting: {
+    minHeight: 58,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  meta: {
+    ...typography.caption,
+    color: colors.textMuted,
+  },
+  chips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    // Room for the chips' extended touch area (hit slop can't reach past the parent).
+    paddingVertical: 10,
+    marginVertical: -10,
+  },
+  errorText: {
+    ...typography.caption,
+    color: colors.error,
+    textAlign: 'center',
+  },
+  actions: {
+    paddingHorizontal: 24,
+    paddingTop: 12,
+    gap: 12,
   },
 });

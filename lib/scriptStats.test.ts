@@ -1,5 +1,6 @@
 import {
   countSentences,
+  countWords,
   estimateGenerationMs,
   estimateReadMs,
   firstSentence,
@@ -13,6 +14,11 @@ describe('scriptStats', () => {
   it('counts the sentences that will be read', () => {
     expect(countSentences(script)).toBe(2);
     expect(countSentences('   ')).toBe(0);
+  });
+
+  it('counts the words that will be read', () => {
+    expect(countWords('My strength / is permanent.')).toBe(4);
+    expect(countWords(' ')).toBe(0);
   });
 
   it('estimates reading time from words and the pauses the voices add', () => {

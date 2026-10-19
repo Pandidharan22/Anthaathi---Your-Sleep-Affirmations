@@ -4,15 +4,22 @@ import { supabase } from '@/lib/supabase';
 
 export type DraftErrorKind = 'rate_limited' | 'provider_unavailable' | 'invalid_request' | 'unknown';
 
+/**
+ * The Draft screen's refinements (R.6b). softer / shorter / vivid rewrite `currentText` (the
+ * user's current wording); another writes a fresh draft from the goal, unlike `currentText`.
+ */
+export type DraftRefinement = 'softer' | 'shorter' | 'vivid' | 'another';
+
 export type DraftAffirmationResult = { ok: true; draftText: string } | { ok: false; kind: DraftErrorKind };
 
 /** FR-501/FR-504: requests AI-drafted affirmation text for a goal via the generate-affirmation Edge Function. */
 export async function requestAffirmationDraft(
   goalId: string,
   goalText: string,
+  refinement?: { refine: DraftRefinement; currentText: string },
 ): Promise<DraftAffirmationResult> {
   const { data, error } = await supabase.functions.invoke<{ draftText: string }>('generate-affirmation', {
-    body: { goalId, goalText },
+    body: refinement ? { goalId, goalText, ...refinement } : { goalId, goalText },
   });
 
   if (error) {
