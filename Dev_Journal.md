@@ -4,6 +4,27 @@ One entry per committed step, newest first. Each entry: what was done, why, how 
 
 ---
 
+## 2026-10-19 — Goal Draft with refinements, and one font for scripts (redesign step R.6b)
+
+**What**: `app/goal/draft.tsx` follows mockup #15: a "Draft" header, a "From your goal" card, "SUGGESTED AFFIRMATION" in a mesh card with "N words · reads in ~Xs", the chips **Softer · Shorter · More vivid · Try another**, an Edit field, the `/` pause hint, and **Record this** (mic) / **Use an AI voice**. `generate-affirmation` takes an optional `refine` (`softer` | `shorter` | `vivid` | `another`) and `currentText`; `lib/aiDraft.ts` passes them through. Also, at the user's request: a `typography.script` token (Fraunces italic 19/28, the Script step's look) for an affirmation's words wherever they're shown or edited, and `TextField` gained `variant="script"` (plus `labelHidden`). Used on the Draft screen, a recording's "What it says" field and the Record screen's quote; the Script step now reads its font from the token. `countWords` was added to `lib/scriptStats.ts`. **R.6 complete.**
+
+**Why**: a first draft rarely lands exactly. The refinements let the user steer it without writing a prompt, and keep the AI as a helper for their own words (FR-502: nothing is narrated until they record it or choose a voice). The user liked the Script step's font for scripts and asked for it everywhere a script appears, but not for titles, labels or journal text.
+
+**Decisions with reasons**:
+- **Refinements rewrite the Edit field's text, not the AI's last suggestion** (user's choice), so the user's edits are kept and built on. The result replaces both the suggestion card and the Edit field. **Try another** writes a fresh draft from the goal and is told to steer away from the current text, at a slightly higher temperature (0.8 rather than 0.6) so it doesn't land on the same words.
+- **Backwards compatible**: without `refine` a request is exactly step 3.2's draft, so the build already on the phone kept working before and after the deploy. The user approved deploying once the local tests passed.
+- **Validated server-side**: an unknown `refine`, a non-string `currentText`, more than 600 characters, or a blank `currentText` for softer/shorter/vivid all return 400. The user's text goes into the prompt as quoted data next to the existing style rules. A refinement counts toward the same 20-a-day limit as a draft (it's a real Groq call).
+- **A failed refinement keeps the text** and shows the same calm error copy as drafting (`lib/draftCopy.ts`) under the chips (FR-503). While one is rewriting, the card shows "Rewriting…", the other chips do nothing, and both actions are disabled.
+- **One token, one variant**: `typography.script` lives in the theme so the Player (R.7) and Goal Detail (R.8) can use it too. `TextField` takes a variant rather than a separate script input, so every field keeps the same label, focus ring and error handling. The Script step keeps its own taller input and only reads the font from the token.
+- The Draft screen is registered with the native header off, so its own header is the only one.
+- Discard is now just Back, as in the mockup; nothing is saved on this screen anyway.
+
+**Verification**: real Groq calls against the local Supabase stack (11/11: a plain draft unchanged; softer, shorter, vivid and another each returning a rewritten draft, plus another without `currentText`; five invalid requests returning 400), then deployed live, and the live endpoint still refuses requests without a login (401). Tests: the refinement request shape, the Draft screen (12: suggestion with its length, Softer rewriting the edited text, Try another, a failed refinement keeping the text, Record this and Use an AI voice carrying the text on, Back, and the existing error states), and `countWords`. Full suite 516/516, typecheck clean, lint nothing new. Docker Desktop wouldn't start (a leftover `sailor-ingest.sock.stale` blocked its socket rename); moving `%LOCALAPPDATA%\Docker\run` aside fixed it. **On the user's phone**: the suggestion card and the four refinements rewrite the edited text; Record this and Use an AI voice carry the text on; scripts use the Fraunces italic font on the Draft and recording screens.
+
+**Commit**: `679cd05` — Redesign the goal Draft with refinements, and set scripts in one font (redesign step R.6b)
+
+---
+
 ## 2026-10-19 — AI Guided as a three-step flow (redesign step R.6a)
 
 **What**: AI Guided creation follows mockups #21–24 as two routes. `app/ai-guided/script.tsx` (step 1 of 3): step dots, the hint "Short, present-tense sentences work best.", a Fraunces italic script field, "2 sentences · reads in ~14s" and "108 / 300", the `/` pause hint, and a "From your goal" card with ✨ Redraft when it came from a goal's draft. `app/ai-guided/voice.tsx` (steps 2 and 3): a card per voice (preview button, name, gender chip, a few words on how it sounds, radio), "Continue with Nicole", then Generating (a breathing orb, "Nicole is settling into your words.", an easing progress bar, "On-device · about N seconds", Cancel) and Generation Error ("Couldn't generate audio", Try again / Back to script). New: `components/ui/StepDots.tsx`, `components/VoiceCard.tsx`, `components/GeneratingOrb.tsx`, `lib/scriptStats.ts`, `lib/draftCopy.ts`, voice descriptions in `lib/aiVoice.ts`. Mode Choice and the goal draft lead into the new flow; `app/record-ai-guided.tsx` (step 3.10's one-page screen) is removed.
