@@ -4,6 +4,31 @@ One entry per committed step, newest first. Each entry: what was done, why, how 
 
 ---
 
+## 2026-10-19 — AI Guided as a three-step flow (redesign step R.6a)
+
+**What**: AI Guided creation follows mockups #21–24 as two routes. `app/ai-guided/script.tsx` (step 1 of 3): step dots, the hint "Short, present-tense sentences work best.", a Fraunces italic script field, "2 sentences · reads in ~14s" and "108 / 300", the `/` pause hint, and a "From your goal" card with ✨ Redraft when it came from a goal's draft. `app/ai-guided/voice.tsx` (steps 2 and 3): a card per voice (preview button, name, gender chip, a few words on how it sounds, radio), "Continue with Nicole", then Generating (a breathing orb, "Nicole is settling into your words.", an easing progress bar, "On-device · about N seconds", Cancel) and Generation Error ("Couldn't generate audio", Try again / Back to script). New: `components/ui/StepDots.tsx`, `components/VoiceCard.tsx`, `components/GeneratingOrb.tsx`, `lib/scriptStats.ts`, `lib/draftCopy.ts`, voice descriptions in `lib/aiVoice.ts`. Mode Choice and the goal draft lead into the new flow; `app/record-ai-guided.tsx` (step 3.10's one-page screen) is removed.
+
+**Why**: the old screen asked for everything at once (title, script, voice, folder). The mockups split it into the decisions that matter, in order, and make waiting for on-device synthesis feel calm rather than stuck.
+
+**Decisions with reasons** (the first three by the user):
+- **After generating, the new recording opens** (R.5d's screen), so the flow has no title or folder fields. The title comes from the script's first sentence (pause marks and closing punctuation removed, cut at a word near 40 characters) or from the goal, and a folder passed in from Mode Choice is kept. Success closes both steps (`router.dismiss(2)`) and pushes `/affirmation/[id]`, so Back from the recording returns to where the flow began.
+- **A voice preview reads the first sentence of the user's own script**, as the mockup says ("Chosen voice narrates your script"). Each voice's clip is kept while on the screen and deleted when leaving, so replaying is instant. Previewing a voice also chooses it. Only one preview is made at a time (the engines take one request at a time), and Continue waits for it.
+- **Save as text only moved to R.8**, where the goal's linked affirmation will live.
+- **Two routes, not one screen with steps**, so the system Back gesture moves between Script and Voice naturally. Generating and Error are states of the voice step.
+- **Cancel can't stop synthesis part way** (native calls run to the end), so `createAiGuidedAffirmation` takes an `isCancelled` check: a result that finishes after Cancel is deleted instead of saved (`GenerationCancelledError`). Each run is numbered, so a cancelled run that finishes late can't save or navigate even after a new run has started; leaving the screen counts as cancelling. If Cancel lands during the brief save after synthesis, the recording is kept (it shows in its folder) but the screen doesn't jump to it.
+- **"About N seconds" is an estimate**: reading time (about 130 words a minute plus the voices' pauses) times the speed measured on the user's phone in 3.13a, plus the model load for natural voices. There's no real progress to report, so the bar eases to 90% over that time and waits.
+- **The orb respects reduced motion** (`AccessibilityInfo.isReduceMotionEnabled`) and animates on the native driver.
+- **Errors keep the script**: Try again reruns the same script and voice. When the natural voices have gone missing, the action is "Choose another voice" instead, since trying again would fail the same way (FR-516).
+- **Voice cards are two controls side by side**, the preview button and the rest of the card as a radio, rather than one inside the other, so TalkBack reaches both.
+- **Voice descriptions are a first draft** (Nicole "Soft · hushed", Bella "Warm · gentle", Michael "Low · steady", Echo "Clear · easy", the basic voices "Built in · plain"); easy to change in `lib/aiVoice.ts`.
+- Draft error copy and the goal's draft text moved to `lib/draftCopy.ts`: tests that mock `lib/aiDraft.ts` can then use the real copy without loading the Supabase client (the step 1.5 lesson).
+
+**Verification**: tests for script stats (sentences, reading and generation estimates, first sentence, titles), cancellation in the data layer (file deleted, nothing written or queued), the Script step (6: counts, Continue's params with title and folder, a goal's title, Redraft and its error, no goal card), and the voice step (8: default voice, previews and stopping, clip reuse, basic voices only before download, success closing the flow, Cancel dropping a late result, Try again, missing voices). One test first hung: `fireEvent` returns the press handler's promise, which an `await` adopts, so pressing Continue waited for a generation the test hadn't finished. Fixed in the test by not awaiting that press. Full suite 510/510, typecheck clean, lint nothing new. **On the user's phone**: Script counts and Redraft from a goal work; previews read the first sentence; Generating shows the orb and Cancel works; errors keep the script; the new recording opens when done.
+
+**Commit**: `c8f7252` — Rebuild AI Guided as a three-step flow (redesign step R.6a)
+
+---
+
 ## 2026-10-19 — Recording screen on the Preview layout (redesign step R.5d)
 
 **What**: opening a saved recording (from Folder Detail) now shows `app/affirmation/[id].tsx`, laid out like Preview: a header ("Recording" or "AI Guided"), the Title field, the waveform card (`PlaybackCard`), folder / Trim silence / Trim chips with the note under them, and for AI Guided an "Affirmation" section (script, `/` hint, voice picker, Regenerate). Delete recording sits at the bottom. New: `wavLevels` in `lib/wav.ts` and `getOrBuildWaveform` in `lib/waveforms.local.ts`. The old `/affirmation/[id]/trim` route and `TrimEditor` (step 1.5's slider editor) are removed. **R.5 complete.**
