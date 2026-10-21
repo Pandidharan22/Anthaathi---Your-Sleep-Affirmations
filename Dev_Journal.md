@@ -4,6 +4,36 @@ One entry per committed step, newest first. Each entry: what was done, why, how 
 
 ---
 
+## 2026-10-21 — Player chooser, and the balance on now playing (redesign step R.7b)
+
+**What**: the Player tab's chooser, `components/PlayerChooser.tsx` (no mockup, so it follows the Library). It has:
+- a gradient "Player" title with "Choose what to fall asleep to.", replacing the native header;
+- a highlighted **Now playing** card while a session runs ("Loop 2 · 28m left", tap to return);
+- **Folders**: a card for each folder with recordings, plus Unfiled, ticked as a whole;
+- **Recordings**: every recording with its folder and length;
+- **Sleep timer** chips that wrap, and the ambience picker;
+- a bar fixed at the bottom saying what's chosen ("Play 3 affirmations · 2m 10s · stops after 30 min"), with a glowing ▶.
+
+Folder Detail's ⋯ gains **Play this folder** (Unfiled now has a ⋯ with **Play these recordings**). Also, at the user's request: the voice / ambience balance now sits **on the now-playing screen in place of the waveform**, as a new `components/BalanceSlider.tsx`, used in the Ambience sheet too. `@react-native-community/slider` is removed. **R.7 complete.**
+
+**Why**: the old chooser was a bare list with a duplicated title, and a timer chip that ran off-screen. Playing a whole folder, the common case, meant ticking every recording in it. The balance was hidden in a sheet, so the user didn't find it, and the plain slider didn't match the app.
+
+**Decisions with reasons**:
+- **Selection is one set of recordings.** A folder card shows as chosen when all its recordings are, with a dash and "2 of 3 chosen" when only some are. Tapping a fully-chosen folder clears it, and tapping any other folder chooses all of it. There's no separate folder state to keep in sync.
+- **Checks have a non-color cue**: a filled light-mauve circle with a dark tick, a dash, or an empty ring. Folder cards and rows are checkboxes for screen readers (mixed when partly chosen).
+- **Play this folder starts straight away** with the last timer and ambience: it's a "play" action, so it plays rather than opening the chooser with the folder ticked. It navigates to `/player` with the folder and a request stamp, so the same folder can be played twice. The Player loads the recordings fresh (the folder may have just changed) and starts. The start function is called through a ref, because the React lint rule rejects calling a function declared below the effect.
+- **The native header is off for good** in the tab layout, and the Player also sets it off at runtime. The user's phone showed the old bar (and the gap they circled) because the R.7a build had turned it on at runtime, and options set at runtime outlive a hot reload.
+- **Starting a session from the chooser while one plays** ends and logs the old one first.
+- **BalanceSlider**: "♫ Ambience" at the left end, "Voice" at the right, a soft mauve track with a notch at the middle (both at full), a light-mauve stretch from the middle to the thumb showing which way it leans, and a glowing gradient thumb that grows a little while dragged. The percentages sit under each end. It's built on the View's own touch handlers, like the Trim screen's handles. Tapping the track jumps there, and dragging follows the finger. With no ambience it's dimmed, ignores touches, and says how to add one with ♫. Screen readers adjust it in 5% steps and hear "Voice 100 percent, ambience 70 percent".
+- **Snapping fixed**: positions snap to 0.025 and are rounded; the first version saved float noise (0.30000000000000004 for 0.3), caught by a test.
+- With the slider package gone, its test mocks went too. The installed dev build still contains the native module, which is harmless; the next build drops it.
+
+**Verification**: Player tests (41): the chooser lists folders, Unfiled and recordings; ticking a folder, a partly chosen folder and clearing one; the wrapping timer chips; Play this folder and Play these recordings starting straight away; the empty state; plus every earlier playback, gap, ambience and timer test, now driving the balance by touch. 5 BalanceSlider tests (labels and spoken value, a drag with snapping and save-on-release, clamping at the ends, screen-reader steps, the disabled state). Folder Detail tests for the new menu options. Full suite 538/538, typecheck clean, lint nothing new. **On the user's phone**: the balance on now playing and in the Ambience sheet feels right, the chooser works without the old header, and Play this folder starts it.
+
+**Commit**: `6785fa5` — Rebuild the Player chooser, and put the balance on now playing (redesign step R.7b)
+
+---
+
 ## 2026-10-21 — Now playing as a night sky, and the app off terracotta (redesign step R.7a)
 
 **What**: the Player's now-playing screen, rebuilt from mockup #10 and then reshaped over three of the user's phone checks. `components/NowPlaying.tsx`: "Now looping" with a back arrow over the dusk mesh; `components/MoonSky.tsx`, a light-mauve moon in a soft breathing mauve glow with 33 four-pointed stars twinkling around it; the play/pause (tap to pause, hold to end) with no glow of its own; the track's waveform with "Loop N" and the sleep timer; and loop · ⏱ · End session · ambience along the bottom. The timer and ambience open as bottom sheets (`components/ui/Sheet.tsx`, which `FolderNameSheet` now uses too), and `BedPicker` uses the app's chips and a mauve slider. `GeneratingOrb` became `components/GlowOrb.tsx` (shared by Generating and the moon, with an `intensity`), `hooks/useReducedMotion.ts` is new, and `TabBar` honors `tabBarStyle: { display: 'none' }`. R.7 is split: **R.7a** this screen, **R.7b** the chooser (no mockup) and Folder Detail's "Play this folder".
