@@ -37,8 +37,12 @@ jest.mock('expo-audio', () => ({
 
 const mockSetOptions = jest.fn();
 const mockNavigation = { setOptions: (...args: unknown[]) => mockSetOptions(...args) };
+let mockParams: { playFolder?: string; at?: string } = {};
+const mockNavigate = jest.fn();
 jest.mock('expo-router', () => ({
   useNavigation: () => mockNavigation,
+  useLocalSearchParams: () => mockParams,
+  router: { navigate: (...args: unknown[]) => mockNavigate(...args) },
   useFocusEffect: (effect: () => void) => {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     require('react').useEffect(effect, []);
@@ -52,6 +56,13 @@ jest.mock(
 
 jest.mock('@/lib/waveforms.local', () => ({
   getOrBuildWaveform: jest.fn().mockResolvedValue(null),
+}));
+
+jest.mock('@/lib/folders.local', () => ({
+  listLocalFolders: jest.fn().mockResolvedValue([
+    { id: 'folder-1', user_id: 'user-1', name: 'Sleep & calm' },
+    { id: 'folder-2', user_id: 'user-1', name: 'Morning' },
+  ]),
 }));
 
 jest.mock('@/hooks/useAuth', () => ({
@@ -82,11 +93,6 @@ jest.mock('@/lib/bedPrefs', () => ({
   getBedPreference: (...args: unknown[]) => mockGetBedPreference(...args),
   setBedPreference: (...args: unknown[]) => mockSetBedPreference(...args),
 }));
-jest.mock('@react-native-community/slider', () => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { View } = require('react-native');
-  return { __esModule: true, default: (props: object) => <View {...props} /> };
-});
 
 // The gap between affirmations is real silence in the app; tests default it to 0 so queue
 // advances stay immediate, and set it per test where the gap itself is under test.
@@ -101,6 +107,14 @@ const mockLogLocalPlaybackSession = jest.fn().mockResolvedValue(undefined);
 jest.mock('@/lib/playbackSessions.local', () => ({
   logLocalPlaybackSession: (...args: unknown[]) => mockLogLocalPlaybackSession(...args),
 }));
+
+/** The chooser's glowing Play, named by how many are chosen. */
+const playButton = (count: number) =>
+  screen.getByRole('button', {
+    name: `Play ${count} ${count === 1 ? 'affirmation' : 'affirmations'}`,
+  });
+/** The chooser is showing (its title is gradient text, so check its subtitle). */
+const chooser = () => screen.getByText('Choose what to fall asleep to.');
 
 /** The big glowing control: "Pause" while playing, "Resume" while paused. */
 const controlButton = () => screen.getByRole('button', { name: /^(Pause|Resume)$/ });
@@ -153,6 +167,7 @@ beforeEach(() => {
     setVolume: mockBedSetVolume,
   });
   delete mockPlayerObj.volume;
+  mockParams = {};
 });
 
 describe('PlayerScreen', () => {
@@ -160,11 +175,13 @@ describe('PlayerScreen', () => {
     const { getByText } = await render(<PlayerScreen />);
 
     await waitFor(() => expect(getByText('Calm')).toBeTruthy());
-    expect(getByText('Play').parent?.props.accessibilityState?.disabled).toBe(true);
+    expect(
+      screen.getByRole('button', { name: 'Choose something to play' }).props.accessibilityState,
+    ).toMatchObject({ disabled: true });
 
     await fireEvent.press(getByText('Calm'));
 
-    expect(getByText('Play (1)').parent?.props.accessibilityState?.disabled).toBe(false);
+    expect(playButton(1).props.accessibilityState).toMatchObject({ disabled: false });
   });
 
   it('starts playback: sets background audio mode, seeks past trim start, claims lock screen, and plays', async () => {
@@ -172,7 +189,7 @@ describe('PlayerScreen', () => {
     await waitFor(() => expect(getByText('Calm')).toBeTruthy());
 
     await fireEvent.press(getByText('Calm'));
-    await fireEvent.press(getByText('Play (1)'));
+    await fireEvent.press(playButton(1));
 
     expect(mockSetAudioModeAsync).toHaveBeenCalledWith({
       playsInSilentMode: true,
@@ -191,7 +208,7 @@ describe('PlayerScreen', () => {
 
     await fireEvent.press(getByText('Calm'));
     await fireEvent.press(getByText('Focus'));
-    await fireEvent.press(getByText('Play (2)'));
+    await fireEvent.press(playButton(2));
     await waitFor(() => expect(showing('Calm')).toBeTruthy());
 
     // Simulate playback crossing track 1's trim_end_ms (9000).
@@ -212,7 +229,7 @@ describe('PlayerScreen', () => {
 
     await fireEvent.press(getByText('Calm'));
     await fireEvent.press(getByText('Focus'));
-    await fireEvent.press(getByText('Play (2)'));
+    await fireEvent.press(playButton(2));
     await waitFor(() => expect(showing('Calm')).toBeTruthy());
 
     statusListener?.({ currentTime: 9.1 });
@@ -229,7 +246,7 @@ describe('PlayerScreen', () => {
 
     await fireEvent.press(getByText('Calm'));
     await fireEvent.press(getByText('Focus'));
-    await fireEvent.press(getByText('Play (2)'));
+    await fireEvent.press(playButton(2));
     await waitFor(() => expect(showing('Calm')).toBeTruthy());
 
     statusListener?.({ currentTime: 4.7, didJustFinish: false });
@@ -241,7 +258,7 @@ describe('PlayerScreen', () => {
     await waitFor(() => expect(getByText('Calm')).toBeTruthy());
 
     await fireEvent.press(getByText('Calm'));
-    await fireEvent.press(getByText('Play (1)'));
+    await fireEvent.press(playButton(1));
     await waitFor(() => expect(showing('Calm')).toBeTruthy());
     expect(mockSeekTo).toHaveBeenCalledTimes(1);
     expect(mockPlay).toHaveBeenCalledTimes(1);
@@ -264,7 +281,7 @@ describe('PlayerScreen', () => {
     await waitFor(() => expect(getByText('Calm')).toBeTruthy());
 
     await fireEvent.press(getByText('Calm'));
-    await fireEvent.press(getByText('Play (1)'));
+    await fireEvent.press(playButton(1));
     await waitFor(() => expect(controlButton()).toBeTruthy());
 
     await fireEvent(controlButton(), 'longPress');
@@ -275,7 +292,7 @@ describe('PlayerScreen', () => {
     expect(userId).toBe('user-1');
     expect(typeof playedAt).toBe('string');
     expect(durationMs).toBeGreaterThanOrEqual(0);
-    await waitFor(() => expect(getByText('Player')).toBeTruthy());
+    await waitFor(() => expect(chooser()).toBeTruthy());
   });
 
   it('does not log a session if Stop is somehow reached without a session ever starting', async () => {
@@ -292,7 +309,7 @@ describe('PlayerScreen', () => {
       await waitFor(() => expect(utils.getByText('Calm')).toBeTruthy());
       await fireEvent.press(utils.getByText('Calm'));
       await fireEvent.press(utils.getByText('Focus'));
-      await fireEvent.press(utils.getByText('Play (2)'));
+      await fireEvent.press(playButton(2));
       await waitFor(() => expect(showing('Calm')).toBeTruthy());
       return utils;
     }
@@ -336,13 +353,13 @@ describe('PlayerScreen', () => {
 
     it('Stop during the gap cancels the pending advance, even if playback restarts straight away', async () => {
       mockGapMs = 300;
-      const { getByText } = await startTwoTracks();
+      await startTwoTracks();
       statusListener?.({ currentTime: 9.1 });
       await fireEvent(controlButton(), 'longPress');
-      await waitFor(() => expect(screen.getByText('Player')).toBeTruthy());
+      await waitFor(() => expect(chooser()).toBeTruthy());
 
       // Restart before the old gap would have elapsed: a leaked timer would skip track 1.
-      await fireEvent.press(getByText('Play (2)'));
+      await fireEvent.press(playButton(2));
       await waitFor(() => expect(showing('Calm')).toBeTruthy());
       await new Promise((resolve) => setTimeout(resolve, 500));
       expect(showing('Calm')).toBeTruthy();
@@ -354,7 +371,7 @@ describe('PlayerScreen', () => {
       const utils = await render(<PlayerScreen />);
       await waitFor(() => expect(utils.getByText('Calm')).toBeTruthy());
       await fireEvent.press(utils.getByText(label));
-      await fireEvent.press(utils.getByText(`Play (${count})`));
+      await fireEvent.press(playButton(count));
       await waitFor(() => expect(controlButton()).toBeTruthy());
       return utils;
     }
@@ -421,18 +438,28 @@ describe('PlayerScreen', () => {
   });
 
   describe('audio studio controls (step 4.3)', () => {
-    type SliderProps = {
-      onValueChange: (v: number) => void;
-      onSlidingComplete: (v: number) => void;
-    };
-    const slider = (utils: Awaited<ReturnType<typeof render>>) =>
-      utils.getByLabelText('Voice and ambience balance').props as SliderProps;
+    /** The now-playing screen's balance (the Ambience sheet over it has a second one). */
+    const balance = () => screen.getAllByLabelText('Voice and ambience balance')[0];
+
+    /** Drags the balance to `mix`, as a finger would: down at that point, then up. */
+    async function dragBalanceTo(mix: number) {
+      const track = screen.getAllByTestId('balance-track')[0];
+      // 326 wide with a 26 pt thumb: 300 pt of travel, starting 13 pt in.
+      await fireEvent(track, 'layout', {
+        nativeEvent: { layout: { x: 0, y: 0, width: 326, height: 44 } },
+      });
+      const pageX = 13 + mix * 300;
+      await fireEvent(track, 'responderGrant', { nativeEvent: { pageX } });
+      return {
+        release: () => fireEvent(track, 'responderRelease', { nativeEvent: { pageX } }),
+      };
+    }
 
     async function startSession() {
       const utils = await render(<PlayerScreen />);
       await waitFor(() => expect(utils.getByText('Calm')).toBeTruthy());
       await fireEvent.press(utils.getByText('Calm'));
-      await fireEvent.press(utils.getByText('Play (1)'));
+      await fireEvent.press(playButton(1));
       await waitFor(() => expect(controlButton()).toBeTruthy());
       await fireEvent.press(screen.getByRole('button', { name: /^Ambience/ }));
       return utils;
@@ -487,7 +514,7 @@ describe('PlayerScreen', () => {
       await waitFor(() => expect(mockStartBedLoop).toHaveBeenCalledTimes(1));
 
       await fireEvent.press(utils.getByText('Calm'));
-      await fireEvent.press(utils.getByText('Play (1)'));
+      await fireEvent.press(playButton(1));
       await waitFor(() => expect(controlButton()).toBeTruthy());
 
       expect(mockBedStop).toHaveBeenCalledTimes(1); // the preview
@@ -495,27 +522,29 @@ describe('PlayerScreen', () => {
       expect(mockStartBedLoop.mock.calls[1][0]).toMatchObject({ id: 'rain' });
     });
 
-    it('hides the slider without a bed, and the voice then plays at full', async () => {
+    it('without a bed the balance is dimmed and the voice plays at full; a bed enables it', async () => {
       mockGetBedPreference.mockResolvedValue({ bedId: null, mix: 0.1 });
       const utils = await startSession();
-      expect(utils.queryByLabelText('Voice and ambience balance')).toBeNull();
+      // Only the now-playing one: the sheet shows no balance until a sound is chosen.
+      expect(screen.getAllByLabelText('Voice and ambience balance')).toHaveLength(1);
+      expect(balance().props.accessibilityState).toMatchObject({ disabled: true });
       expect(mockPlayerObj.volume).toBe(1);
 
       await fireEvent.press(utils.getByText('Rain'));
-      expect(utils.getByLabelText('Voice and ambience balance')).toBeTruthy();
+      expect(balance().props.accessibilityState).toMatchObject({ disabled: false });
     });
 
-    it('while playing, the slider rebalances voice and bed live and is saved on release', async () => {
+    it('while playing, the balance rebalances voice and bed live and is saved on release', async () => {
       mockGetBedPreference.mockResolvedValue({ bedId: 'rain', mix: 0.75 });
-      const utils = await startSession();
+      await startSession();
       expect(mockPlayerObj.volume).toBe(1);
 
-      await act(async () => slider(utils).onValueChange(0.25));
+      const drag = await dragBalanceTo(0.25);
       expect(mockPlayerObj.volume).toBe(0.5); // the voice fades left of the middle
       expect(mockBedSetVolume).toHaveBeenLastCalledWith(1);
       expect(mockSetBedPreference).not.toHaveBeenCalled();
 
-      await act(async () => slider(utils).onSlidingComplete(0.25));
+      await drag.release();
       expect(mockSetBedPreference).toHaveBeenCalledWith({ bedId: 'rain', mix: 0.25 });
     });
 
@@ -554,11 +583,11 @@ describe('PlayerScreen', () => {
       await render(<PlayerScreen />);
       await waitFor(() => expect(screen.getByText('Calm')).toBeTruthy());
       for (const title of titles) await fireEvent.press(screen.getByText(title));
-      await fireEvent.press(screen.getByText(`Play (${titles.length})`));
+      await fireEvent.press(playButton(titles.length));
       await waitFor(() => expect(controlButton()).toBeTruthy());
     }
 
-    it('shows the moon screen: no header, no tab bar, and no details of what plays', async () => {
+    it('shows the moon screen: no tab bar, and no details of what plays', async () => {
       await start(['Calm']);
       expect(screen.getByText('Now looping')).toBeTruthy();
       expect(screen.getByText('Loop 1')).toBeTruthy();
@@ -572,7 +601,7 @@ describe('PlayerScreen', () => {
 
       await fireEvent.press(screen.getByRole('button', { name: 'Back' }));
       expect(mockSetOptions).toHaveBeenLastCalledWith({
-        headerShown: true,
+        headerShown: false,
         tabBarStyle: undefined,
       });
     });
@@ -601,7 +630,7 @@ describe('PlayerScreen', () => {
 
       statusListener?.({ currentTime: 5 });
       await waitFor(() => expect(mockLogLocalPlaybackSession).toHaveBeenCalledTimes(1));
-      expect(screen.getByText('Player')).toBeTruthy();
+      expect(chooser()).toBeTruthy();
     });
 
     it('Back shows the chooser while it keeps playing, and the Now playing card returns', async () => {
@@ -609,11 +638,13 @@ describe('PlayerScreen', () => {
       mockPause.mockClear();
       await fireEvent.press(screen.getByRole('button', { name: 'Back' }));
 
-      expect(screen.getByText('Player')).toBeTruthy();
+      expect(chooser()).toBeTruthy();
       expect(mockPause).not.toHaveBeenCalled();
       expect(mockLogLocalPlaybackSession).not.toHaveBeenCalled();
 
-      await fireEvent.press(screen.getByRole('button', { name: 'Now playing: Calm. Open' }));
+      await fireEvent.press(
+        screen.getByRole('button', { name: 'Now playing. Loop 1 · no sleep timer. Open' }),
+      );
       expect(showing('Calm')).toBeTruthy();
     });
 
@@ -633,7 +664,86 @@ describe('PlayerScreen', () => {
       await fireEvent.press(screen.getByRole('button', { name: 'End session' }));
 
       await waitFor(() => expect(mockLogLocalPlaybackSession).toHaveBeenCalledTimes(1));
-      expect(screen.getByText('Player')).toBeTruthy();
+      expect(chooser()).toBeTruthy();
+    });
+  });
+
+  describe('chooser (R.7b)', () => {
+    const track3 = { ...track2, id: 'aff-3', title: 'Dawn', folder_id: 'folder-2' };
+    const track4 = { ...track2, id: 'aff-4', title: 'Loose', folder_id: null };
+
+    beforeEach(() => {
+      mockListLocalAffirmations.mockResolvedValue([track1, track2, track3, track4]);
+    });
+
+    it('lists folders with recordings, Unfiled, and every recording', async () => {
+      await render(<PlayerScreen />);
+      expect(
+        await screen.findByRole('checkbox', { name: 'Sleep & calm, 2 recordings · 13s' }),
+      ).toBeTruthy();
+      expect(screen.getByRole('checkbox', { name: 'Morning, 1 recording · 5s' })).toBeTruthy();
+      expect(screen.getByRole('checkbox', { name: 'Unfiled, 1 recording · 5s' })).toBeTruthy();
+      expect(screen.getByRole('checkbox', { name: 'Calm, Sleep & calm · 0:08' })).toBeTruthy();
+      expect(screen.getByRole('checkbox', { name: 'Loose, Unfiled · 0:05' })).toBeTruthy();
+    });
+
+    it('ticks a whole folder, shows part of one, and plays what is chosen', async () => {
+      await render(<PlayerScreen />);
+      const folder = await screen.findByRole('checkbox', {
+        name: 'Sleep & calm, 2 recordings · 13s',
+      });
+      await fireEvent.press(folder);
+
+      expect(
+        screen.getByRole('checkbox', { name: 'Calm, Sleep & calm · 0:08' }).props
+          .accessibilityState,
+      ).toMatchObject({ checked: true });
+      expect(playButton(2)).toBeTruthy();
+
+      await fireEvent.press(screen.getByRole('checkbox', { name: 'Focus, Sleep & calm · 0:05' }));
+      expect(
+        screen.getByRole('checkbox', { name: 'Sleep & calm, 1 of 2 chosen' }).props
+          .accessibilityState,
+      ).toMatchObject({ checked: 'mixed' });
+
+      await fireEvent.press(playButton(1));
+      await waitFor(() => expect(showing('Calm')).toBeTruthy());
+    });
+
+    it('a second tap on a fully chosen folder clears it', async () => {
+      await render(<PlayerScreen />);
+      const name = 'Morning, 1 recording · 5s';
+      await fireEvent.press(await screen.findByRole('checkbox', { name }));
+      await fireEvent.press(screen.getByRole('checkbox', { name }));
+      expect(screen.getByRole('button', { name: 'Choose something to play' })).toBeTruthy();
+    });
+
+    it('wraps the sleep timer choices, No timer included', async () => {
+      await render(<PlayerScreen />);
+      await fireEvent.press(await screen.findByRole('button', { name: 'No timer' }));
+      expect(
+        screen.getByRole('button', { name: 'No timer' }).props.accessibilityState,
+      ).toMatchObject({ selected: true });
+    });
+
+    it('Play this folder starts that folder straight away', async () => {
+      mockParams = { playFolder: 'folder-2', at: '1' };
+      await render(<PlayerScreen />);
+      await waitFor(() => expect(showing('Dawn')).toBeTruthy());
+      expect(mockSetAudioModeAsync).toHaveBeenCalled();
+    });
+
+    it('Play these recordings from Unfiled plays the recordings with no folder', async () => {
+      mockParams = { playFolder: 'unfiled', at: '2' };
+      await render(<PlayerScreen />);
+      await waitFor(() => expect(showing('Loose')).toBeTruthy());
+    });
+
+    it('says how to start when there is nothing to play', async () => {
+      mockListLocalAffirmations.mockResolvedValue([]);
+      await render(<PlayerScreen />);
+      await fireEvent.press(await screen.findByRole('button', { name: 'Go to Library' }));
+      expect(mockNavigate).toHaveBeenCalledWith('/');
     });
   });
 
@@ -645,7 +755,7 @@ describe('PlayerScreen', () => {
 
     await fireEvent.press(getByText('Calm'));
     await fireEvent.press(getByText('15 min'));
-    await fireEvent.press(getByText('Play (1)'));
+    await fireEvent.press(playButton(1));
     await waitFor(() => expect(getByText(/Sleep timer:/)).toBeTruthy());
 
     act(() => {

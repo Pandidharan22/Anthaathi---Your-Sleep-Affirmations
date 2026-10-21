@@ -1,22 +1,20 @@
-import type { Animated } from 'react-native';
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { BalanceSlider } from '@/components/BalanceSlider';
 import { MoonSky } from '@/components/MoonSky';
-import { Waveform } from '@/components/Waveform';
 import { DuskBackground } from '@/components/ui/DuskBackground';
 import { Icon, type IconName } from '@/components/ui/Icon';
 import { GlowButton } from '@/components/ui/GlowButton';
 import { NavHeader } from '@/components/ui/NavHeader';
 import { colors, fonts, radii, typography } from '@/constants/theme';
-import type { LocalAffirmation } from '@/lib/affirmations.local';
 
 type NowPlayingProps = {
-  track: LocalAffirmation;
-  levels: number[] | null;
-  /** 0–1 over the track's full length, gliding between position reports. */
-  progress: Animated.Value;
   paused: boolean;
+  /** The voice / ambience balance (0–1, see BalanceSlider). */
+  mix: number;
+  onMixChange: (mix: number) => void;
+  onMixCommit: (mix: number) => void;
   /** Which pass through the selection this is, from 1. */
   loopNumber: number;
   loopOn: boolean;
@@ -36,20 +34,18 @@ type NowPlayingProps = {
  * The Player's now-playing screen (mockup #10, simplified on the user's phone check in R.7a):
  * "Now looping" over the dusk mesh, a moon in a soft glow with twinkling stars instead of the
  * affirmation's details (what plays doesn't need reading at night), the play/pause control (tap to pause or resume, hold
- * to end), the track's waveform with the loop count and sleep timer, and loop / timer /
+ * to end), the voice / ambience balance (user, R.7b: in place of the waveform) with the loop
+ * count and sleep timer, and loop / timer /
  * End session / ambience. One fixed layout that fits the screen, never scrolling; the
  * Player hides its header and the tab bar while this shows.
  */
 export function NowPlaying(props: NowPlayingProps) {
-  const { track, paused } = props;
+  const { paused } = props;
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
   // Sized from the screen so everything fits on short phones too.
   const glowSize = Math.round(Math.min(280, height * 0.34));
 
-  const trimStart = track.trim_start_ms ?? 0;
-  const trimEnd = track.trim_end_ms ?? track.duration_ms;
-  const fraction = (ms: number) => (track.duration_ms > 0 ? ms / track.duration_ms : 0);
   const timerText =
     props.remainingSeconds === null
       ? 'No sleep timer'
@@ -83,13 +79,11 @@ export function NowPlaying(props: NowPlayingProps) {
       </View>
 
       <View style={styles.wave}>
-        <Waveform
-          levels={props.levels}
-          bars={32}
-          height={40}
-          progress={props.progress}
-          keepFrom={fraction(trimStart)}
-          keepTo={fraction(trimEnd)}
+        <BalanceSlider
+          mix={props.mix}
+          enabled={props.ambienceOn}
+          onChange={props.onMixChange}
+          onCommit={props.onMixCommit}
         />
         <View style={styles.statusRow}>
           <Text style={styles.loopText}>Loop {props.loopNumber}</Text>
@@ -198,7 +192,7 @@ const styles = StyleSheet.create({
   statusRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 8,
+    marginTop: 14,
   },
   loopText: {
     ...typography.caption,

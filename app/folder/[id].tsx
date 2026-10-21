@@ -81,10 +81,27 @@ export default function FolderDetailScreen() {
     ]);
   }
 
+  /** Opens the Player and starts this folder (R.7b), with the last timer and ambience. */
+  function playFolder() {
+    stopPreview();
+    router.navigate({ pathname: '/player', params: { playFolder: id, at: String(Date.now()) } });
+  }
+
   function openMenu() {
+    const play =
+      affirmations.length > 0
+        ? [{ text: unfiled ? 'Play these recordings' : 'Play this folder', onPress: playFolder }]
+        : [];
+    // Unfiled isn't a real folder, so it can't be renamed or deleted.
+    const manage = unfiled
+      ? []
+      : [
+          { text: 'Rename', onPress: () => setRenaming(true) },
+          { text: 'Delete', style: 'destructive' as const, onPress: confirmDelete },
+        ];
     Alert.alert(name ?? 'Folder', undefined, [
-      { text: 'Rename', onPress: () => setRenaming(true) },
-      { text: 'Delete', style: 'destructive', onPress: confirmDelete },
+      ...play,
+      ...manage,
       { text: 'Cancel', style: 'cancel' },
     ]);
   }
@@ -116,7 +133,8 @@ export default function FolderDetailScreen() {
         leading="back"
         onLeadingPress={() => router.back()}
         trailing={
-          unfiled ? undefined : (
+          // Unfiled only offers Play, so it needs recordings to show the menu at all.
+          unfiled && affirmations.length === 0 ? undefined : (
             <IconButton icon="more" accessibilityLabel="Folder options" onPress={openMenu} />
           )
         }

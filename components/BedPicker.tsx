@@ -1,9 +1,8 @@
-import Slider from '@react-native-community/slider';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { BalanceSlider } from '@/components/BalanceSlider';
 import { Chip } from '@/components/ui/Chip';
-import { colors, fonts, typography } from '@/constants/theme';
-import { mixGains } from '@/lib/bedPrefs';
+import { colors, typography } from '@/constants/theme';
 import { BEDS } from '@/lib/beds';
 
 type Props = {
@@ -21,7 +20,7 @@ type Props = {
 /**
  * The audio studio controls (FR-304): which ambience bed plays under the affirmations, and one
  * slider balancing the voice against it. In the Velvet Dusk style since R.7a: the app's chips
- * (filled light mauve when chosen), an uppercase label and a mauve slider. The slider only appears
+ * (filled light mauve when chosen), an uppercase label and the app's BalanceSlider (R.7b). The slider only appears
  * with a bed chosen: without one there is nothing to balance, and the voice plays at full.
  */
 export function BedPicker({
@@ -33,8 +32,6 @@ export function BedPicker({
   showTitle = true,
 }: Props) {
   const hasBed = bedId !== null;
-  const gains = mixGains(mix, hasBed);
-  const percent = (gain: number) => Math.round(gain * 100);
 
   return (
     <View style={styles.container}>
@@ -58,27 +55,7 @@ export function BedPicker({
       {hasBed ? (
         <View style={styles.mix}>
           <Text style={[typography.label, styles.label]}>Balance</Text>
-          <Slider
-            style={styles.slider}
-            minimumValue={0}
-            maximumValue={1}
-            step={0.025}
-            value={mix}
-            onValueChange={onMixChange}
-            onSlidingComplete={onMixCommit}
-            // A balance, not a fill: both sides the same, the thumb in the accent.
-            minimumTrackTintColor={colors.action}
-            maximumTrackTintColor={colors.action}
-            thumbTintColor={colors.accent}
-            accessibilityLabel="Voice and ambience balance"
-            accessibilityValue={{
-              text: `Voice ${percent(gains.voice)} percent, ambience ${percent(gains.bed)} percent`,
-            }}
-          />
-          <View style={styles.mixLabels}>
-            <Text style={styles.mixText}>More ambience · {percent(gains.bed)}%</Text>
-            <Text style={styles.mixText}>More voice · {percent(gains.voice)}%</Text>
-          </View>
+          <BalanceSlider mix={mix} enabled onChange={onMixChange} onCommit={onMixCommit} />
         </View>
       ) : (
         <Text style={styles.note}>Choose a sound to play softly under your affirmations.</Text>
@@ -111,20 +88,6 @@ const styles = StyleSheet.create({
   mix: {
     gap: 4,
     marginTop: 6,
-  },
-  slider: {
-    alignSelf: 'stretch',
-    height: 44,
-  },
-  mixLabels: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  mixText: {
-    ...typography.caption,
-    fontFamily: fonts.sansSemiBold,
-    color: colors.textMuted,
-    fontVariant: ['tabular-nums'],
   },
   note: {
     ...typography.caption,

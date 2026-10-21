@@ -9,11 +9,13 @@ jest.mock(
 );
 
 const mockPush = jest.fn();
+const mockNavigate = jest.fn();
 const mockBack = jest.fn();
 let mockId = 'folder-1';
 jest.mock('expo-router', () => ({
   router: {
     push: (...args: unknown[]) => mockPush(...args),
+    navigate: (...args: unknown[]) => mockNavigate(...args),
     back: () => mockBack(),
   },
   useLocalSearchParams: () => ({ id: mockId }),
@@ -180,18 +182,41 @@ describe('FolderDetailScreen', () => {
     alert.mockRestore();
   });
 
-  it('Unfiled lists recordings with no folder and has no ⋯ menu', async () => {
+  it('Play this folder opens the Player and starts it', async () => {
+    mockListLocalAffirmations.mockResolvedValue([recording({ id: 'f1', title: 'Filed one' })]);
+    const alert = jest.spyOn(Alert, 'alert');
+    await render(<FolderDetailScreen />);
+
+    expect(await screen.findByText('Filed one')).toBeTruthy();
+    await fireEvent.press(screen.getByRole('button', { name: 'Folder options' }));
+    const menu = alert.mock.calls[0][2] as AlertButton[];
+    expect(menu.map((b) => b.text)).toEqual(['Play this folder', 'Rename', 'Delete', 'Cancel']);
+    await act(async () => menu.find((b) => b.text === 'Play this folder')?.onPress?.());
+
+    expect(mockNavigate).toHaveBeenCalledWith({
+      pathname: '/player',
+      params: { playFolder: 'folder-1', at: expect.any(String) },
+    });
+    alert.mockRestore();
+  });
+
+  it('Unfiled lists recordings with no folder, and its ⋯ menu only plays them', async () => {
     mockId = 'unfiled';
     mockListLocalAffirmations.mockResolvedValue([
       recording({ id: 'u1', folder_id: null, title: 'Tomorrow can wait' }),
       recording({ id: 'f1', title: 'Filed one' }),
     ]);
+    const alert = jest.spyOn(Alert, 'alert');
     await render(<FolderDetailScreen />);
 
     expect(await screen.findByText('Tomorrow can wait')).toBeTruthy();
     expect(screen.queryByText('Filed one')).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Folder options' })).toBeNull();
     expect(mockGetLocalFolder).not.toHaveBeenCalled();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Folder options' }));
+    const menu = alert.mock.calls[0][2] as AlertButton[];
+    expect(menu.map((b) => b.text)).toEqual(['Play these recordings', 'Cancel']);
+    alert.mockRestore();
   });
 
   it('says so when the folder no longer exists', async () => {

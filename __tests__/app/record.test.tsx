@@ -50,11 +50,6 @@ jest.mock('expo-audio', () => ({
   useAudioPlayerStatus: () => mockPlayerStatus,
 }));
 
-jest.mock('@react-native-community/slider', () => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { View } = require('react-native');
-  return { __esModule: true, default: (props: object) => <View {...props} /> };
-});
 
 jest.mock('expo-file-system', () => ({
   File: jest.fn().mockImplementation(() => ({ delete: mockFileDelete })),

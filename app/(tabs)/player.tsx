@@ -4,27 +4,25 @@ import {
   useAudioPlayerStatus,
   type AudioPlayer,
 } from 'expo-audio';
-import { useFocusEffect, useNavigation } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { BackHandler, FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { BackHandler, StyleSheet, View } from 'react-native';
 
-import { BedPicker, CHIP_HIT_SLOP, CHIP_ROW_PADDING } from '@/components/BedPicker';
+import { BedPicker } from '@/components/BedPicker';
 import { NowPlaying } from '@/components/NowPlaying';
+import { PlayerChooser, SLEEP_TIMER_OPTIONS } from '@/components/PlayerChooser';
 import { Chip } from '@/components/ui/Chip';
 import { Sheet } from '@/components/ui/Sheet';
-import { radii, spacing, typography } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
-import { usePlaybackProgress } from '@/hooks/usePlaybackProgress';
-import { useThemeColors } from '@/hooks/useThemeColors';
 import { listLocalAffirmations, type LocalAffirmation } from '@/lib/affirmations.local';
 import { startBedLoop, type BedLoop } from '@/lib/bedLoop';
 import { DEFAULT_MIX, getBedPreference, mixGains, setBedPreference } from '@/lib/bedPrefs';
 import { getBed, type Bed } from '@/lib/beds';
+import { UNFILED_FOLDER_ID } from '@/lib/folderStats';
+import { listLocalFolders, type LocalFolder } from '@/lib/folders.local';
 import { logLocalPlaybackSession } from '@/lib/playbackSessions.local';
 import { AFFIRMATION_GAP_MS } from '@/lib/voiceStyle';
-import { getOrBuildWaveform } from '@/lib/waveforms.local';
 
-const SLEEP_TIMER_OPTIONS = [15, 30, 45, 60] as const;
 /** Tapping a bed before Play lets you hear it for this long. */
 const PREVIEW_MS = 8000;
 const AUDIO_MODE = {
@@ -45,10 +43,17 @@ function setVoiceVolume(player: AudioPlayer, volume: number) {
 }
 
 export default function PlayerScreen() {
-  const colors = useThemeColors();
   const { user } = useAuth();
+  // Folder Detail's "Play this folder" (R.7b) opens the Player with these; `at` makes each
+  // request distinct, so playing the same folder twice works.
+  const { playFolder, at: playRequest } = useLocalSearchParams<{
+    playFolder?: string;
+    at?: string;
+  }>();
+  const handledPlayRequest = useRef<string | null>(null);
 
   const [affirmations, setAffirmations] = useState<LocalAffirmation[]>([]);
+  const [folders, setFolders] = useState<LocalFolder[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [sleepTimerMinutes, setSleepTimerMinutes] = useState<number | null>(null);
 
@@ -86,8 +91,9 @@ export default function PlayerScreen() {
   const stopAtRef = useRef<number | null>(null);
   // Lets the advance listener end the session without depending on handleStop's identity.
   const endSessionRef = useRef<() => void>(() => {});
+  // Lets "Play this folder" start a session from an effect declared above startSession.
+  const startSessionRef = useRef<(selected: LocalAffirmation[]) => Promise<void>>(async () => {});
   const [sheet, setSheet] = useState<'timer' | 'ambience' | null>(null);
-  const [levels, setLevels] = useState<number[] | null>(null);
 
   const clearGapTimer = useCallback(() => {
     if (gapTimerRef.current !== null) clearTimeout(gapTimerRef.current);
@@ -123,7 +129,9 @@ export default function PlayerScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      if (user) listLocalAffirmations(user.id).then(setAffirmations);
+      if (!user) return;
+      listLocalAffirmations(user.id).then(setAffirmations);
+      listLocalFolders(user.id).then(setFolders);
     }, [user]),
   );
 
@@ -135,28 +143,6 @@ export default function PlayerScreen() {
 
   const player = useAudioPlayer(currentTrack?.local_uri);
   const status = useAudioPlayerStatus(player);
-
-  // The current track's waveform (R.7a), built from the file for AI Guided audio.
-  const trackId = currentTrack?.id;
-  const trackUri = currentTrack?.local_uri;
-  useEffect(() => {
-    if (!trackId || !trackUri) return;
-    let cancelled = false;
-    getOrBuildWaveform({ id: trackId, local_uri: trackUri }).then((waveform) => {
-      if (!cancelled) setLevels(waveform?.levels ?? null);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [trackId, trackUri]);
-
-  const trackDurationMs = currentTrack?.duration_ms ?? 0;
-  const progress = usePlaybackProgress({
-    playing: status.playing,
-    positionMs: Math.min(Math.max(status.currentTime * 1000, 0), trackDurationMs),
-    stopMs: currentTrack ? (currentTrack.trim_end_ms ?? currentTrack.duration_ms) : 0,
-    durationMs: trackDurationMs,
-  });
 
   // Start (or restart, for a single-track loop) the current queue position:
   // seek past any trim start, claim lock-screen controls (required on Android
@@ -249,11 +235,13 @@ export default function PlayerScreen() {
     return () => clearInterval(interval);
   }, [screenState, timerEndAt, handleStop]);
 
-  function toggleSelected(id: string) {
+  function handleSelect(ids: string[], on: boolean) {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      for (const id of ids) {
+        if (on) next.add(id);
+        else next.delete(id);
+      }
       return next;
     });
   }
@@ -274,8 +262,10 @@ export default function PlayerScreen() {
   const nowPlayingShown = screenState === 'playing' && currentTrack !== undefined && showNowPlaying;
   const navigation = useNavigation();
   useEffect(() => {
+    // headerShown is set here too, not only in the tab layout: options set at runtime outlive
+    // a hot reload, and the R.7a build turned the header back on (seen on the phone, R.7b).
     navigation.setOptions({
-      headerShown: !nowPlayingShown,
+      headerShown: false,
       tabBarStyle: nowPlayingShown ? { display: 'none' } : undefined,
     });
   }, [navigation, nowPlayingShown]);
@@ -287,6 +277,22 @@ export default function PlayerScreen() {
     });
     return () => subscription.remove();
   }, [nowPlayingShown]);
+
+  // "Play this folder" from Folder Detail: load fresh (the folder may have just changed),
+  // choose that folder's recordings, and start, once per request.
+  useEffect(() => {
+    if (!user || !playFolder || !playRequest) return;
+    if (handledPlayRequest.current === playRequest) return;
+    handledPlayRequest.current = playRequest;
+    listLocalAffirmations(user.id).then((list) => {
+      const chosen = list.filter((a) =>
+        playFolder === UNFILED_FOLDER_ID ? !a.folder_id : a.folder_id === playFolder,
+      );
+      setAffirmations(list);
+      setSelectedIds(new Set(chosen.map((a) => a.id)));
+      void startSessionRef.current(chosen);
+    });
+  }, [user, playFolder, playRequest]);
 
   function handleBedChange(nextBedId: string | null) {
     bedIdRef.current = nextBedId;
@@ -330,8 +336,11 @@ export default function PlayerScreen() {
     />
   );
 
-  async function handleStart() {
-    const selected = affirmations.filter((a) => selectedIds.has(a.id));
+  function handleStart() {
+    void startSession(affirmations.filter((a) => selectedIds.has(a.id)));
+  }
+
+  async function startSession(selected: LocalAffirmation[]) {
     if (selected.length === 0) return;
 
     // Starting from the chooser while a session plays replaces it (and logs the old one).
@@ -352,6 +361,10 @@ export default function PlayerScreen() {
     setShowNowPlaying(true);
     setScreenState('playing');
   }
+
+  useEffect(() => {
+    startSessionRef.current = startSession;
+  });
 
   function handleTogglePause() {
     if (!isPaused) {
@@ -392,15 +405,25 @@ export default function PlayerScreen() {
     setRemainingSeconds(minutes ? minutes * 60 : null);
   }
 
+  const loopNumber = queue.length ? Math.floor(playCount / queue.length) + 1 : 1;
+  const nowPlayingMeta =
+    screenState === 'playing'
+      ? `Loop ${loopNumber} · ${
+          remainingSeconds !== null
+            ? `${Math.max(1, Math.ceil(remainingSeconds / 60))}m left`
+            : 'no sleep timer'
+        }`
+      : null;
+
   if (nowPlayingShown) {
     return (
       <>
         <NowPlaying
-          track={currentTrack}
-          levels={levels}
-          progress={progress}
+          mix={mix}
+          onMixChange={handleMixChange}
+          onMixCommit={handleMixCommit}
           paused={isPaused}
-          loopNumber={queue.length ? Math.floor(playCount / queue.length) + 1 : 1}
+          loopNumber={loopNumber}
           loopOn={loopOn}
           remainingSeconds={remainingSeconds}
           timerMinutes={sleepTimerMinutes}
@@ -439,201 +462,28 @@ export default function PlayerScreen() {
   }
 
   return (
-    <View
-      style={[
-        styles.container,
-        { backgroundColor: colors.background, justifyContent: 'flex-start' },
-      ]}
-    >
-      <Text style={[styles.title, { color: colors.textPrimary }]}>Player</Text>
-
-      {screenState === 'playing' && currentTrack ? (
-        <Pressable
-          onPress={() => setShowNowPlaying(true)}
-          accessibilityRole="button"
-          accessibilityLabel={`Now playing: ${currentTrack.title}. Open`}
-          style={[styles.nowPlayingCard, { backgroundColor: colors.surface }]}
-        >
-          <Text style={[styles.sectionLabel, { color: colors.accent }]}>Now playing</Text>
-          <Text style={[styles.rowTitle, { color: colors.textPrimary }]} numberOfLines={1}>
-            {currentTrack.title}
-          </Text>
-        </Pressable>
-      ) : null}
-
-      {affirmations.length === 0 ? (
-        <Text style={[styles.description, { color: colors.textSecondary }]}>
-          No recordings yet — make one in the Library tab first.
-        </Text>
-      ) : (
-        <FlatList
-          data={affirmations}
-          keyExtractor={(item) => item.id}
-          style={styles.list}
-          contentContainerStyle={styles.listContent}
-          renderItem={({ item }) => {
-            const selected = selectedIds.has(item.id);
-            return (
-              <Pressable
-                onPress={() => toggleSelected(item.id)}
-                accessibilityRole="button"
-                accessibilityState={{ selected }}
-                style={[
-                  styles.row,
-                  { borderColor: selected ? colors.selected : colors.border },
-                  selected && { backgroundColor: colors.surface },
-                ]}
-              >
-                <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>{item.title}</Text>
-                <Text style={{ color: colors.selected }}>{selected ? '✓' : ''}</Text>
-              </Pressable>
-            );
-          }}
-        />
-      )}
-
-      <View style={styles.section}>
-        <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Sleep timer</Text>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.chipScroll}
-          contentContainerStyle={styles.chipRow}
-        >
-          {[...SLEEP_TIMER_OPTIONS, null].map((minutes) => {
-            const selected = sleepTimerMinutes === minutes;
-            return (
-              <Pressable
-                key={minutes ?? 'off'}
-                onPress={() => setSleepTimerMinutes(minutes)}
-                accessibilityRole="button"
-                accessibilityState={{ selected }}
-                hitSlop={CHIP_HIT_SLOP}
-                style={[
-                  styles.chip,
-                  {
-                    borderColor: selected ? colors.selected : colors.border,
-                    backgroundColor: selected ? colors.selected : 'transparent',
-                  },
-                ]}
-              >
-                <Text style={{ color: selected ? colors.background : colors.textPrimary }}>
-                  {minutes ? `${minutes} min` : 'No timer'}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-      </View>
-
-      {bedPicker}
-
-      <Pressable
-        onPress={handleStart}
-        disabled={selectedIds.size === 0}
-        accessibilityRole="button"
-        style={[
-          styles.primaryButton,
-          { backgroundColor: colors.action, opacity: selectedIds.size === 0 ? 0.5 : 1 },
-        ]}
-      >
-        <Text style={[styles.primaryButtonLabel, { color: colors.background }]}>
-          Play {selectedIds.size > 0 ? `(${selectedIds.size})` : ''}
-        </Text>
-      </Pressable>
-    </View>
+    <PlayerChooser
+      affirmations={affirmations}
+      folders={folders}
+      selectedIds={selectedIds}
+      onSelect={handleSelect}
+      sleepTimerMinutes={sleepTimerMinutes}
+      onTimerChange={setSleepTimerMinutes}
+      ambience={bedPicker}
+      nowPlaying={nowPlayingMeta}
+      onOpenNowPlaying={() => setShowNowPlaying(true)}
+      onPlay={handleStart}
+      onGoToLibrary={() => router.navigate('/')}
+    />
   );
 }
 
 const styles = StyleSheet.create({
-  nowPlayingCard: {
-    alignSelf: 'stretch',
-    borderRadius: radii.lg,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    gap: 2,
-  },
   sheetChips: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
     // Room for the chips' extended touch area (hit slop can't reach past the parent).
     paddingVertical: 10,
-  },
-  container: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.md,
-    padding: spacing.lg,
-  },
-  title: {
-    fontSize: typography.title.fontSize,
-    lineHeight: typography.title.lineHeight,
-    fontFamily: typography.title.fontFamily,
-    textAlign: 'center',
-  },
-  description: {
-    fontSize: typography.body.fontSize,
-    lineHeight: typography.body.lineHeight,
-    textAlign: 'center',
-  },
-  primaryButton: {
-    borderRadius: radii.md,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.xl,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 44,
-    minWidth: 200,
-  },
-  primaryButtonLabel: {
-    fontSize: typography.body.fontSize,
-    fontWeight: '600',
-  },
-  list: {
-    width: '100%',
-    flexGrow: 0,
-    maxHeight: '45%',
-  },
-  listContent: {
-    gap: spacing.sm,
-  },
-  row: {
-    borderWidth: 1,
-    borderRadius: radii.md,
-    padding: spacing.md,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  rowTitle: {
-    fontSize: typography.body.fontSize,
-    flexShrink: 1,
-  },
-  // Matches BedPicker's label-to-chips spacing.
-  section: {
-    alignSelf: 'stretch',
-    gap: spacing.xs,
-  },
-  sectionLabel: {
-    fontSize: typography.caption.fontSize,
-    alignSelf: 'flex-start',
-  },
-  chipScroll: {
-    flexGrow: 0,
-    alignSelf: 'stretch',
-  },
-  chipRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    ...CHIP_ROW_PADDING,
-  },
-  chip: {
-    borderWidth: 1,
-    borderRadius: radii.full,
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.md,
   },
 });
