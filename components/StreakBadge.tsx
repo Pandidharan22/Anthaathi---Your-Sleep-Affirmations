@@ -44,7 +44,7 @@ const styles = StyleSheet.create({
     paddingLeft: 10,
     paddingRight: 14,
     borderRadius: radii.full,
-    // A soft mauve glow, gentler than the terracotta glow of the voice controls.
+    // A soft mauve glow, gentler than the glow of the voice controls.
     boxShadow: '0px 0px 18px 2px rgba(169, 143, 196, 0.45)',
   },
   stage: {

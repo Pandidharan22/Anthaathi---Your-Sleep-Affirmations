@@ -108,7 +108,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  // While previewing, the button turns terracotta: "this is on" (DESIGN.md).
+  // While previewing, the button fills in the selected color: "this is on" (DESIGN.md).
   playActive: {
     backgroundColor: colors.selected,
   },

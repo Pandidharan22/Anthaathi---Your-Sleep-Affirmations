@@ -8,11 +8,11 @@
  *
  * Color roles:
  * - `action` (mauve) means "do something": filled buttons, links' light variant.
- * - `selected` (terracotta) means "this is chosen or on": selected chips, active tab,
- *   toggles, and the warm glow around the round voice controls (`glows`). It is never
- *   used for text buttons or small utility icons. Terracotta and mauve are only 1.18:1
- *   apart, so every selected state must also have a non-color cue (fill, border,
- *   checkmark) — never rely on hue alone.
+ * - `selected` (light mauve) means "this is chosen or on": selected chips, active tab,
+ *   toggles, chosen-card borders. It was terracotta on the board; the user replaced it
+ *   with a Velvet Dusk color on 2026-10-21 (R.7a). It shares light mauve with `accent`,
+ *   so every selected state also has a non-color cue (a fill with dark text, a border, a
+ *   checkmark) — never rely on hue alone. Glows are mauve (`glowColor`).
  * - Text and icons drawn on an `action`/`selected` fill use `background` (dark):
  *   cream on mauve is 2.47:1, a WCAG fail.
  */
@@ -35,8 +35,8 @@ export const colors = {
   action: '#A98FC4',
   /** Light mauve: accent text, links and icons; light end of filled controls. */
   accent: '#C3AEDA',
-  /** Terracotta: selected/on states only — see the role notes above. */
-  selected: '#E3946E',
+  /** Light mauve: selected/on states (was terracotta `#E3946E` until R.7a) — see above. */
+  selected: '#C3AEDA',
   success: '#8FBF9F',
   /** Cool rose for errors and destructive actions. */
   error: '#E07A8A',
@@ -56,17 +56,27 @@ export const gradients = {
 } as const;
 
 /**
- * Terracotta glows (`boxShadow` strings) around the big round voice controls, at the
- * levels settled in DESIGN.md: one layer, ~60–65% opacity, ~40px reach.
- * rgba(227,148,110) is `colors.selected`.
+ * The glow color: mauve, the bright end of the Velvet Dusk gradient (`colors.action`). Glows
+ * were terracotta until the user's R.7a phone check (2026-10-21), and terracotta is gone
+ * from the app entirely.
+ */
+export function glowColor(opacity: number): string {
+  return `rgba(169, 143, 196, ${opacity})`;
+}
+
+/**
+ * Glows (`boxShadow` strings) around the big round voice controls: one layer, ~60–65%
+ * opacity, ~40px reach (DESIGN.md).
  */
 export const glows = {
   /** Mic and play buttons, Mode Choice tile. */
-  control: '0px 0px 36px 4px rgba(227, 148, 110, 0.62)',
+  control: `0px 0px 36px 4px ${glowColor(0.62)}`,
   /** Player pause, Generating orb. */
-  hero: '0px 0px 40px 4px rgba(227, 148, 110, 0.65)',
+  hero: `0px 0px 40px 4px ${glowColor(0.65)}`,
   /** Trim handles. */
-  handle: '0px 0px 14px 2px rgba(227, 148, 110, 0.62)',
+  handle: `0px 0px 14px 2px ${glowColor(0.62)}`,
+  /** A chosen card (Mode Choice, Choose a voice): a faint glow under its selected border. */
+  card: `0px 0px 24px -8px ${glowColor(0.35)}`,
 } as const;
 
 /** Font family names, as registered by `useFonts` in `app/_layout.tsx`. */

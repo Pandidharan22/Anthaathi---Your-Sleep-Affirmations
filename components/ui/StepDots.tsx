@@ -9,7 +9,7 @@ type StepDotsProps = {
 };
 
 /**
- * The AI Guided flow's step indicator: the current step is a terracotta pill, steps
+ * The AI Guided flow's step indicator: the current step is a light mauve pill, steps
  * already done are border-colored pills, steps to come are small dots, then "Step 1 of 3".
  * The shape change (pill vs dot) is the non-color cue for done vs to come.
  */

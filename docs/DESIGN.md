@@ -36,9 +36,9 @@ The app is dark-only for now. NFR-403 (light and dark appearance) still stands; 
 | Text | `#F7EEE3` | Primary text — warm cream, kept on purpose for a little warmth |
 | Text secondary | `#C9BDB0` | Captions, helper text |
 | Text muted | `#8B8090` | Timestamps, inactive tab labels |
-| Mauve | `#A98FC4` | Actions; third Velvet Dusk stop |
-| Light mauve | `#C3AEDA` | Accent text and icons; light end of filled controls |
-| **Terracotta (accent)** | `#E3946E` | Selected/on states and warm glows only — see below |
+| Mauve | `#A98FC4` | Actions; third Velvet Dusk stop; the glow color |
+| Light mauve | `#C3AEDA` | Accent text and icons; light end of filled controls; **selected/on states** |
+| ~~Terracotta~~ | ~~`#E3946E`~~ | **Removed 2026-10-21** (user, R.7a): it didn't suit the theme. Selected/on states now use light mauve — see below |
 | Error | `#E07A8A` | Errors, destructive actions (a cool rose, replacing the old rust) |
 | Success | `#8FBF9F` | Success states |
 | Info | `#8FA3D9` | Informational notes |
@@ -49,26 +49,34 @@ The app is dark-only for now. NFR-403 (light and dark appearance) still stands; 
 - **Filled controls** (primary button, play, record, progress bar): `linear-gradient(135deg, #A98FC4, #C3AEDA)` with dark `#1D1622` text or icons. They use the light end of the ramp because cream text on mauve fails contrast (see below).
 - **Gradient text** (screen titles like "Library"): the same mauve → light mauve.
 
-## The terracotta accent
+## Selected and on states
 
-One rule: **mauve means "do something", terracotta means "this is chosen or on".** Terracotta is a single flat color, never a gradient.
+One rule: **mauve means "do something", a flat light mauve `#C3AEDA` means "this is chosen or on"** (`colors.selected`). It is never a gradient, which keeps it apart from the gradient-filled action buttons.
 
-It appears in two ways:
+The board drew these in terracotta `#E3946E`. The user removed terracotta from the app on 2026-10-21 (R.7a phone check): it didn't suit the Velvet Dusk theme. Light mauve, already the theme's light end, replaced it everywhere.
 
-1. **Fill or border on selected/on states**: the active tab, selected chips and filters, Settings toggles that are on, the chosen card on Mode Choice and its checkmark, the chosen voice on Voice Picker, the selected goal cover, the current step indicator, the Player loop toggle when on, and the "● Recording" label. (The streak badge was terracotta on the board; the user changed it to the mauve gradient with a soft mauve glow on 2026-10-18, during R.4a.)
-2. **A soft glow around the big round "voice" controls**: the mic buttons (Onboarding, Folder Detail, Record, Mode Choice), the play buttons on Preview and Trim, the Player pause button, the Generating orb, the trim handles, and the app icon on Splash.
+It appears as a **fill or border on selected/on states**:
 
-Not on: text buttons ("Done", "Save recording", "Sign in", "Continue"), small utility icons (back, close, more), or progress bars. **No terracotta ring around buttons or round controls** — it was tried and removed; the glow alone carries the warmth. (Borders on selected cards are fine.)
+The active tab, selected chips and filters, Settings toggles that are on, the chosen card on Mode Choice and its checkmark, the chosen voice on Voice Picker, the selected goal cover, the current step indicator, the Player's loop and ambience buttons when on (a filled circle with a dark icon), the playing preview button, and the "● Recording" label. (The streak badge was terracotta on the board; the user changed it to the mauve gradient with a soft mauve glow on 2026-10-18, during R.4a.)
+
+## Glows
+
+A soft glow sits around the big round "voice" controls: the mic buttons (Onboarding, Folder Detail, Record, Mode Choice), the play buttons on Preview and Trim, the Player's play/pause and its orb, the Generating orb, the trim handles, and the app icon on Splash. A chosen card (Mode Choice, Choose a voice) gets a faint one under its border.
+
+**Glows are mauve `#A98FC4`**, the bright end of the Velvet Dusk gradient (`glowColor()` / `glows` in `constants/theme.ts`). They were terracotta on the board; the user changed them on 2026-10-21 (R.7a phone check): they liked the glow, not its color.
+
+Not on: text buttons ("Done", "Save recording", "Sign in", "Continue"), small utility icons (back, close, more), or progress bars. **No ring around buttons or round controls** — it was tried and removed; the glow alone carries the warmth. (Borders on selected cards are fine.)
 
 **Glow levels (settled after tuning).** A single layer at about 60–65% opacity reaching about 40px:
 
 | Element | CSS |
 |---|---|
-| Round controls (mic, play, Mode Choice tile) | `box-shadow: 0 0 36px 4px rgba(227,148,110,0.62)` |
-| Player pause, Generating orb | `box-shadow: 0 0 40px 4px rgba(227,148,110,0.65)` |
-| App icon (Splash) | `filter: drop-shadow(0 0 20px rgba(227,148,110,0.62))` |
-| Trim handles | `box-shadow: 0 0 14px 2px rgba(227,148,110,0.62)` |
-| Warm light behind Record / Player / Generating controls | radial gradient at 55% |
+| Round controls (mic, play, Mode Choice tile) | `box-shadow: 0 0 36px 4px rgba(169,143,196,0.62)` |
+| Generating orb | `box-shadow: 0 0 40px 4px rgba(169,143,196,0.65)` |
+| App icon (Splash) | `filter: drop-shadow(0 0 20px rgba(169,143,196,0.62))` |
+| Trim handles | `box-shadow: 0 0 14px 2px rgba(169,143,196,0.62)` |
+| Light behind Record / Generating controls | radial gradient at 55% |
+| Player moon | the Generating orb's glow at 70%, with dim twinkling stars around it; the play/pause has no glow of its own |
 
 For reference: about 45–55% read as no warmth at all, and two layers at 75–90% with 2–2.5× the reach was too much.
 
@@ -111,12 +119,12 @@ WCAG ratios behind the choices above (AA needs 4.5:1 for normal text, 3:1 for la
 | Dark text on light mauve `#C3AEDA` | 8.73 | Pass |
 | Cream text on mauve `#A98FC4` | 2.47 | **Fail** — why filled controls use dark text |
 | Light mauve text on surface | 7.92 | Pass |
-| Dark icon or text on terracotta | 7.33 | Pass |
-| Terracotta border or text on surface | 6.65 | Pass |
+| Light mauve (selected) border or icon on elevated | 6.66 | Pass |
 | Rose error text on surface | 5.58 | Pass (the old rust `#D9614A` was 4.39 — a fail) |
-| Terracotta vs mauve | 1.18 | Too close to tell apart by color alone |
+| Light mauve (selected) vs mauve (action) | 1.40 | Too close to tell apart by color alone |
+| Light mauve (selected) vs cream text | 1.76 | Too close to tell apart by color alone |
 
-That last row matters: every selected state also has a non-color cue (a filled pill, a border, a wider bar, or a checkmark), so selection never depends on telling orange from purple. Keep it that way when adding new selected states.
+Those last rows matter: every selected state also has a non-color cue (a filled pill with dark text, a border, a wider bar, or a checkmark), so selection never depends on hue. Keep it that way when adding new selected states.
 
 ## Not yet applied
 

@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { GeneratingOrb } from '@/components/GeneratingOrb';
+import { GlowOrb } from '@/components/GlowOrb';
 import { VoiceCard, type VoicePreviewState } from '@/components/VoiceCard';
 import { Button } from '@/components/ui/Button';
 import { DuskBackground } from '@/components/ui/DuskBackground';
@@ -296,7 +296,7 @@ function GeneratingView({
       <DuskBackground opacity={0.7} />
       <NavHeader title="Step 3 of 3" titleStyle="quiet" />
       <View style={styles.generating}>
-        <GeneratingOrb />
+        <GlowOrb ring />
         <View style={styles.generatingText}>
           <Text accessibilityRole="header" style={styles.heading}>
             Creating your affirmation…

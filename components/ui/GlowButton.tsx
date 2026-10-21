@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, View } from 'react-native';
 
-import { colors, glows, gradients } from '@/constants/theme';
+import { colors, glowColor, glows, gradients } from '@/constants/theme';
 
 import { gradientBackground } from './gradient';
 import { Icon, type IconName } from './Icon';
@@ -16,11 +16,14 @@ type GlowButtonProps = {
   accessibilityHint?: string;
   /** Diameter of the gradient button itself. */
   size?: number;
-  /** `hero` is the slightly stronger glow of the Player pause and the Generating orb. */
-  glow?: 'control' | 'hero';
+  /**
+   * `hero` is the slightly stronger glow of the Generating orb; `none` drops it, for the
+   * Player's play/pause, where the moon carries the glow instead (user, R.7a).
+   */
+  glow?: 'control' | 'hero' | 'none';
   /**
    * Diameter of the soft warm light drawn behind the button (the Record and Player
-   * screens' mauve halo with a terracotta core). Omit for no halo.
+   * screens' soft mauve halo). Omit for no halo.
    */
   haloSize?: number;
   /** Grows or shrinks the halo, e.g. with the live recording level (1 = as drawn). */
@@ -32,7 +35,7 @@ type GlowButtonProps = {
 
 /**
  * A big round "voice" control (mic, play, pause): the mauve gradient fill with the
- * terracotta glow from DESIGN.md. Terracotta never appears as a ring, only as glow.
+ * mauve glow from DESIGN.md. Never a ring, only a glow.
  */
 export function GlowButton({
   icon,
@@ -77,7 +80,7 @@ export function GlowButton({
           width: size,
           height: size,
           borderRadius: size / 2,
-          boxShadow: glows[glow],
+          boxShadow: glow === 'none' ? undefined : glows[glow],
           opacity: disabled ? 0.5 : pressed ? 0.9 : 1,
           transform: [{ scale: pressed ? 0.97 : 1 }],
         },
@@ -123,7 +126,7 @@ export function GlowButton({
             transform: [{ scale }],
           },
           gradientBackground(
-            'radial-gradient(closest-side, rgba(227, 148, 110, 0.55) 0%, rgba(227, 148, 110, 0) 68%)',
+            `radial-gradient(closest-side, ${glowColor(0.55)} 0%, ${glowColor(0)} 68%)`,
           ),
         ]}
       />

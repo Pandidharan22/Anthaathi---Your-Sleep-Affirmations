@@ -1,4 +1,4 @@
-import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import PlayerScreen from '@/app/(tabs)/player';
 
@@ -10,7 +10,10 @@ const mockSetActiveForLockScreen = jest.fn();
 const mockAddListener = jest.fn();
 const mockListLocalAffirmations = jest.fn();
 
-let mockPlayerStatus: { playing: boolean; currentTime: number } = { playing: false, currentTime: 0 };
+let mockPlayerStatus: { playing: boolean; currentTime: number } = {
+  playing: false,
+  currentTime: 0,
+};
 type StatusEvent = { currentTime: number; didJustFinish?: boolean };
 let statusListener: ((status: StatusEvent) => void) | null = null;
 
@@ -32,11 +35,23 @@ jest.mock('expo-audio', () => ({
   useAudioPlayerStatus: () => mockPlayerStatus,
 }));
 
+const mockSetOptions = jest.fn();
+const mockNavigation = { setOptions: (...args: unknown[]) => mockSetOptions(...args) };
 jest.mock('expo-router', () => ({
+  useNavigation: () => mockNavigation,
   useFocusEffect: (effect: () => void) => {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     require('react').useEffect(effect, []);
   },
+}));
+
+jest.mock(
+  'react-native-safe-area-context',
+  () => jest.requireActual<{ default: object }>('react-native-safe-area-context/jest/mock').default,
+);
+
+jest.mock('@/lib/waveforms.local', () => ({
+  getOrBuildWaveform: jest.fn().mockResolvedValue(null),
 }));
 
 jest.mock('@/hooks/useAuth', () => ({
@@ -87,6 +102,17 @@ jest.mock('@/lib/playbackSessions.local', () => ({
   logLocalPlaybackSession: (...args: unknown[]) => mockLogLocalPlaybackSession(...args),
 }));
 
+/** The big glowing control: "Pause" while playing, "Resume" while paused. */
+const controlButton = () => screen.getByRole('button', { name: /^(Pause|Resume)$/ });
+/**
+ * The track playing now, by the title it gave the lock screen (the now-playing screen itself
+ * no longer names it, R.7a). Throws until it matches, so it works inside waitFor.
+ */
+const showing = (title: string) => {
+  expect(mockSetActiveForLockScreen).toHaveBeenLastCalledWith(true, { title });
+  return true;
+};
+
 const track1 = {
   id: 'aff-1',
   title: 'Calm',
@@ -94,6 +120,10 @@ const track1 = {
   duration_ms: 10000,
   trim_start_ms: 1000,
   trim_end_ms: 9000,
+  folder_id: 'folder-1',
+  source: 'recorded',
+  voice_id: null,
+  script_text: null,
 };
 const track2 = {
   id: 'aff-2',
@@ -102,6 +132,10 @@ const track2 = {
   duration_ms: 5000,
   trim_start_ms: null,
   trim_end_ms: null,
+  folder_id: 'folder-1',
+  source: 'recorded',
+  voice_id: null,
+  script_text: null,
 };
 
 beforeEach(() => {
@@ -145,8 +179,7 @@ describe('PlayerScreen', () => {
       shouldPlayInBackground: true,
       interruptionMode: 'doNotMix',
     });
-    await waitFor(() => expect(getByText('Track 1 of 1')).toBeTruthy());
-    expect(getByText('Calm')).toBeTruthy();
+    await waitFor(() => expect(showing('Calm')).toBeTruthy());
     expect(mockSeekTo).toHaveBeenCalledWith(1); // trim_start_ms 1000 -> 1s
     expect(mockSetActiveForLockScreen).toHaveBeenCalledWith(true, { title: 'Calm' });
     expect(mockPlay).toHaveBeenCalled();
@@ -159,17 +192,15 @@ describe('PlayerScreen', () => {
     await fireEvent.press(getByText('Calm'));
     await fireEvent.press(getByText('Focus'));
     await fireEvent.press(getByText('Play (2)'));
-    await waitFor(() => expect(getByText('Track 1 of 2')).toBeTruthy());
+    await waitFor(() => expect(showing('Calm')).toBeTruthy());
 
     // Simulate playback crossing track 1's trim_end_ms (9000).
     statusListener?.({ currentTime: 9.1 });
-    await waitFor(() => expect(getByText('Track 2 of 2')).toBeTruthy());
-    expect(getByText('Focus')).toBeTruthy();
+    await waitFor(() => expect(showing('Focus')).toBeTruthy());
 
     // track2 has no trim, so its "end" is duration_ms (5000).
     statusListener?.({ currentTime: 5.1 });
-    await waitFor(() => expect(getByText('Track 1 of 2')).toBeTruthy());
-    expect(getByText('Calm')).toBeTruthy();
+    await waitFor(() => expect(showing('Calm')).toBeTruthy());
   });
 
   it('advances when a file ends naturally before its recorded duration', async () => {
@@ -182,14 +213,14 @@ describe('PlayerScreen', () => {
     await fireEvent.press(getByText('Calm'));
     await fireEvent.press(getByText('Focus'));
     await fireEvent.press(getByText('Play (2)'));
-    await waitFor(() => expect(getByText('Track 1 of 2')).toBeTruthy());
+    await waitFor(() => expect(showing('Calm')).toBeTruthy());
 
     statusListener?.({ currentTime: 9.1 });
-    await waitFor(() => expect(getByText('Track 2 of 2')).toBeTruthy());
+    await waitFor(() => expect(showing('Focus')).toBeTruthy());
 
     // track2 is untrimmed with duration_ms 5000, but the file actually ends at 4.7s.
     statusListener?.({ currentTime: 4.7, didJustFinish: true });
-    await waitFor(() => expect(getByText('Track 1 of 2')).toBeTruthy());
+    await waitFor(() => expect(showing('Calm')).toBeTruthy());
   });
 
   it('does not advance early on an ordinary mid-track status update', async () => {
@@ -199,10 +230,10 @@ describe('PlayerScreen', () => {
     await fireEvent.press(getByText('Calm'));
     await fireEvent.press(getByText('Focus'));
     await fireEvent.press(getByText('Play (2)'));
-    await waitFor(() => expect(getByText('Track 1 of 2')).toBeTruthy());
+    await waitFor(() => expect(showing('Calm')).toBeTruthy());
 
     statusListener?.({ currentTime: 4.7, didJustFinish: false });
-    expect(getByText('Track 1 of 2')).toBeTruthy();
+    expect(showing('Calm')).toBeTruthy();
   });
 
   it('loops a single selected track indefinitely, not just once', async () => {
@@ -211,7 +242,7 @@ describe('PlayerScreen', () => {
 
     await fireEvent.press(getByText('Calm'));
     await fireEvent.press(getByText('Play (1)'));
-    await waitFor(() => expect(getByText('Track 1 of 1')).toBeTruthy());
+    await waitFor(() => expect(showing('Calm')).toBeTruthy());
     expect(mockSeekTo).toHaveBeenCalledTimes(1);
     expect(mockPlay).toHaveBeenCalledTimes(1);
 
@@ -234,9 +265,9 @@ describe('PlayerScreen', () => {
 
     await fireEvent.press(getByText('Calm'));
     await fireEvent.press(getByText('Play (1)'));
-    await waitFor(() => expect(getByText('Stop')).toBeTruthy());
+    await waitFor(() => expect(controlButton()).toBeTruthy());
 
-    await fireEvent.press(getByText('Stop'));
+    await fireEvent(controlButton(), 'longPress');
 
     expect(mockPause).toHaveBeenCalled();
     await waitFor(() => expect(mockLogLocalPlaybackSession).toHaveBeenCalledTimes(1));
@@ -262,20 +293,20 @@ describe('PlayerScreen', () => {
       await fireEvent.press(utils.getByText('Calm'));
       await fireEvent.press(utils.getByText('Focus'));
       await fireEvent.press(utils.getByText('Play (2)'));
-      await waitFor(() => expect(utils.getByText('Track 1 of 2')).toBeTruthy());
+      await waitFor(() => expect(showing('Calm')).toBeTruthy());
       return utils;
     }
 
     it('pauses the affirmation and waits out the gap before advancing', async () => {
       mockGapMs = 300;
-      const { getByText } = await startTwoTracks();
+      await startTwoTracks();
       mockPause.mockClear();
 
       statusListener?.({ currentTime: 9.1 });
 
       expect(mockPause).toHaveBeenCalled();
-      expect(getByText('Track 1 of 2')).toBeTruthy(); // still in the gap
-      await waitFor(() => expect(getByText('Track 2 of 2')).toBeTruthy());
+      expect(showing('Calm')).toBeTruthy(); // still in the gap
+      await waitFor(() => expect(showing('Focus')).toBeTruthy());
     });
 
     it('keeps the ambience bed playing through the gap', async () => {
@@ -289,32 +320,32 @@ describe('PlayerScreen', () => {
 
     it('Pause during the gap holds the queue; Resume then advances immediately', async () => {
       mockGapMs = 60_000;
-      const { getByText } = await startTwoTracks();
+      await startTwoTracks();
       statusListener?.({ currentTime: 9.1 });
 
       // The finished track reports not-playing, but the button must still offer Pause.
-      await waitFor(() => expect(getByText('Pause')).toBeTruthy());
-      await fireEvent.press(getByText('Pause'));
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Pause' })).toBeTruthy());
+      await fireEvent.press(screen.getByRole('button', { name: 'Pause' }));
       expect(mockBedPause).not.toHaveBeenCalled(); // no bed in this test
-      await waitFor(() => expect(getByText('Resume')).toBeTruthy());
-      expect(getByText('Track 1 of 2')).toBeTruthy();
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Resume' })).toBeTruthy());
+      expect(showing('Calm')).toBeTruthy();
 
-      await fireEvent.press(getByText('Resume'));
-      await waitFor(() => expect(getByText('Track 2 of 2')).toBeTruthy());
+      await fireEvent.press(screen.getByRole('button', { name: 'Resume' }));
+      await waitFor(() => expect(showing('Focus')).toBeTruthy());
     });
 
     it('Stop during the gap cancels the pending advance, even if playback restarts straight away', async () => {
       mockGapMs = 300;
       const { getByText } = await startTwoTracks();
       statusListener?.({ currentTime: 9.1 });
-      await fireEvent.press(getByText('Stop'));
-      await waitFor(() => expect(getByText('Player')).toBeTruthy());
+      await fireEvent(controlButton(), 'longPress');
+      await waitFor(() => expect(screen.getByText('Player')).toBeTruthy());
 
       // Restart before the old gap would have elapsed: a leaked timer would skip track 1.
       await fireEvent.press(getByText('Play (2)'));
-      await waitFor(() => expect(getByText('Track 1 of 2')).toBeTruthy());
+      await waitFor(() => expect(showing('Calm')).toBeTruthy());
       await new Promise((resolve) => setTimeout(resolve, 500));
-      expect(getByText('Track 1 of 2')).toBeTruthy();
+      expect(showing('Calm')).toBeTruthy();
     });
   });
 
@@ -324,7 +355,7 @@ describe('PlayerScreen', () => {
       await waitFor(() => expect(utils.getByText('Calm')).toBeTruthy());
       await fireEvent.press(utils.getByText(label));
       await fireEvent.press(utils.getByText(`Play (${count})`));
-      await waitFor(() => expect(utils.getByText('Stop')).toBeTruthy());
+      await waitFor(() => expect(controlButton()).toBeTruthy());
       return utils;
     }
 
@@ -350,9 +381,9 @@ describe('PlayerScreen', () => {
     it('pauses the bed together with the affirmation', async () => {
       mockGetBedPreference.mockResolvedValue({ bedId: 'rain', mix: 0.75 });
       mockPlayerStatus = { playing: true, currentTime: 0 };
-      const { getByText } = await startWithTrack();
+      await startWithTrack();
 
-      await fireEvent.press(getByText('Pause'));
+      await fireEvent.press(screen.getByRole('button', { name: 'Pause' }));
 
       expect(mockPause).toHaveBeenCalled();
       expect(mockBedPause).toHaveBeenCalledTimes(1);
@@ -362,9 +393,9 @@ describe('PlayerScreen', () => {
     it('resumes the bed together with the affirmation', async () => {
       mockGetBedPreference.mockResolvedValue({ bedId: 'rain', mix: 0.75 });
       mockPlayerStatus = { playing: false, currentTime: 0 };
-      const { getByText } = await startWithTrack();
+      await startWithTrack();
 
-      await fireEvent.press(getByText('Resume'));
+      await fireEvent.press(screen.getByRole('button', { name: 'Resume' }));
 
       expect(mockBedResume).toHaveBeenCalledTimes(1);
       expect(mockBedPause).not.toHaveBeenCalled();
@@ -372,8 +403,8 @@ describe('PlayerScreen', () => {
 
     it('stops the bed on manual Stop', async () => {
       mockGetBedPreference.mockResolvedValue({ bedId: 'rain', mix: 0.75 });
-      const { getByText } = await startWithTrack();
-      await fireEvent.press(getByText('Stop'));
+      await startWithTrack();
+      await fireEvent(controlButton(), 'longPress');
       expect(mockBedStop).toHaveBeenCalledTimes(1);
     });
 
@@ -402,7 +433,8 @@ describe('PlayerScreen', () => {
       await waitFor(() => expect(utils.getByText('Calm')).toBeTruthy());
       await fireEvent.press(utils.getByText('Calm'));
       await fireEvent.press(utils.getByText('Play (1)'));
-      await waitFor(() => expect(utils.getByText('Stop')).toBeTruthy());
+      await waitFor(() => expect(controlButton()).toBeTruthy());
+      await fireEvent.press(screen.getByRole('button', { name: /^Ambience/ }));
       return utils;
     }
 
@@ -456,7 +488,7 @@ describe('PlayerScreen', () => {
 
       await fireEvent.press(utils.getByText('Calm'));
       await fireEvent.press(utils.getByText('Play (1)'));
-      await waitFor(() => expect(utils.getByText('Stop')).toBeTruthy());
+      await waitFor(() => expect(controlButton()).toBeTruthy());
 
       expect(mockBedStop).toHaveBeenCalledTimes(1); // the preview
       expect(mockStartBedLoop).toHaveBeenCalledTimes(2);
@@ -514,6 +546,94 @@ describe('PlayerScreen', () => {
 
       await fireEvent.press(utils.getByText('Ocean'));
       expect(mockBedPause).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('now playing (R.7a)', () => {
+    async function start(titles: string[]) {
+      await render(<PlayerScreen />);
+      await waitFor(() => expect(screen.getByText('Calm')).toBeTruthy());
+      for (const title of titles) await fireEvent.press(screen.getByText(title));
+      await fireEvent.press(screen.getByText(`Play (${titles.length})`));
+      await waitFor(() => expect(controlButton()).toBeTruthy());
+    }
+
+    it('shows the moon screen: no header, no tab bar, and no details of what plays', async () => {
+      await start(['Calm']);
+      expect(screen.getByText('Now looping')).toBeTruthy();
+      expect(screen.getByText('Loop 1')).toBeTruthy();
+      expect(screen.getByText('No sleep timer')).toBeTruthy();
+      expect(screen.queryByText('Calm')).toBeNull();
+      expect(screen.queryByText('Self-Recorded')).toBeNull();
+      expect(mockSetOptions).toHaveBeenLastCalledWith({
+        headerShown: false,
+        tabBarStyle: { display: 'none' },
+      });
+
+      await fireEvent.press(screen.getByRole('button', { name: 'Back' }));
+      expect(mockSetOptions).toHaveBeenLastCalledWith({
+        headerShown: true,
+        tabBarStyle: undefined,
+      });
+    });
+
+    it('counts loops through the whole selection', async () => {
+      await start(['Calm', 'Focus']);
+      statusListener?.({ currentTime: 9.1 });
+      await waitFor(() => expect(showing('Focus')).toBeTruthy());
+      expect(screen.getByText('Loop 1')).toBeTruthy();
+      statusListener?.({ currentTime: 5 });
+      await waitFor(() => expect(screen.getByText('Loop 2')).toBeTruthy());
+    });
+
+    it('with loop off, finishes the pass in progress and then ends the session', async () => {
+      await start(['Calm', 'Focus']);
+      const loop = screen.getByRole('switch', { name: 'Loop' });
+      expect(loop.props.accessibilityState).toMatchObject({ checked: true });
+      await fireEvent.press(loop);
+      expect(screen.getByRole('switch', { name: 'Loop' }).props.accessibilityState).toMatchObject({
+        checked: false,
+      });
+
+      statusListener?.({ currentTime: 9.1 });
+      await waitFor(() => expect(showing('Focus')).toBeTruthy());
+      expect(mockLogLocalPlaybackSession).not.toHaveBeenCalled();
+
+      statusListener?.({ currentTime: 5 });
+      await waitFor(() => expect(mockLogLocalPlaybackSession).toHaveBeenCalledTimes(1));
+      expect(screen.getByText('Player')).toBeTruthy();
+    });
+
+    it('Back shows the chooser while it keeps playing, and the Now playing card returns', async () => {
+      await start(['Calm']);
+      mockPause.mockClear();
+      await fireEvent.press(screen.getByRole('button', { name: 'Back' }));
+
+      expect(screen.getByText('Player')).toBeTruthy();
+      expect(mockPause).not.toHaveBeenCalled();
+      expect(mockLogLocalPlaybackSession).not.toHaveBeenCalled();
+
+      await fireEvent.press(screen.getByRole('button', { name: 'Now playing: Calm. Open' }));
+      expect(showing('Calm')).toBeTruthy();
+    });
+
+    it('a sleep timer chosen mid-session counts from then', async () => {
+      await start(['Calm']);
+      await fireEvent.press(screen.getByRole('button', { name: 'No sleep timer. Set one' }));
+      await fireEvent.press(screen.getByRole('button', { name: '30 min' }));
+
+      expect(screen.getByText('Sleep timer: 30m')).toBeTruthy();
+      expect(screen.getByText('⏱ 30m')).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Sleep timer, 30 minutes. Change' })).toBeTruthy();
+    });
+
+    it('End session ends it and logs it', async () => {
+      await start(['Calm']);
+
+      await fireEvent.press(screen.getByRole('button', { name: 'End session' }));
+
+      await waitFor(() => expect(mockLogLocalPlaybackSession).toHaveBeenCalledTimes(1));
+      expect(screen.getByText('Player')).toBeTruthy();
     });
   });
 

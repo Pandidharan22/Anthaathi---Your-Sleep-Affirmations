@@ -2,7 +2,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 
 import { gradientBackground } from '@/components/ui/gradient';
 import { Icon } from '@/components/ui/Icon';
-import { colors, fonts, gradients, radii, typography } from '@/constants/theme';
+import { colors, fonts, glows, gradients, radii, typography } from '@/constants/theme';
 import type { VoiceOption } from '@/lib/aiVoice';
 
 export type VoicePreviewState = 'idle' | 'loading' | 'playing';
@@ -22,7 +22,7 @@ const MINI_WAVE = [0.4, 0.8, 0.55, 0.95, 0.6, 0.4];
 /**
  * One voice on the Choose a voice step (mockup #22): a preview button, the name with a
  * gender chip and a few words on how it sounds, and a radio on the right. The chosen card
- * gets a terracotta border and a soft glow; while its preview plays, a small waveform
+ * gets a light mauve border and a soft glow; while its preview plays, a small waveform
  * replaces the radio.
  */
 export function VoiceCard({
@@ -129,7 +129,7 @@ const styles = StyleSheet.create({
   },
   selected: {
     borderColor: colors.selected,
-    boxShadow: '0px 0px 20px -6px rgba(227, 148, 110, 0.35)',
+    boxShadow: glows.card,
   },
   previewButton: {
     width: 44,

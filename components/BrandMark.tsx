@@ -4,7 +4,7 @@ import Svg, { Defs, Image as SvgImage, LinearGradient, Mask, Rect, Stop } from '
 import { colors } from '@/constants/theme';
 
 const MARK = require('@/assets/brand/anthaathi-mark-cradle.png');
-// Pre-blurred terracotta glow, built from the cutout by scripts/make-brand-glow.js.
+// Pre-blurred mauve glow, built from the cutout by scripts/make-brand-glow.js.
 const GLOW = require('@/assets/brand/anthaathi-mark-cradle-glow.png');
 // Source sizes: the cutout is 638 × 328, the glow adds GLOW_PAD on every side.
 const MARK_W = 638;
@@ -16,11 +16,11 @@ type BrandMarkProps = {
 };
 
 /**
- * The "Cradle" logo (crescent + அ) with its terracotta glow, as on the Splash mockup.
+ * The "Cradle" logo (crescent + அ) with its mauve glow, as on the Splash mockup.
  *
  * The PNG is white + alpha (docs/DESIGN.md "Logo"), so it is drawn as an SVG mask over
  * the board's light mauve → mauve gradient. The glow is a pre-baked image of the
- * mockup's `drop-shadow(0 0 20px rgba(227,148,110,0.62))`, drawn at the same scale and
+ * mockup's `drop-shadow(0 0 20px ...)` (now in the glow mauve), drawn at the same scale and
  * position as the mark, so it follows the mark's shape exactly.
  *
  * Earlier attempts failed on Android: masked-view with an Image mask and a CSS

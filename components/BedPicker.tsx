@@ -1,8 +1,8 @@
 import Slider from '@react-native-community/slider';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
-import { radii, spacing, typography } from '@/constants/theme';
-import { useThemeColors } from '@/hooks/useThemeColors';
+import { Chip } from '@/components/ui/Chip';
+import { colors, fonts, typography } from '@/constants/theme';
 import { mixGains } from '@/lib/bedPrefs';
 import { BEDS } from '@/lib/beds';
 
@@ -14,66 +14,50 @@ type Props = {
   onMixChange: (mix: number) => void;
   /** When the slider is released, for saving. */
   onMixCommit: (mix: number) => void;
+  /** Hidden in the Player's Ambience sheet, whose title already says it. */
+  showTitle?: boolean;
 };
 
 /**
  * The audio studio controls (FR-304): which ambience bed plays under the affirmations, and one
- * slider balancing the voice against it. Used on the Player both before Play and while playing.
- * The slider only appears with a bed chosen: without one there is nothing to balance, and the
- * voice plays at full.
+ * slider balancing the voice against it. In the Velvet Dusk style since R.7a: the app's chips
+ * (filled light mauve when chosen), an uppercase label and a mauve slider. The slider only appears
+ * with a bed chosen: without one there is nothing to balance, and the voice plays at full.
  */
-export function BedPicker({ bedId, mix, onBedChange, onMixChange, onMixCommit }: Props) {
-  const colors = useThemeColors();
+export function BedPicker({
+  bedId,
+  mix,
+  onBedChange,
+  onMixChange,
+  onMixCommit,
+  showTitle = true,
+}: Props) {
   const hasBed = bedId !== null;
   const gains = mixGains(mix, hasBed);
   const percent = (gain: number) => Math.round(gain * 100);
 
   return (
     <View style={styles.container}>
-      <Text style={[styles.label, { color: colors.textSecondary }]}>Ambience</Text>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.chipScroll}
-        contentContainerStyle={styles.chipRow}
-      >
+      {showTitle ? <Text style={[typography.label, styles.label]}>Ambience</Text> : null}
+      <View style={styles.chips}>
         {[null, ...BEDS].map((bed) => {
           const id = bed?.id ?? null;
-          const selected = bedId === id;
           return (
-            <Pressable
+            <Chip
               key={id ?? 'none'}
-              onPress={() => onBedChange(id)}
-              accessibilityRole="button"
+              icon={bed ? 'music' : undefined}
+              label={bed?.label ?? 'None'}
+              selected={bedId === id}
               accessibilityLabel={bed ? `${bed.label} ambience` : 'No ambience'}
-              accessibilityState={{ selected }}
-              hitSlop={CHIP_HIT_SLOP}
-              style={[
-                styles.chip,
-                {
-                  borderColor: selected ? colors.selected : colors.border,
-                  backgroundColor: selected ? colors.selected : 'transparent',
-                },
-              ]}
-            >
-              <Text style={{ color: selected ? colors.background : colors.textPrimary }}>
-                {bed?.label ?? 'None'}
-              </Text>
-            </Pressable>
+              onPress={() => onBedChange(id)}
+            />
           );
         })}
-      </ScrollView>
+      </View>
 
       {hasBed ? (
         <View style={styles.mix}>
-          <View style={styles.mixLabels}>
-            <Text style={[styles.label, { color: colors.textSecondary }]}>
-              More ambience · {percent(gains.bed)}%
-            </Text>
-            <Text style={[styles.label, { color: colors.textSecondary }]}>
-              More voice · {percent(gains.voice)}%
-            </Text>
-          </View>
+          <Text style={[typography.label, styles.label]}>Balance</Text>
           <Slider
             style={styles.slider}
             minimumValue={0}
@@ -82,38 +66,68 @@ export function BedPicker({ bedId, mix, onBedChange, onMixChange, onMixCommit }:
             value={mix}
             onValueChange={onMixChange}
             onSlidingComplete={onMixCommit}
-            minimumTrackTintColor={colors.textSecondary}
-            maximumTrackTintColor={colors.textSecondary}
+            // A balance, not a fill: both sides the same, the thumb in the accent.
+            minimumTrackTintColor={colors.action}
+            maximumTrackTintColor={colors.action}
             thumbTintColor={colors.accent}
             accessibilityLabel="Voice and ambience balance"
             accessibilityValue={{
               text: `Voice ${percent(gains.voice)} percent, ambience ${percent(gains.bed)} percent`,
             }}
           />
+          <View style={styles.mixLabels}>
+            <Text style={styles.mixText}>More ambience · {percent(gains.bed)}%</Text>
+            <Text style={styles.mixText}>More voice · {percent(gains.voice)}%</Text>
+          </View>
         </View>
-      ) : null}
+      ) : (
+        <Text style={styles.note}>Choose a sound to play softly under your affirmations.</Text>
+      )}
     </View>
   );
 }
 
-// The chips are ~30 pt tall; this makes their touch area 46 pt (NFR-401) without making them
-// look bulkier. Android ignores hit slop outside the parent, so chip rows pad by the same amount
-// (CHIP_ROW_PADDING) to keep it inside their ScrollView.
+// The chips are about 24 pt tall; Chip's own hit slop brings them to the 44 pt minimum
+// (NFR-401). Android ignores hit slop outside the parent, so chip rows pad by this much.
 export const CHIP_HIT_SLOP = { top: 8, bottom: 8 };
 export const CHIP_ROW_PADDING = { paddingVertical: 8 };
 
 const styles = StyleSheet.create({
-  container: { alignSelf: 'stretch', gap: spacing.xs },
-  label: { fontSize: typography.caption.fontSize, lineHeight: typography.caption.lineHeight },
-  chipScroll: { flexGrow: 0 },
-  chipRow: { gap: spacing.sm, ...CHIP_ROW_PADDING },
-  chip: {
-    borderWidth: 1,
-    borderRadius: radii.full,
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.md,
+  container: {
+    alignSelf: 'stretch',
+    gap: 14,
   },
-  mix: { gap: spacing.xs },
-  mixLabels: { flexDirection: 'row', justifyContent: 'space-between' },
-  slider: { alignSelf: 'stretch', height: 44 },
+  label: {
+    color: colors.textSecondary,
+  },
+  chips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    // Room for the chips' extended touch area (hit slop can't reach past the parent).
+    paddingVertical: 10,
+    marginVertical: -10,
+  },
+  mix: {
+    gap: 4,
+    marginTop: 6,
+  },
+  slider: {
+    alignSelf: 'stretch',
+    height: 44,
+  },
+  mixLabels: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  mixText: {
+    ...typography.caption,
+    fontFamily: fonts.sansSemiBold,
+    color: colors.textMuted,
+    fontVariant: ['tabular-nums'],
+  },
+  note: {
+    ...typography.caption,
+    color: colors.textMuted,
+  },
 });

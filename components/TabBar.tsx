@@ -1,5 +1,5 @@
 import type { BottomTabBarProps } from 'expo-router/tabs';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 
 import { Icon, type IconName } from '@/components/ui/Icon';
 import { colors, fonts } from '@/constants/theme';
@@ -15,11 +15,17 @@ const TAB_ICONS: Record<string, { icon: IconName; filledWhenActive?: boolean }> 
 };
 
 /**
- * The board's tab bar: icon + label per tab, with the active tab's icon in a terracotta
+ * The board's tab bar: icon + label per tab, with the active tab's icon in a light mauve
  * pill ("this is chosen"). The pill and the label turning from muted to cream are the
  * non-color cues; color alone never marks the active tab.
  */
 export function TabBar({ state, descriptors, navigation, insets }: BottomTabBarProps) {
+  // A screen can hide the bar with tabBarStyle display 'none' (the Player while a session
+  // plays, R.7a); a custom tab bar has to honor that itself.
+  const focusedOptions = descriptors[state.routes[state.index].key].options;
+  const barStyle = StyleSheet.flatten(focusedOptions.tabBarStyle) as ViewStyle | undefined;
+  if (barStyle?.display === 'none') return null;
+
   return (
     <View accessibilityRole="tablist" style={[styles.bar, { paddingBottom: insets.bottom + 10 }]}>
       {state.routes.map((route, index) => {

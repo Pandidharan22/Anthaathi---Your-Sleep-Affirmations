@@ -1,11 +1,11 @@
 /* global __dirname */
 /**
- * Build assets/brand/anthaathi-mark-cradle-glow.png: the logo's terracotta glow, baked
+ * Build assets/brand/anthaathi-mark-cradle-glow.png: the logo's glow, baked
  * from the cutout so the app can draw it as a plain image behind the mark (the runtime
  * routes — a CSS drop-shadow filter, Image blurRadius — either drew nothing on Android
  * or couldn't spread past the image's own edges).
  *
- * Matches the Splash mockup's `drop-shadow(0 0 20px rgba(227,148,110,0.62))` on a
+ * Matches the Splash mockup's `drop-shadow(0 0 20px ...)` at 0.62 opacity on a
  * 96px-wide mark: a CSS blur radius of 20px is a Gaussian with sigma 10px, which at
  * 96/638 scale is ~66 source pixels. The output is padded by PAD on every side so the
  * glow has room to fade out; components/BrandMark.tsx must use the same PAD.
@@ -23,7 +23,7 @@ const OUT = path.join(BRAND, 'anthaathi-mark-cradle-glow.png');
 const MOCKUP_WIDTH = 96;
 const CSS_BLUR_RADIUS = 20;
 const OPACITY = 0.62;
-const COLOR = [227, 148, 110]; // colors.selected (terracotta)
+const COLOR = [169, 143, 196]; // the glow mauve, colors.action (terracotta until R.7a)
 const PAD = 200; // ~3 sigma, in source pixels
 
 const src = PNG.sync.read(fs.readFileSync(SRC));

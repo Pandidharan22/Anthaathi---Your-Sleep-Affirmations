@@ -4,21 +4,25 @@ import {
   useAudioPlayerStatus,
   type AudioPlayer,
 } from 'expo-audio';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useNavigation } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { BackHandler, FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { BedPicker, CHIP_HIT_SLOP, CHIP_ROW_PADDING } from '@/components/BedPicker';
+import { NowPlaying } from '@/components/NowPlaying';
+import { Chip } from '@/components/ui/Chip';
+import { Sheet } from '@/components/ui/Sheet';
 import { radii, spacing, typography } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
+import { usePlaybackProgress } from '@/hooks/usePlaybackProgress';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { listLocalAffirmations, type LocalAffirmation } from '@/lib/affirmations.local';
 import { startBedLoop, type BedLoop } from '@/lib/bedLoop';
 import { DEFAULT_MIX, getBedPreference, mixGains, setBedPreference } from '@/lib/bedPrefs';
 import { getBed, type Bed } from '@/lib/beds';
-import { formatDuration } from '@/lib/format';
 import { logLocalPlaybackSession } from '@/lib/playbackSessions.local';
 import { AFFIRMATION_GAP_MS } from '@/lib/voiceStyle';
+import { getOrBuildWaveform } from '@/lib/waveforms.local';
 
 const SLEEP_TIMER_OPTIONS = [15, 30, 45, 60] as const;
 /** Tapping a bed before Play lets you hear it for this long. */
@@ -28,6 +32,11 @@ const AUDIO_MODE = {
   shouldPlayInBackground: true,
   interruptionMode: 'doNotMix',
 } as const;
+
+/** When a sleep timer of `minutes`, set now, ends; null for no timer. */
+function timerEndFromNow(minutes: number | null): number | null {
+  return minutes ? Date.now() + minutes * 60_000 : null;
+}
 
 // A plain function so the mix can be applied from event handlers: the React Compiler's lint
 // rules forbid assigning to a hook's return value inline.
@@ -47,7 +56,9 @@ export default function PlayerScreen() {
   const [queue, setQueue] = useState<LocalAffirmation[]>([]);
   const [playCount, setPlayCount] = useState(0);
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
-  const timerEndRef = useRef<number | null>(null);
+  // When the sleep timer ends the session (ms since epoch), or null without one. State, not a
+  // ref, so setting a timer partway through a session starts the countdown (R.7a).
+  const [timerEndAt, setTimerEndAt] = useState<number | null>(null);
   const sessionStartRef = useRef<number | null>(null);
   // The ambience bed (FR-304) lives for the whole session: queue advances and single-track
   // repeats never touch it, only start/pause/resume/stop do.
@@ -67,6 +78,16 @@ export default function PlayerScreen() {
   // so Resume should advance straight away rather than replay the finished track.
   const gapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [gapState, setGapState] = useState<'none' | 'waiting' | 'paused'>('none');
+  // R.7a: Back shows the chooser while the session keeps playing; a card there comes back.
+  const [showNowPlaying, setShowNowPlaying] = useState(true);
+  // Loop on repeats the selection all night. Off finishes the pass in progress, then ends the
+  // session: it ends once the play count reaches stopAtRef (the end of that pass).
+  const [loopOn, setLoopOn] = useState(true);
+  const stopAtRef = useRef<number | null>(null);
+  // Lets the advance listener end the session without depending on handleStop's identity.
+  const endSessionRef = useRef<() => void>(() => {});
+  const [sheet, setSheet] = useState<'timer' | 'ambience' | null>(null);
+  const [levels, setLevels] = useState<number[] | null>(null);
 
   const clearGapTimer = useCallback(() => {
     if (gapTimerRef.current !== null) clearTimeout(gapTimerRef.current);
@@ -115,6 +136,28 @@ export default function PlayerScreen() {
   const player = useAudioPlayer(currentTrack?.local_uri);
   const status = useAudioPlayerStatus(player);
 
+  // The current track's waveform (R.7a), built from the file for AI Guided audio.
+  const trackId = currentTrack?.id;
+  const trackUri = currentTrack?.local_uri;
+  useEffect(() => {
+    if (!trackId || !trackUri) return;
+    let cancelled = false;
+    getOrBuildWaveform({ id: trackId, local_uri: trackUri }).then((waveform) => {
+      if (!cancelled) setLevels(waveform?.levels ?? null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [trackId, trackUri]);
+
+  const trackDurationMs = currentTrack?.duration_ms ?? 0;
+  const progress = usePlaybackProgress({
+    playing: status.playing,
+    positionMs: Math.min(Math.max(status.currentTime * 1000, 0), trackDurationMs),
+    stopMs: currentTrack ? (currentTrack.trim_end_ms ?? currentTrack.duration_ms) : 0,
+    durationMs: trackDurationMs,
+  });
+
   // Start (or restart, for a single-track loop) the current queue position:
   // seek past any trim start, claim lock-screen controls (required on Android
   // for sustained background playback beyond ~3 minutes), and play.
@@ -147,6 +190,10 @@ export default function PlayerScreen() {
       if (!advanced && (s.didJustFinish || s.currentTime * 1000 >= trimEndMs - 50)) {
         advanced = true;
         player.pause();
+        if (stopAtRef.current !== null && playCount + 1 >= stopAtRef.current) {
+          endSessionRef.current();
+          return;
+        }
         setGapState('waiting');
         gapTimerRef.current = setTimeout(() => {
           gapTimerRef.current = null;
@@ -178,15 +225,21 @@ export default function PlayerScreen() {
     setScreenState('selecting');
     setPlayCount(0);
     setRemainingSeconds(null);
-    timerEndRef.current = null;
+    setTimerEndAt(null);
+    setSheet(null);
     sessionStartRef.current = null;
+    stopAtRef.current = null;
   }, [player, user, clearGapTimer]);
+
+  useEffect(() => {
+    endSessionRef.current = handleStop;
+  });
 
   // Sleep timer countdown.
   useEffect(() => {
-    if (screenState !== 'playing' || timerEndRef.current === null) return;
+    if (screenState !== 'playing' || timerEndAt === null) return;
     const interval = setInterval(() => {
-      const remainingMs = timerEndRef.current! - Date.now();
+      const remainingMs = timerEndAt - Date.now();
       if (remainingMs <= 0) {
         handleStop();
         return;
@@ -194,7 +247,7 @@ export default function PlayerScreen() {
       setRemainingSeconds(Math.round(remainingMs / 1000));
     }, 1000);
     return () => clearInterval(interval);
-  }, [screenState, handleStop]);
+  }, [screenState, timerEndAt, handleStop]);
 
   function toggleSelected(id: string) {
     setSelectedIds((prev) => {
@@ -215,6 +268,25 @@ export default function PlayerScreen() {
   }
 
   const isPaused = !(status.playing || gapState === 'waiting');
+
+  // The now-playing screen has the whole display (user, R.7a): no "Player" header, no tab
+  // bar. Back (the arrow or Android's gesture) returns to the chooser, which brings them back.
+  const nowPlayingShown = screenState === 'playing' && currentTrack !== undefined && showNowPlaying;
+  const navigation = useNavigation();
+  useEffect(() => {
+    navigation.setOptions({
+      headerShown: !nowPlayingShown,
+      tabBarStyle: nowPlayingShown ? { display: 'none' } : undefined,
+    });
+  }, [navigation, nowPlayingShown]);
+  useEffect(() => {
+    if (!nowPlayingShown) return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      setShowNowPlaying(false);
+      return true;
+    });
+    return () => subscription.remove();
+  }, [nowPlayingShown]);
 
   function handleBedChange(nextBedId: string | null) {
     bedIdRef.current = nextBedId;
@@ -262,6 +334,8 @@ export default function PlayerScreen() {
     const selected = affirmations.filter((a) => selectedIds.has(a.id));
     if (selected.length === 0) return;
 
+    // Starting from the chooser while a session plays replaces it (and logs the old one).
+    if (screenState === 'playing') handleStop();
     stopPreview();
     await setAudioModeAsync(AUDIO_MODE);
 
@@ -270,79 +344,122 @@ export default function PlayerScreen() {
     bedRef.current = bed ? startBedLoop(bed, mixGains(mixRef.current, true).bed) : null;
 
     sessionStartRef.current = Date.now();
-    timerEndRef.current = sleepTimerMinutes ? Date.now() + sleepTimerMinutes * 60_000 : null;
+    stopAtRef.current = loopOn ? null : selected.length;
+    setTimerEndAt(timerEndFromNow(sleepTimerMinutes));
     setRemainingSeconds(sleepTimerMinutes ? sleepTimerMinutes * 60 : null);
     setQueue(selected);
     setPlayCount(0);
+    setShowNowPlaying(true);
     setScreenState('playing');
   }
 
-  if (screenState === 'playing' && currentTrack) {
-    const trimStartMs = currentTrack.trim_start_ms ?? 0;
-    const trimEndMs = currentTrack.trim_end_ms ?? currentTrack.duration_ms;
-    const elapsedMs = Math.max(0, status.currentTime * 1000 - trimStartMs);
-    const trackDurationMs = trimEndMs - trimStartMs;
+  function handleTogglePause() {
+    if (!isPaused) {
+      player.pause();
+      bedRef.current?.pause();
+      if (gapState === 'waiting') {
+        clearGapTimer();
+        setGapState('paused');
+      }
+      return;
+    }
+    bedRef.current?.resume();
+    if (gapState === 'paused') {
+      setGapState('none');
+      if (stopAtRef.current !== null && playCount + 1 >= stopAtRef.current) {
+        handleStop();
+        return;
+      }
+      setPlayCount((count) => count + 1);
+    } else {
+      player.play();
+    }
+  }
 
+  function handleToggleLoop() {
+    const next = !loopOn;
+    setLoopOn(next);
+    stopAtRef.current =
+      next || queue.length === 0 ? null : (Math.floor(playCount / queue.length) + 1) * queue.length;
+  }
+
+  function handleTimerChoice(minutes: number | null) {
+    setSleepTimerMinutes(minutes);
+    setSheet(null);
+    if (screenState !== 'playing') return;
+    // A timer chosen mid-session counts from now.
+    setTimerEndAt(timerEndFromNow(minutes));
+    setRemainingSeconds(minutes ? minutes * 60 : null);
+  }
+
+  if (nowPlayingShown) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <Text style={[styles.trackCounter, { color: colors.textSecondary }]}>
-          Track {currentIndex + 1} of {queue.length}
-        </Text>
-        <Text style={[styles.title, { color: colors.textPrimary }]}>{currentTrack.title}</Text>
-        <Text style={[styles.time, { color: colors.textPrimary }]}>
-          {formatDuration(elapsedMs)} / {formatDuration(trackDurationMs)}
-        </Text>
-
-        {remainingSeconds !== null ? (
-          <Text style={[styles.timerRemaining, { color: colors.textSecondary }]}>
-            Sleep timer: {formatDuration(remainingSeconds * 1000)} remaining
-          </Text>
-        ) : null}
-
-        <Pressable
-          onPress={() => {
-            if (!isPaused) {
-              player.pause();
-              bedRef.current?.pause();
-              if (gapState === 'waiting') {
-                clearGapTimer();
-                setGapState('paused');
-              }
-            } else {
-              bedRef.current?.resume();
-              if (gapState === 'paused') {
-                setGapState('none');
-                setPlayCount((count) => count + 1);
-              } else {
-                player.play();
-              }
-            }
-          }}
-          accessibilityRole="button"
-          style={[styles.primaryButton, { backgroundColor: colors.action }]}
-        >
-          <Text style={[styles.primaryButtonLabel, { color: colors.background }]}>
-            {isPaused ? 'Resume' : 'Pause'}
-          </Text>
-        </Pressable>
-
-        <Pressable
-          onPress={handleStop}
-          accessibilityRole="button"
-          style={[styles.secondaryButton, { borderColor: colors.error }]}
-        >
-          <Text style={{ color: colors.error }}>Stop</Text>
-        </Pressable>
-
-        {/* Set apart from Stop so reaching for the sound controls can't end the session. */}
-        <View style={styles.studioSection}>{bedPicker}</View>
-      </View>
+      <>
+        <NowPlaying
+          track={currentTrack}
+          levels={levels}
+          progress={progress}
+          paused={isPaused}
+          loopNumber={queue.length ? Math.floor(playCount / queue.length) + 1 : 1}
+          loopOn={loopOn}
+          remainingSeconds={remainingSeconds}
+          timerMinutes={sleepTimerMinutes}
+          ambienceOn={bedId !== null}
+          onTogglePause={handleTogglePause}
+          onEnd={handleStop}
+          onBack={() => setShowNowPlaying(false)}
+          onToggleLoop={handleToggleLoop}
+          onOpenTimer={() => setSheet('timer')}
+          onOpenAmbience={() => setSheet('ambience')}
+        />
+        <Sheet visible={sheet === 'timer'} title="Sleep timer" onClose={() => setSheet(null)}>
+          <View style={styles.sheetChips}>
+            {[...SLEEP_TIMER_OPTIONS, null].map((minutes) => (
+              <Chip
+                key={minutes ?? 'off'}
+                label={minutes ? `${minutes} min` : 'No timer'}
+                selected={sleepTimerMinutes === minutes}
+                onPress={() => handleTimerChoice(minutes)}
+              />
+            ))}
+          </View>
+        </Sheet>
+        <Sheet visible={sheet === 'ambience'} title="Ambience" onClose={() => setSheet(null)}>
+          <BedPicker
+            bedId={bedId}
+            mix={mix}
+            onBedChange={handleBedChange}
+            onMixChange={handleMixChange}
+            onMixCommit={handleMixCommit}
+            showTitle={false}
+          />
+        </Sheet>
+      </>
     );
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'flex-start' }]}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: colors.background, justifyContent: 'flex-start' },
+      ]}
+    >
       <Text style={[styles.title, { color: colors.textPrimary }]}>Player</Text>
+
+      {screenState === 'playing' && currentTrack ? (
+        <Pressable
+          onPress={() => setShowNowPlaying(true)}
+          accessibilityRole="button"
+          accessibilityLabel={`Now playing: ${currentTrack.title}. Open`}
+          style={[styles.nowPlayingCard, { backgroundColor: colors.surface }]}
+        >
+          <Text style={[styles.sectionLabel, { color: colors.accent }]}>Now playing</Text>
+          <Text style={[styles.rowTitle, { color: colors.textPrimary }]} numberOfLines={1}>
+            {currentTrack.title}
+          </Text>
+        </Pressable>
+      ) : null}
 
       {affirmations.length === 0 ? (
         <Text style={[styles.description, { color: colors.textSecondary }]}>
@@ -429,6 +546,20 @@ export default function PlayerScreen() {
 }
 
 const styles = StyleSheet.create({
+  nowPlayingCard: {
+    alignSelf: 'stretch',
+    borderRadius: radii.lg,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    gap: 2,
+  },
+  sheetChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    // Room for the chips' extended touch area (hit slop can't reach past the parent).
+    paddingVertical: 10,
+  },
   container: {
     flex: 1,
     alignItems: 'center',
@@ -447,18 +578,6 @@ const styles = StyleSheet.create({
     lineHeight: typography.body.lineHeight,
     textAlign: 'center',
   },
-  trackCounter: {
-    fontSize: typography.caption.fontSize,
-  },
-  time: {
-    fontSize: typography.display.fontSize,
-    lineHeight: typography.display.lineHeight,
-    fontWeight: '700',
-    fontVariant: ['tabular-nums'],
-  },
-  timerRemaining: {
-    fontSize: typography.body.fontSize,
-  },
   primaryButton: {
     borderRadius: radii.md,
     paddingVertical: spacing.sm,
@@ -471,14 +590,6 @@ const styles = StyleSheet.create({
   primaryButtonLabel: {
     fontSize: typography.body.fontSize,
     fontWeight: '600',
-  },
-  secondaryButton: {
-    borderWidth: 1,
-    borderRadius: radii.md,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   list: {
     width: '100%',
@@ -508,10 +619,6 @@ const styles = StyleSheet.create({
   sectionLabel: {
     fontSize: typography.caption.fontSize,
     alignSelf: 'flex-start',
-  },
-  studioSection: {
-    alignSelf: 'stretch',
-    marginTop: spacing.lg,
   },
   chipScroll: {
     flexGrow: 0,

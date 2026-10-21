@@ -1,18 +1,9 @@
 import { useState } from 'react';
-import {
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/ui/Button';
+import { Sheet } from '@/components/ui/Sheet';
 import { TextField } from '@/components/ui/TextField';
-import { colors, radii, typography } from '@/constants/theme';
 
 type FolderNameSheetProps = {
   visible: boolean;
@@ -34,26 +25,18 @@ const ERROR_MESSAGE = 'Something went wrong. Please try again.';
  */
 export function FolderNameSheet(props: FolderNameSheetProps) {
   return (
-    <Modal
-      visible={props.visible}
-      transparent
-      animationType="fade"
-      onRequestClose={props.onClose}
-      statusBarTranslucent
-    >
-      {props.visible ? <SheetBody {...props} /> : null}
-    </Modal>
+    <Sheet visible={props.visible} title={props.title} onClose={props.onClose}>
+      <FolderNameForm {...props} />
+    </Sheet>
   );
 }
 
-function SheetBody({
-  title,
+function FolderNameForm({
   confirmLabel,
   initialName = '',
   onSubmit,
   onClose,
 }: FolderNameSheetProps) {
-  const insets = useSafeAreaInsets();
   const [name, setName] = useState(initialName);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -75,65 +58,32 @@ function SheetBody({
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.flex}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <Pressable
-        style={[StyleSheet.absoluteFill, styles.scrim]}
-        onPress={onClose}
-        accessibilityRole="button"
-        accessibilityLabel="Close"
+    <>
+      <TextField
+        label="Folder name"
+        value={name}
+        onChangeText={setName}
+        error={error}
+        autoFocus
+        maxLength={60}
+        autoCapitalize="sentences"
+        returnKeyType="done"
+        onSubmitEditing={handleSubmit}
       />
-      <View accessibilityViewIsModal style={[styles.sheet, { paddingBottom: insets.bottom + 24 }]}>
-        <Text accessibilityRole="header" style={styles.title}>
-          {title}
-        </Text>
-        <TextField
-          label="Folder name"
-          value={name}
-          onChangeText={setName}
-          error={error}
-          autoFocus
-          maxLength={60}
-          autoCapitalize="sentences"
-          returnKeyType="done"
-          onSubmitEditing={handleSubmit}
+      <View style={styles.actions}>
+        <Button label="Cancel" variant="ghost" onPress={onClose} />
+        <Button
+          label={confirmLabel}
+          onPress={handleSubmit}
+          loading={saving}
+          style={styles.confirm}
         />
-        <View style={styles.actions}>
-          <Button label="Cancel" variant="ghost" onPress={onClose} />
-          <Button
-            label={confirmLabel}
-            onPress={handleSubmit}
-            loading={saving}
-            style={styles.confirm}
-          />
-        </View>
       </View>
-    </KeyboardAvoidingView>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  scrim: {
-    backgroundColor: 'rgba(29, 22, 34, 0.7)',
-  },
-  sheet: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: radii.lg,
-    borderTopRightRadius: radii.lg,
-    paddingTop: 24,
-    paddingHorizontal: 24,
-    gap: 20,
-  },
-  title: {
-    ...typography.subtitle,
-    color: colors.textPrimary,
-  },
   actions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',

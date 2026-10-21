@@ -13,9 +13,9 @@ type ChipProps = {
 };
 
 /**
- * The board's `.chip`: a small pill on `elevated`; selected is a solid terracotta fill
+ * The board's `.chip`: a small pill on `elevated`; selected is a solid light mauve fill
  * with dark text. The fill change (dark → bright) is the non-color cue DESIGN.md asks
- * for, since terracotta and mauve alone are too close to tell apart.
+ * for, since the selected light mauve is also the accent color.
  *
  * Drawn about 24pt tall, so the hit slop brings it to the 44pt minimum (NFR-401). Hit
  * slop can't reach past the parent's bounds on Android, so rows of chips need enough

@@ -170,7 +170,7 @@ const styles = StyleSheet.create({
   },
   cardSelected: {
     borderColor: colors.selected,
-    boxShadow: '0px 0px 24px -8px rgba(227, 148, 110, 0.35)',
+    boxShadow: glows.card,
   },
   tile: {
     width: 56,

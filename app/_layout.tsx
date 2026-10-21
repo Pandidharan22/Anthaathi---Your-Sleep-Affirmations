@@ -32,8 +32,8 @@ const FONT_FILES = {
 };
 
 // Header titles and back labels come from here. `primary` tints header buttons
-// (back), which DESIGN.md keeps out of the terracotta accent, so it is light mauve;
-// the tab bar sets its own terracotta active tint.
+// (back), which DESIGN.md keeps out of the selected color, so it is light mauve;
+// the tab bar sets its own active tint.
 const navigationTheme = {
   ...DarkTheme,
   colors: {

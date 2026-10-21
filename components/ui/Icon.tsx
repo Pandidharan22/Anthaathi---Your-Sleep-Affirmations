@@ -21,6 +21,8 @@ const ICONS = {
   ),
   check: <Path d="M4 12l6 6L20 6" />,
   checkSmall: <Path d="M4 12l4 4L20 4" />,
+  /** A four-pointed star, for the Player's twinkling sky. */
+  sparkle: <Path d="M12 2l1.6 8.4L22 12l-8.4 1.6L12 22l-1.6-8.4L2 12l8.4-1.6z" />,
   moon: <Path d="M20 14c-1 6-6 8-10 8s-10-3-10-11a10 10 0 0 1 12-9c-3 3-4 8-2 12s6 5 10 0z" />,
   play: <Path d="M6 4l14 8-14 8V4z" />,
   pause: (
